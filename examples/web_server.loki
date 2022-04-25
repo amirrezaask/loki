@@ -1,0 +1,10 @@
+net = import("go:net/http");
+fmt = import("go:fmt");
+
+main = fn() void {
+    http.HandleFunc("/", fn(writer http.ResponseWriter, request *http.Request) {
+        fmt.Fprintf(writer, "Hello World from Go inside Loki");
+    });
+
+    http.ListenAndServe(":7070", NULL);
+}
