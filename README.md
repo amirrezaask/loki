@@ -48,9 +48,44 @@ main = fn() anyerror|void { // an
   };
   
   main = fn() void {
-    cat = Cat{};
+    cat Cat = .{};
     cat.eat();
   };
 ```
 
 - Interface implementaions are implicit.
+
+## Platforms
+Loki tries to give same experience on all supported platforms but it's not always possible, so in the standard library and any other loki code there 
+can be checks(comptime if) so if a certain code cannot be compiled against target compiler just removes it and if you use a code which can not be used
+in your target compiler will emit an error.
+
+
+## Interopability
+Loki has a direct interface to it's host programming languages so you can call directly to their libraries and apis. Both standard library and third party ones
+```
+  std = import("std");
+
+  host = std::host
+  goFmt = import("go:fmt");
+  
+  main = fn() void {
+    if host.isGo() {
+      goFmt.Println("from go code inside loki hello"); // calls golang fmt.Println
+    } 
+  }
+  
+```
+
+## Build tool 
+Loki has it's own build tool which is a wrapper and generator for it's target build tools. It will generate necessary files and set necessary env values
+from your loki.yml file.
+```
+author: "amirrezaask"
+name: "sample loki project"
+deps:
+  loki:
+    - github.com/a1/lib1
+  go:
+    - github.com/lib/pq
+```
