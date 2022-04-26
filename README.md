@@ -4,9 +4,13 @@ Loki is an experimental programming language that I am building both to learn mo
 ## Compiler Flow
 ![compiler flow](https://github.com/amirrezaask/loki/blob/master/compiler_flow.png?raw=true)
 ```mermaid
-flowchart compiler_flow
-A[Tokenize] -- Produces a token stream --> B[Parser] -- Produces an AST --> C[Semantic Analyzer] -- Produces AST --> D[Generate Typed IR];
-
+graph TD
+    A[Tokenize] -->|Produces Token Stream| B[Parser]
+    B --> |Produces AST| C[Semantic Analyzer]
+    C -->|Produces AST| D[IR Gen]
+    D --> |Produces IR| E[Target Code Generator]
+    E --> |Target Project| F[Target Toolchain]
+                    
 ```
 
 ## Syntax
