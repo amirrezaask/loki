@@ -1,11 +1,8 @@
 # Loki
-Loki is a programming language which is designed to be hosted from start. You can choose between multiple backends available, any one that is more
-appropriate for you.
+Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design. 
 
-## Compiler Backends
-- Zig
-- Go 
-- JS
+## Compiler Flow
+![compiler flow](https://github.com/amirrezaask/loki/blob/master/compiler_flow.png?raw=true)
 
 ## Syntax
 Loki tries to be as minimal in syntax but also being verbose for readability and takes lots of inspiration from Go and Zig.
