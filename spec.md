@@ -125,3 +125,13 @@ if you use Go backend:
     http.ListenAndServe(":8080", NULL);
   }
 ```
+
+Or C backend can use manual memory management instructions so:
+```
+  c = import("c:c");
+  main = fn () void {
+  // psuedo code
+    c.malloc();
+    c.free();
+  }
+```
