@@ -108,3 +108,20 @@ If conditions *only* accept boolean value or option values nothing else. It will
   }
   
 ```
+
+
+## Interop
+Since Loki is designed to be a transpiler to other languages it should have clear simple way to interact with host ecosystem. For example 
+if you use Go backend:
+```
+  http = import("go:net/http");
+  fmt = import("go:fmt");
+  
+  main = fn() void {
+    http.HandleFunc("/", fn(w http.ResponseWriter, req *http.Request) void {
+      fmt.Fprintf(w, "Hello Guys"); 
+    });
+    
+    http.ListenAndServe(":8080", NULL);
+  }
+```
