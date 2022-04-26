@@ -12,18 +12,7 @@ graph TD
                     
 ```
 
-## Syntax
-Loki tries to be as minimal in syntax but also being verbose for readability and takes lots of inspiration from Go and Zig.
-
-### Hello World
-```
-fmt = import("std/fmt"); 
-
-main = fn() anyerror|void { // an
-  return fmt::println("Hello World From Loki");
-}
-  
-```
+[Language Spec](https://github.com/amirrezaask/loki/tree/master/spec.md)
 ## Ideas
 - Loki code is *ALWAYS* just set of expressions that evaluate to a value and *ALL* expressions output must be captured.
 - Error handling is done through sum types, each failable function should return a union type of the output type and error type.
