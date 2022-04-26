@@ -2,7 +2,6 @@
 Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design. 
 
 ## Compiler Flow
-![compiler flow](https://github.com/amirrezaask/loki/blob/master/compiler_flow.png?raw=true)
 ```mermaid
 graph TD
     A[Tokenize] -->|Produces Token Stream| B[Parser]
@@ -95,13 +94,3 @@ deps:
   go:
     - github.com/lib/pq
 ```
-
-## Compiler Flow
-Loki does this on every call to compile
-1. read a source file
-2. tokenize
-3. turn token stream into AST
-4. optimize codes and expand syntactic sugars
-5. semantic analyze and validation
-6. pass shaved AST to code generation backend
-7. after code generation setup env and build generated code
