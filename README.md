@@ -29,6 +29,7 @@ graph TD
     }
   }
 ```
+- Compile time code execution is a must, both types and also values that can be evaluated at compile time.
 - Types are first class values, basically compile time constants, so types are treated just like other values.
 ```
   Animal = interface {

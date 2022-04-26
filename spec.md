@@ -135,3 +135,18 @@ Or C backend can use manual memory management instructions so:
     c.free();
   }
 ```
+
+## Compile Time Code Execution
+Since types are first class, we need to evaluate constant values at compile time and since we are doing that let's do 
+it for everything, so if/for/fn calls that has no dependency to runtime should just be executed at compile time.
+```
+target = import("std/target");
+
+main = fn() void {
+  // since target is known at compile time we can just simplify this block and remove dead branches
+  if target.kind == target.Targets.go {
+  } else {
+  }
+}  
+```
+
