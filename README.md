@@ -7,7 +7,8 @@ graph TD
     A[Tokenize] -->|Produces Token Stream| B[Parser]
     B --> |Produces AST| C[Semantic Analyzer]
     C -->|Produces AST| D[IR Gen]
-    D --> |Produces IR| E[Target Code Generator]
+    D --> |AST| X[Semantic Analysis again]
+    X --> |Produces IR| E[Target Code Generator]
     E --> |Target Project| F[Target Toolchain]
                     
 ```
@@ -48,7 +49,7 @@ graph TD
   };
 ```
 
-- Interface implementaions are implicit.
+- Interface implementaions are implicit and will be check during semantic analysis.
 
 ## Platforms
 Loki tries to give same experience on all supported platforms but it's not always possible, so in the standard library and any other loki code there 
