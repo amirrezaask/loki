@@ -17,38 +17,8 @@ graph TD
 ## Ideas
 - Loki code is *ALWAYS* just set of expressions that evaluate to a value and *ALL* expressions output must be captured.
 - Error handling is done through sum types, each failable function should return a union type of the output type and error type.
-```
-  MathErrors = enum {
-    DivByZero,
-  };
-
-  div = fn(a int, b int) MathErrors|float64 {
-    return if b == 0 {
-      MathErrors::DivByZero
-    } else {
-      a / b
-    }
-  }
-```
 - Compile time code execution is a must, both types and also values that can be evaluated at compile time.
 - Types are first class values, basically compile time constants, so types are treated just like other values.
-```
-  Animal = interface {
-    eat()
-  };
-  
-  Cat = struct {
-    eat = fn (self: Self) void {
-      
-    }
-  };
-  
-  main = fn() void {
-    cat Cat = .{};
-    cat.eat();
-  };
-```
-
 - Interface implementaions are implicit and will be check during semantic analysis.
 
 ## Platforms
@@ -59,19 +29,6 @@ in your target compiler will emit an error.
 
 ## Interopability
 Loki has a direct interface to it's host programming languages so you can call directly to their libraries and apis. Both standard library and third party ones
-```
-  std = import("std");
-
-  host = std::host
-  goFmt = import("go:fmt");
-  
-  main = fn() void {
-    if host.isGo() {
-      goFmt.Println("from go code inside loki hello"); // calls golang fmt.Println
-    } 
-  }
-  
-```
 
 ## Build tool 
 Loki has it's own build tool which is a wrapper and generator for it's target build tools. It will generate necessary files and set necessary env values
