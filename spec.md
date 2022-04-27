@@ -170,6 +170,10 @@ the return type.
     div_by_zero,
   };
   
+  main = fn() errors!void {
+    return div(2,0).!; // .! special syntax generates an if condition that checks what field of union type is live (only for error handling).  
+  }
+  
   div = fn(a int, b int) errors!float64 { // the return type is equivalent to union {errors, float64}
     if b == 0 {
       return errors.div_by_zero;
