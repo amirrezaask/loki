@@ -80,8 +80,8 @@ You can see all types available in Loki down here
 
   type1? // optional type can be null, other values cannot be null
 
-  type1!type2 // union type shorthand syntax
-  
+  type1!type2 // tuple shorthand equivalent to (type1, type2)
+   
   type // type itself is a type :) since types are first class values and you can work with them like any other value.
   
 ```
@@ -163,15 +163,14 @@ main = fn() void {
 
 ## Error handling
 Error handling looks much like Zig and Go, Errors are just values like anything else and they are not even specific type most of the times they are going
-to be enums or unions. by convention functions that can fail will return a union with two fields and first field is the error and the second field is 
-the return type.
+to be enums or unions.by convention failable functions return a tuple, first type is error type, second type is the function return value.
 ```
   errors = enum {
     div_by_zero,
   };
   
   main = fn() errors!void {
-    return div(2,0).!; // .! special syntax generates an if condition that checks what field of union type is live (only for error handling).  
+    return div(2,0).!; // .! special syntax generates an if condtion that checks first for first element of tuple if nothing then continue else return error.
   }
   
   div = fn(a int, b int) errors!float64 { // the return type is equivalent to union {errors, float64}
