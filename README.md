@@ -7,7 +7,7 @@ graph TD
     A[Tokenize] -->|Produces Token Stream| B[Parser]
     B --> |Produces AST| C[Semantic Analyzer]
     C -->|Produces AST| D[IR Gen]
-    D --> |AST| X[Semantic Analysis again]
+    D --> |IR| X[Semantic Analysis again]
     X --> |Produces IR| E[Target Code Generator]
     E --> |Target Project| F[Target Toolchain]
                     
