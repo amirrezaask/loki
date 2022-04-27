@@ -1,6 +1,7 @@
 # Loki Spec
 ## Declarations
-Every thing in Loki is just a declaration, functions, variables, types everything is *JUST* declaration.
+Every thing in Loki is just value and values can bind to names using declarations. delarations by default are immutable unless explicitly
+annotated using `mut` keyword. functions, variables, types everything is *JUST* declaration.
 ```
   [mut] [name]: [type] = expression 
 ```
@@ -117,23 +118,24 @@ Each file is a module, Each directory is also module, and modules are just a spe
   math = struct {};
 ```
 
-
-
 ## Interop
 Since Loki is designed to be a transpiler to other languages it should have clear simple way to interact with host ecosystem. For example 
 if you use Go backend:
 ```
-  http = import("go:net/http");
-  fmt = import("go:fmt");
+  if import("std/target").name == "go" {
+    http = import("go:net/http");
+    fmt = import("go:fmt");
   
-  main = fn() anyerror!void {
-    try http.HandleFunc("/", fn(w http.ResponseWriter, req *http.Request) void {
-      fmt.Fprintf(w, "Hello Guys"); 
-    });
+    main = fn() anyerror!void {
+      try http.HandleFunc("/", fn(w http.ResponseWriter, req *http.Request) void {
+        fmt.Fprintf(w, "Hello Guys"); 
+      });
     
-    try http.ListenAndServe(":8080", NULL);
+      try http.ListenAndServe(":8080", NULL);
+    }
   }
 ```
+note that if conditions that have a constant compile time know condition can be reduced to the only live branch.
 
 Or C backend can use manual memory management instructions so:
 ```
