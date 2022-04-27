@@ -23,7 +23,10 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
     let mut current_token: Option<Token> = None;
     for c in code.chars() {
         println!("current char is {}", c);
-        if tokens.last().is_some() && tokens.last().unwrap().ty == TokenType::DoubleQuote {
+        if tokens.last().is_some()
+            && tokens.last().unwrap().ty == TokenType::DoubleQuote
+            && c != '"'
+        {
             if let Some(tok) = &mut current_token {
                 tok.value.push(c);
             } else {
@@ -52,16 +55,6 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 ty: TokenType::Bind,
                 value: String::from("="),
             });
-        } else if tokens.last().is_some() && tokens.last().unwrap().ty == TokenType::DoubleQuote {
-            println!("3");
-            if let Some(tok) = &mut current_token {
-                tok.value.push(c);
-            } else {
-                current_token = Some(Token {
-                    ty: TokenType::StringLiteral,
-                    value: String::from(c.to_string()),
-                });
-            }
         } else if (c >= 'A' && c <= 'z')
             || c == '_'
             || (current_token.is_some()
@@ -95,7 +88,9 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             }
         } else if c == '"' {
             println!("7");
-            if current_token.is_some() {
+            if current_token.is_some()
+                && current_token.clone().unwrap().ty != TokenType::StringLiteral
+            {
                 return Err(Errors::CannotCreateStringWhileInOtherToken);
             }
 
@@ -164,6 +159,42 @@ mod tests {
                 Token {
                     ty: TokenType::Number,
                     value: String::from("123")
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: String::from(";")
+                }
+            ]
+        ));
+    }
+
+    #[test]
+    fn test_assign_string() {
+        let tokens = tokenize("x  =   \"Salam\";");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: String::from("x")
+                },
+                Token {
+                    ty: TokenType::Bind,
+                    value: String::from("=")
+                },
+                Token {
+                    ty: TokenType::DoubleQuote,
+                    value: String::from("\"")
+                },
+                Token {
+                    ty: TokenType::StringLiteral,
+                    value: String::from("Salam")
+                },
+                Token {
+                    ty: TokenType::DoubleQuote,
+                    value: String::from("\"")
                 },
                 Token {
                     ty: TokenType::SemiColon,
