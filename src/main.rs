@@ -105,12 +105,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
     }
     Ok(tokens)
 }
-
-fn main() {
-    let tokens = tokenize("x = 212123123;").unwrap();
-
-    println!("{:?}", tokens)
-}
+fn main() {}
 
 #[cfg(test)]
 mod tests {
