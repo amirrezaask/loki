@@ -7,6 +7,7 @@ annotated using `mut` keyword. functions, variables, types everything is *JUST* 
 ```
 ```
   y = 3;
+  x = "name";
 
   slice = [1,2,3,4];
 
