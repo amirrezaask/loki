@@ -7,10 +7,11 @@ enum Errors {
 enum TokenType {
     SemiColon,
     StringLiteral,
-    DoubleQuote,
+    DoubleQuoteStart,
+    DoubleQuoteEnd,
     Ident,
     Number,
-    Bind,
+    AssignOp,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -24,7 +25,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
     for c in code.chars() {
         println!("current char is {}", c);
         if tokens.last().is_some()
-            && tokens.last().unwrap().ty == TokenType::DoubleQuote
+            && tokens.last().unwrap().ty == TokenType::DoubleQuoteStart
             && c != '"'
         {
             if let Some(tok) = &mut current_token {
@@ -52,7 +53,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 tokens.push(tok.clone());
             }
             tokens.push(Token {
-                ty: TokenType::Bind,
+                ty: TokenType::AssignOp,
                 value: String::from("="),
             });
         } else if (c >= 'A' && c <= 'z')
@@ -92,12 +93,22 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 && current_token.clone().unwrap().ty != TokenType::StringLiteral
             {
                 return Err(Errors::CannotCreateStringWhileInOtherToken);
+            } else if current_token.is_some()
+                && current_token.clone().unwrap().ty == TokenType::StringLiteral
+            {
+                println!("ending string literal");
+                tokens.push(current_token.clone().unwrap());
+                tokens.push(Token {
+                    ty: TokenType::DoubleQuoteEnd,
+                    value: String::from("\""),
+                });
+                current_token = None;
+            } else {
+                tokens.push(Token {
+                    ty: TokenType::DoubleQuoteStart,
+                    value: String::from("\""),
+                });
             }
-
-            tokens.push(Token {
-                ty: TokenType::DoubleQuote,
-                value: String::from("\""),
-            });
         }
     }
     if let Some(tok) = current_token {
@@ -134,6 +145,30 @@ mod tests {
             }],
         );
     }
+
+    #[test]
+    fn string_token() {
+        let tokens = tokenize("\"amirreza\"");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::DoubleQuoteStart,
+                    value: String::from("\""),
+                },
+                Token {
+                    ty: TokenType::StringLiteral,
+                    value: String::from("amirreza"),
+                },
+                Token {
+                    ty: TokenType::DoubleQuoteEnd,
+                    value: String::from("\""),
+                },
+            ],
+        );
+    }
     #[test]
     fn test_assign_number() {
         let tokens = tokenize("x  =   123;");
@@ -148,7 +183,7 @@ mod tests {
                     value: String::from("x")
                 },
                 Token {
-                    ty: TokenType::Bind,
+                    ty: TokenType::AssignOp,
                     value: String::from("=")
                 },
                 Token {
@@ -176,11 +211,11 @@ mod tests {
                     value: String::from("x")
                 },
                 Token {
-                    ty: TokenType::Bind,
+                    ty: TokenType::AssignOp,
                     value: String::from("=")
                 },
                 Token {
-                    ty: TokenType::DoubleQuote,
+                    ty: TokenType::DoubleQuoteStart,
                     value: String::from("\"")
                 },
                 Token {
@@ -188,7 +223,7 @@ mod tests {
                     value: String::from("Salam")
                 },
                 Token {
-                    ty: TokenType::DoubleQuote,
+                    ty: TokenType::DoubleQuoteEnd,
                     value: String::from("\"")
                 },
                 Token {
