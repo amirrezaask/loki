@@ -11,6 +11,7 @@ enum TokenType {
     DoubleQuoteEnd,
     SqBracketOpen,
     SqBracketClose,
+    Comma,
     Ident,
     Number,
     AssignOp,
@@ -31,6 +32,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             && tokens.last().unwrap().ty == TokenType::DoubleQuoteStart
             && c != '"'
         {
+            println!("inside string literal");
             if let Some(tok) = &mut current_token {
                 match &mut tok.value {
                     Some(s) => s.push(c),
@@ -43,7 +45,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 })
             }
         } else if c == ';' {
-            println!("1");
+            println!("SEMI COLON");
             if let Some(tok) = &current_token {
                 tokens.push(tok.clone());
             }
@@ -54,7 +56,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
 
             current_token = None;
         } else if c == '=' {
-            println!("2");
+            println!("assign");
             if let Some(tok) = &current_token {
                 tokens.push(tok.clone());
             }
@@ -62,13 +64,14 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 ty: TokenType::AssignOp,
                 value: None,
             });
-        } else if (c >= 'A' && c <= 'z')
+        } else if (c >= 'A' && c <= 'z' && c != '[' && c != ']')
             || c == '_'
             || (current_token.is_some()
                 && current_token.clone().unwrap().ty == TokenType::Ident
                 && c != ' ')
         {
-            println!("4");
+            println!("[ >= 'A': {} [ <= 'z': {}", c >= 'A', c <= 'z');
+            println!("identifier");
             if let Some(tok) = &mut current_token {
                 match &mut tok.value {
                     Some(s) => s.push(c),
@@ -81,13 +84,13 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 });
             }
         } else if c == ' ' {
-            println!("5");
+            println!("space");
             if let Some(tok) = &current_token {
                 tokens.push(tok.clone());
             }
             current_token = None;
         } else if c >= '0' && c <= '9' {
-            println!("6");
+            println!("Number state");
             if let Some(tok) = &mut current_token {
                 match &mut tok.value {
                     Some(s) => s.push(c),
@@ -100,7 +103,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 });
             }
         } else if c == '"' {
-            println!("7");
+            println!("Double Quote state");
             if current_token.is_some()
                 && current_token.clone().unwrap().ty != TokenType::StringLiteral
             {
@@ -122,11 +125,32 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 });
             }
         } else if c == '[' {
+            println!("OPEN SQ BRACKET");
             if current_token.is_some() {
                 tokens.push(current_token.clone().unwrap());
             }
             tokens.push(Token {
                 ty: TokenType::SqBracketOpen,
+                value: None,
+            });
+            current_token = None;
+        } else if c == ']' {
+            println!("CLOSE SQ BRACKET");
+            if current_token.is_some() {
+                tokens.push(current_token.clone().unwrap());
+            }
+            tokens.push(Token {
+                ty: TokenType::SqBracketClose,
+                value: None,
+            });
+            current_token = None;
+        } else if c == ',' {
+            println!("COMMA State");
+            if current_token.is_some() {
+                tokens.push(current_token.clone().unwrap());
+            }
+            tokens.push(Token {
+                ty: TokenType::Comma,
                 value: None,
             });
             current_token = None;
@@ -191,10 +215,11 @@ mod tests {
         );
     }
     #[test]
-    fn test_assign_number() {
-        let tokens = tokenize("x  =   123;");
+    fn test_assign_number_mixed_with_sq_brackets() {
+        let tokens = tokenize("x  =   123[12, \"name\"];");
         assert!(tokens.is_ok());
         let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
         assert!(eq_vecs(
             tokens,
             vec![
@@ -209,6 +234,34 @@ mod tests {
                 Token {
                     ty: TokenType::Number,
                     value: Some(String::from("123"))
+                },
+                Token {
+                    ty: TokenType::SqBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Number,
+                    value: Some(String::from("12"))
+                },
+                Token {
+                    ty: TokenType::Comma,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::DoubleQuoteStart,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::StringLiteral,
+                    value: Some(String::from("name")),
+                },
+                Token {
+                    ty: TokenType::DoubleQuoteEnd,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SqBracketClose,
+                    value: None,
                 },
                 Token {
                     ty: TokenType::SemiColon,
@@ -249,6 +302,58 @@ mod tests {
                 Token {
                     ty: TokenType::SemiColon,
                     value: None,
+                }
+            ]
+        ));
+    }
+    #[test]
+    fn test_slices() {
+        let tokens = tokenize("x  =  [12, \"name\"];");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SqBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Number,
+                    value: Some(String::from("12"))
+                },
+                Token {
+                    ty: TokenType::Comma,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::DoubleQuoteStart,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::StringLiteral,
+                    value: Some(String::from("name")),
+                },
+                Token {
+                    ty: TokenType::DoubleQuoteEnd,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SqBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None
                 }
             ]
         ));
