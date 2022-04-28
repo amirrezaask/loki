@@ -8,6 +8,7 @@ enum TokenType {
     SemiColon,
     StringLiteral,
     IfKeyword,
+    ForKeyword,
     InterfaceKeyword,
     StructKeyword,
     DoubleQuoteStart,
@@ -151,6 +152,13 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                             });
                             current_token = None;
                             continue;
+                        } else if s == "for" {
+                            tokens.push(Token {
+                                ty: TokenType::ForKeyword,
+                                value: None,
+                            });
+                            current_token = None;
+                            continue;
                         }
                     }
                     None => tok.value = Some(c.to_string()),
@@ -258,6 +266,43 @@ mod tests {
                 },
                 Token {
                     ty: TokenType::StructKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+            ]
+        ));
+    }
+
+    #[test]
+    fn test_assign_interface() {
+        let tokens = tokenize("x = interface{};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::InterfaceKeyword,
                     value: None,
                 },
                 Token {
