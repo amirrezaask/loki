@@ -9,6 +9,8 @@ enum TokenType {
     StringLiteral,
     DoubleQuoteStart,
     DoubleQuoteEnd,
+    SqBracketOpen,
+    SqBracketClose,
     Ident,
     Number,
     AssignOp,
@@ -16,11 +18,12 @@ enum TokenType {
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
     pub ty: TokenType,
-    pub value: String,
+    pub value: Option<String>,
 }
 
 fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
     let mut tokens: Vec<Token> = Vec::new();
+    // TODO can we use Rc<Option<Token>> ?
     let mut current_token: Option<Token> = None;
     for c in code.chars() {
         println!("current char is {}", c);
@@ -29,11 +32,14 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             && c != '"'
         {
             if let Some(tok) = &mut current_token {
-                tok.value.push(c);
+                match &mut tok.value {
+                    Some(s) => s.push(c),
+                    None => tok.value = Some(c.to_string()),
+                };
             } else {
                 current_token = Some(Token {
                     ty: TokenType::StringLiteral,
-                    value: c.to_string(),
+                    value: Some(c.to_string()),
                 })
             }
         } else if c == ';' {
@@ -43,7 +49,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             }
             tokens.push(Token {
                 ty: TokenType::SemiColon,
-                value: String::from(";"),
+                value: None,
             });
 
             current_token = None;
@@ -54,7 +60,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             }
             tokens.push(Token {
                 ty: TokenType::AssignOp,
-                value: String::from("="),
+                value: None,
             });
         } else if (c >= 'A' && c <= 'z')
             || c == '_'
@@ -64,11 +70,14 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
         {
             println!("4");
             if let Some(tok) = &mut current_token {
-                tok.value.push(c);
+                match &mut tok.value {
+                    Some(s) => s.push(c),
+                    None => tok.value = Some(c.to_string()),
+                };
             } else {
                 current_token = Some(Token {
                     ty: TokenType::Ident,
-                    value: String::from(c.to_string()),
+                    value: Some(String::from(c.to_string())),
                 });
             }
         } else if c == ' ' {
@@ -80,11 +89,14 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
         } else if c >= '0' && c <= '9' {
             println!("6");
             if let Some(tok) = &mut current_token {
-                tok.value.push(c);
+                match &mut tok.value {
+                    Some(s) => s.push(c),
+                    None => tok.value = Some(c.to_string()),
+                }
             } else {
                 current_token = Some(Token {
                     ty: TokenType::Number,
-                    value: String::from(c.to_string()),
+                    value: Some(String::from(c.to_string())),
                 });
             }
         } else if c == '"' {
@@ -100,15 +112,24 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 tokens.push(current_token.clone().unwrap());
                 tokens.push(Token {
                     ty: TokenType::DoubleQuoteEnd,
-                    value: String::from("\""),
+                    value: None,
                 });
                 current_token = None;
             } else {
                 tokens.push(Token {
                     ty: TokenType::DoubleQuoteStart,
-                    value: String::from("\""),
+                    value: None,
                 });
             }
+        } else if c == '[' {
+            if current_token.is_some() {
+                tokens.push(current_token.clone().unwrap());
+            }
+            tokens.push(Token {
+                ty: TokenType::SqBracketOpen,
+                value: None,
+            });
+            current_token = None;
         }
     }
     if let Some(tok) = current_token {
@@ -141,7 +162,7 @@ mod tests {
             tokens,
             vec![Token {
                 ty: TokenType::Number,
-                value: String::from("123"),
+                value: Some(String::from("123")),
             }],
         );
     }
@@ -156,15 +177,15 @@ mod tests {
             vec![
                 Token {
                     ty: TokenType::DoubleQuoteStart,
-                    value: String::from("\""),
+                    value: None,
                 },
                 Token {
                     ty: TokenType::StringLiteral,
-                    value: String::from("amirreza"),
+                    value: Some(String::from("amirreza")),
                 },
                 Token {
                     ty: TokenType::DoubleQuoteEnd,
-                    value: String::from("\""),
+                    value: None,
                 },
             ],
         );
@@ -174,25 +195,24 @@ mod tests {
         let tokens = tokenize("x  =   123;");
         assert!(tokens.is_ok());
         let tokens = tokens.unwrap();
-        assert_eq!(tokens.len(), 4);
         assert!(eq_vecs(
             tokens,
             vec![
                 Token {
                     ty: TokenType::Ident,
-                    value: String::from("x")
+                    value: Some(String::from("x"))
                 },
                 Token {
                     ty: TokenType::AssignOp,
-                    value: String::from("=")
+                    value: None,
                 },
                 Token {
                     ty: TokenType::Number,
-                    value: String::from("123")
+                    value: Some(String::from("123"))
                 },
                 Token {
                     ty: TokenType::SemiColon,
-                    value: String::from(";")
+                    value: None
                 }
             ]
         ));
@@ -208,27 +228,27 @@ mod tests {
             vec![
                 Token {
                     ty: TokenType::Ident,
-                    value: String::from("x")
+                    value: Some(String::from("x"))
                 },
                 Token {
                     ty: TokenType::AssignOp,
-                    value: String::from("=")
+                    value: None,
                 },
                 Token {
                     ty: TokenType::DoubleQuoteStart,
-                    value: String::from("\"")
+                    value: None,
                 },
                 Token {
                     ty: TokenType::StringLiteral,
-                    value: String::from("Salam")
+                    value: Some(String::from("Salam")),
                 },
                 Token {
                     ty: TokenType::DoubleQuoteEnd,
-                    value: String::from("\"")
+                    value: None,
                 },
                 Token {
                     ty: TokenType::SemiColon,
-                    value: String::from(";")
+                    value: None,
                 }
             ]
         ));
