@@ -21,6 +21,8 @@ enum TokenType {
     Ident,
     Number,
     AssignOp,
+    Colon,
+    IntKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -57,6 +59,17 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             }
             tokens.push(Token {
                 ty: TokenType::SemiColon,
+                value: None,
+            });
+
+            current_token = None;
+        } else if c == ':' {
+            println!("COLON");
+            if let Some(tok) = &current_token {
+                tokens.push(tok.clone());
+            }
+            tokens.push(Token {
+                ty: TokenType::Colon,
                 value: None,
             });
 
@@ -124,7 +137,9 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             || c == '_'
             || (current_token.is_some()
                 && current_token.clone().unwrap().ty == TokenType::Ident
-                && c != ' ')
+                && c != ' '
+                && c != '\t'
+                && c != '\n')
         {
             println!("identifier/keyword");
             if let Some(tok) = &mut current_token {
@@ -159,6 +174,13 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                             });
                             current_token = None;
                             continue;
+                        } else if s == "int" {
+                            tokens.push(Token {
+                                ty: TokenType::IntKeyword,
+                                value: None,
+                            });
+                            current_token = None;
+                            continue;
                         }
                     }
                     None => tok.value = Some(c.to_string()),
@@ -169,8 +191,8 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                     value: Some(String::from(c.to_string())),
                 });
             }
-        } else if c == ' ' {
-            println!("space");
+        } else if c == ' ' || c == '\n' || c == '\t' {
+            println!("space|newline");
             if let Some(tok) = &current_token {
                 tokens.push(tok.clone());
             }
@@ -249,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_assign_struct() {
-        let tokens = tokenize("x = struct{};");
+        let tokens = tokenize("x = struct{\n\ty: int\n};");
         assert!(tokens.is_ok());
         let tokens = tokens.unwrap();
         println!("{:?}", tokens);
@@ -270,6 +292,18 @@ mod tests {
                 },
                 Token {
                     ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("y")),
+                },
+                Token {
+                    ty: TokenType::Colon,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::IntKeyword,
                     value: None,
                 },
                 Token {
