@@ -8,6 +8,7 @@ enum TokenType {
     SemiColon,
     StringLiteral,
     IfKeyword,
+    ElseKeyword,
     ForKeyword,
     InterfaceKeyword,
     StructKeyword,
@@ -23,6 +24,8 @@ enum TokenType {
     AssignOp,
     Colon,
     IntKeyword,
+    TrueKeyword,
+    FalseKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -52,9 +55,23 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
                 value: None,
             });
         } else if tok.value == Some(String::from("int")) {
-            println!("oomad inja ?");
             return Some(Token {
                 ty: TokenType::IntKeyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("true")) {
+            return Some(Token {
+                ty: TokenType::TrueKeyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("false")) {
+            return Some(Token {
+                ty: TokenType::FalseKeyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("else")) {
+            return Some(Token {
+                ty: TokenType::ElseKeyword,
                 value: None,
             })
         } else {
@@ -349,6 +366,59 @@ mod tests {
                     ty: TokenType::SemiColon,
                     value: None,
                 }
+            ]
+        ));
+    }
+
+    #[test]
+    fn test_assign_if() {
+        let tokens = tokenize("x = if true {} else {};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::IfKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::TrueKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::ElseKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                },
             ]
         ));
     }
