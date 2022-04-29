@@ -1,5 +1,6 @@
 mod tokenizer;
 
+fn main() {}
 
 
 
