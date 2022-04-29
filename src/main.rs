@@ -24,6 +24,8 @@ enum TokenType {
     AssignOp,
     Colon,
     IntKeyword,
+    Float32Keyword,
+    Float64Keyword,
     TrueKeyword,
     FalseKeyword,
     LesserOp,
@@ -34,6 +36,7 @@ enum TokenType {
     ModOp,
     MulOp,
     InKeyword,
+    UnionKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -85,6 +88,21 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
         } else if tok.value == Some(String::from("in")) {
             return Some(Token {
                 ty: TokenType::InKeyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("union")) {
+            return Some(Token {
+                ty: TokenType::UnionKeyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("float32")) {
+            return Some(Token {
+                ty: TokenType::Float32Keyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("float64")) {
+            return Some(Token {
+                ty: TokenType::Float64Keyword,
                 value: None,
             })
         } else {
@@ -814,6 +832,71 @@ mod tests {
                     ty: TokenType::SemiColon,
                     value: None
                 }
+            ]
+        ));
+    }
+    #[test]
+    fn test_unions() {
+        let tokens = tokenize("u = union {\n\tx:int,\n\ty:float32\n};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("u"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::UnionKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x")),
+                },
+                Token {
+                    ty: TokenType::Colon,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::IntKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Comma,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("y")),
+                },
+                Token {
+                    ty: TokenType::Colon,
+                    value: None
+                },
+                Token {
+                    ty: TokenType::Float32Keyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+ 
             ]
         ));
     }
