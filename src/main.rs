@@ -243,11 +243,12 @@ fn main() {}
 
 #[cfg(test)]
 mod tests {
-    fn eq_vecs<T: Eq>(v1: Vec<T>, v2: Vec<T>) -> bool {
+    fn eq_vecs<T: Eq + std::fmt::Debug>(v1: Vec<T>, v2: Vec<T>) -> bool {
         if v1.len() != v2.len() {
-            return false;
+            assert_eq!(v1.len(), v2.len());
         }
         for i in 0..v1.len() {
+            assert_eq!(v1[i], v2[i]);
             if v1[i] != v2[i] {
                 return false;
             }
