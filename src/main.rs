@@ -18,6 +18,8 @@ enum TokenType {
     CuBracketClose,
     SqBracketOpen,
     SqBracketClose,
+    ParenOpen,
+    ParenClose,
     Comma,
     Ident,
     Number,
@@ -38,6 +40,7 @@ enum TokenType {
     InKeyword,
     UnionKeyword,
     EnumKeyword,
+    FunctionKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -109,6 +112,11 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
         } else if tok.value == Some(String::from("enum")) {
             return Some(Token {
                 ty: TokenType::EnumKeyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("fn")) {
+            return Some(Token {
+                ty: TokenType::FunctionKeyword,
                 value: None,
             })
         } else {
@@ -214,6 +222,34 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 
                 _ => unreachable!(),
             }
+            current_token = None;
+        } else if c == '(' {
+            println!("OPEN Paren");
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
+            }
+            tokens.push(Token {
+                ty: TokenType::ParenOpen,
+                value: None,
+            });
+            current_token = None;
+        } else if c == ')' {
+            println!("CLOSE Paren");
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
+            }
+            tokens.push(Token {
+                ty: TokenType::ParenClose,
+                value: None,
+            });
             current_token = None;
         } else if c == '[' {
             println!("OPEN SQ BRACKET");
@@ -942,6 +978,71 @@ mod tests {
                 Token {
                     ty: TokenType::Ident,
                     value: Some(String::from("y")),
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+ 
+            ]
+        ));
+    }
+    #[test]
+    fn test_fns() {
+        let tokens = tokenize("u = fn(x: int): int {};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("u"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::FunctionKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::ParenOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x")),
+                },
+                Token {
+                    ty: TokenType::Colon,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::IntKeyword,
+                    value: None
+                },
+                Token {
+                    ty: TokenType::ParenClose,
+                    value: None
+                },
+                Token {
+                    ty: TokenType::Colon,
+                    value: None
+                },
+                Token {
+                    ty: TokenType::IntKeyword,
+                    value: None
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None
                 },
                 Token {
                     ty: TokenType::CuBracketClose,
