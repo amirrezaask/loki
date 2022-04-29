@@ -37,6 +37,7 @@ enum TokenType {
     MulOp,
     InKeyword,
     UnionKeyword,
+    EnumKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -103,6 +104,11 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
         } else if tok.value == Some(String::from("float64")) {
             return Some(Token {
                 ty: TokenType::Float64Keyword,
+                value: None,
+            })
+        } else if tok.value == Some(String::from("enum")) {
+            return Some(Token {
+                ty: TokenType::EnumKeyword,
                 value: None,
             })
         } else {
@@ -887,6 +893,55 @@ mod tests {
                 Token {
                     ty: TokenType::Float32Keyword,
                     value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+ 
+            ]
+        ));
+    }
+    #[test]
+    fn test_enums() {
+        let tokens = tokenize("u = enum {\n\tx,\n\ty\n};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("u"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::EnumKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x")),
+                },
+                Token {
+                    ty: TokenType::Comma,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("y")),
                 },
                 Token {
                     ty: TokenType::CuBracketClose,
