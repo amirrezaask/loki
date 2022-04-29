@@ -26,6 +26,13 @@ enum TokenType {
     IntKeyword,
     TrueKeyword,
     FalseKeyword,
+    LesserOp,
+    GreaterOp,
+    PlusOp,
+    MinusOp,
+    DivOp,
+    ModOp,
+    MulOp,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -39,12 +46,12 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
                 ty: TokenType::IfKeyword,
                 value: None,
             });
-        } else if tok.value == Some(String::from("interface" )){
+        } else if tok.value == Some(String::from("interface")) {
             return Some(Token {
                 ty: TokenType::InterfaceKeyword,
                 value: None,
             });
-        } else if tok.value == Some(String::from("struct")){
+        } else if tok.value == Some(String::from("struct")) {
             return Some(Token {
                 ty: TokenType::StructKeyword,
                 value: None,
@@ -58,22 +65,22 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
             return Some(Token {
                 ty: TokenType::IntKeyword,
                 value: None,
-            })
+            });
         } else if tok.value == Some(String::from("true")) {
             return Some(Token {
                 ty: TokenType::TrueKeyword,
                 value: None,
-            })
+            });
         } else if tok.value == Some(String::from("false")) {
             return Some(Token {
                 ty: TokenType::FalseKeyword,
                 value: None,
-            })
+            });
         } else if tok.value == Some(String::from("else")) {
             return Some(Token {
                 ty: TokenType::ElseKeyword,
                 value: None,
-            })
+            });
         } else {
             return None;
         }
@@ -132,7 +139,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             });
 
             current_token = None;
-        } else if c == '=' {
+        } else if c == '=' || c == '<' || c == '>' || c == '+' || c == '/' || c == '-' || c == '%' || c == '*' {
             println!("assign");
             if let Some(tok) = &current_token {
                 if let Some(actual) = ambigious_ident(tok) {
@@ -141,10 +148,43 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                     tokens.push(tok.clone());
                 }
             }
-            tokens.push(Token {
-                ty: TokenType::AssignOp,
-                value: None,
-            });
+            match c {
+                '=' => tokens.push(Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                }),
+                '<' => tokens.push(Token {
+                    ty: TokenType::LesserOp,
+                    value: None,
+                }),
+                '>' => tokens.push(Token {
+                    ty: TokenType::GreaterOp,
+                    value: None,
+                }),
+                '+' => tokens.push(Token {
+                    ty: TokenType::PlusOp,
+                    value: None,
+                }),
+                '-' => tokens.push(Token {
+                    ty: TokenType::MinusOp,
+                    value: None,
+                }),
+                '*' => tokens.push(Token {
+                    ty: TokenType::MulOp,
+                    value: None,
+                }),
+                '/' => tokens.push(Token {
+                    ty: TokenType::DivOp,
+                    value: None,
+                }),
+                '%' => tokens.push(Token {
+                    ty: TokenType::ModOp,
+                    value: None,
+                }),
+                
+                _ => unreachable!(),
+            }
+            current_token = None;
         } else if c == '[' {
             println!("OPEN SQ BRACKET");
             if let Some(tok) = &current_token {
@@ -320,7 +360,110 @@ mod tests {
             }],
         );
     }
-
+    #[test]
+    fn for_loop_c_syntax() {
+        let tokens = tokenize("for i=0;i<10;i++ {};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::ForKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("i")),
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Number,
+                    value: Some(String::from("0")),
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("i")),
+                },
+                Token {
+                    ty: TokenType::LesserOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Number,
+                    value: Some(String::from("10")),
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("i")),
+                },
+                Token {
+                    ty: TokenType::PlusOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::PlusOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+            ]
+        ));
+    }
+    #[test]
+    fn for_loop_while_syntax() {
+        let tokens = tokenize("for true {};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::ForKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::TrueKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+            ]
+        ));
+    }
     #[test]
     fn test_assign_struct() {
         let tokens = tokenize("x = struct{\n\ty: int\n};");
