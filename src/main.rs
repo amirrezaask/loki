@@ -33,6 +33,7 @@ enum TokenType {
     DivOp,
     ModOp,
     MulOp,
+    InKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct Token {
@@ -81,6 +82,11 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
                 ty: TokenType::ElseKeyword,
                 value: None,
             });
+        } else if tok.value == Some(String::from("in")) {
+            return Some(Token {
+                ty: TokenType::InKeyword,
+                value: None,
+            })
         } else {
             return None;
         }
@@ -432,6 +438,47 @@ mod tests {
             ]
         ));
     }
+    #[test]
+    fn for_loop_in_syntax() {
+        let tokens = tokenize("for elem in some {};");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::ForKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("elem")),
+                },
+                Token {
+                    ty: TokenType::InKeyword,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("some")),
+                },
+                Token {
+                    ty: TokenType::CuBracketOpen,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::CuBracketClose,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::SemiColon,
+                    value: None,
+                }
+            ]
+        ));
+    }
+
     #[test]
     fn for_loop_while_syntax() {
         let tokens = tokenize("for true {};");

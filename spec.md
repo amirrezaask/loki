@@ -13,7 +13,7 @@ annotated using `mut` keyword. functions, variables, types everything is *JUST* 
 
   // defining interface
   i = interface{
-    eat()
+    eat(): void
   }; 
   
   z = if true {
@@ -23,14 +23,14 @@ annotated using `mut` keyword. functions, variables, types everything is *JUST* 
   };
 
   // defining a function
-  f = fn(x int, y int) int {
+  f = fn(x: int, y: int): int {
     x + y
   };
 
   // defining struct  
   s = struct {
-    a int,
-    b int,
+    a: int,
+    b: int,
   };
 ```
 
@@ -127,7 +127,7 @@ if you use Go backend:
     http = import("go:net/http");
     fmt = import("go:fmt");
   
-    main = fn() anyerror!void {
+    main = fn(): anyerror!void {
       try http.HandleFunc("/", fn(w http.ResponseWriter, req *http.Request) void {
         fmt.Fprintf(w, "Hello Guys"); 
       });
