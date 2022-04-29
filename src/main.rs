@@ -29,7 +29,41 @@ struct Token {
     pub ty: TokenType,
     pub value: Option<String>,
 }
-
+fn ambigious_ident(tok: &Token) -> Option<Token> {
+    if tok.ty == TokenType::Ident {
+        if tok.value == Some(String::from("if")) {
+            return Some(Token {
+                ty: TokenType::IfKeyword,
+                value: None,
+            });
+        } else if tok.value == Some(String::from("interface" )){
+            return Some(Token {
+                ty: TokenType::InterfaceKeyword,
+                value: None,
+            });
+        } else if tok.value == Some(String::from("struct")){
+            return Some(Token {
+                ty: TokenType::StructKeyword,
+                value: None,
+            });
+        } else if tok.value == Some(String::from("for")) {
+            return Some(Token {
+                ty: TokenType::ForKeyword,
+                value: None,
+            });
+        } else if tok.value == Some(String::from("int")) {
+            println!("oomad inja ?");
+            return Some(Token {
+                ty: TokenType::IntKeyword,
+                value: None,
+            })
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    }
+}
 fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
     let mut tokens: Vec<Token> = Vec::new();
     // TODO can we use Rc<Option<Token>> ?
@@ -55,18 +89,25 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
         } else if c == ';' {
             println!("SEMI COLON");
             if let Some(tok) = &current_token {
-                tokens.push(tok.clone());
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::SemiColon,
                 value: None,
             });
-
             current_token = None;
         } else if c == ':' {
             println!("COLON");
             if let Some(tok) = &current_token {
-                tokens.push(tok.clone());
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::Colon,
@@ -77,7 +118,11 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
         } else if c == '=' {
             println!("assign");
             if let Some(tok) = &current_token {
-                tokens.push(tok.clone());
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::AssignOp,
@@ -85,8 +130,12 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             });
         } else if c == '[' {
             println!("OPEN SQ BRACKET");
-            if current_token.is_some() {
-                tokens.push(current_token.clone().unwrap());
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::SqBracketOpen,
@@ -95,8 +144,12 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             current_token = None;
         } else if c == ']' {
             println!("CLOSE SQ BRACKET");
-            if current_token.is_some() {
-                tokens.push(current_token.clone().unwrap());
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::SqBracketClose,
@@ -105,8 +158,12 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             current_token = None;
         } else if c == '{' {
             println!("OPEN CU BRACKET");
-            if current_token.is_some() {
-                tokens.push(current_token.clone().unwrap());
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::CuBracketOpen,
@@ -115,8 +172,12 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             current_token = None;
         } else if c == '}' {
             println!("CLOSE CU BRACKET");
-            if current_token.is_some() {
-                tokens.push(current_token.clone().unwrap());
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::CuBracketClose,
@@ -125,8 +186,12 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             current_token = None;
         } else if c == ',' {
             println!("COMMA State");
-            if current_token.is_some() {
-                tokens.push(current_token.clone().unwrap());
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             tokens.push(Token {
                 ty: TokenType::Comma,
@@ -146,42 +211,7 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 match &mut tok.value {
                     Some(s) => {
                         s.push(c);
-                        if s == "if" {
-                            tokens.push(Token {
-                                ty: TokenType::IfKeyword,
-                                value: None,
-                            });
-                            current_token = None;
-                            continue;
-                        } else if s == "interface" {
-                            tokens.push(Token {
-                                ty: TokenType::InterfaceKeyword,
-                                value: None,
-                            });
-                            current_token = None;
-                            continue;
-                        } else if s == "struct" {
-                            tokens.push(Token {
-                                ty: TokenType::StructKeyword,
-                                value: None,
-                            });
-                            current_token = None;
-                            continue;
-                        } else if s == "for" {
-                            tokens.push(Token {
-                                ty: TokenType::ForKeyword,
-                                value: None,
-                            });
-                            current_token = None;
-                            continue;
-                        } else if s == "int" {
-                            tokens.push(Token {
-                                ty: TokenType::IntKeyword,
-                                value: None,
-                            });
-                            current_token = None;
-                            continue;
-                        }
+                        continue;
                     }
                     None => tok.value = Some(c.to_string()),
                 };
@@ -194,7 +224,11 @@ fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
         } else if c == ' ' || c == '\n' || c == '\t' {
             println!("space|newline");
             if let Some(tok) = &current_token {
-                tokens.push(tok.clone());
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
             }
             current_token = None;
         } else if c >= '0' && c <= '9' {
