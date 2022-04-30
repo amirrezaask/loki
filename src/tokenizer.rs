@@ -1,10 +1,10 @@
 #[derive(Debug)]
-enum Errors {
+pub enum Errors {
     CannotCreateStringWhileInOtherToken,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-enum TokenType {
+pub enum TokenType {
     SemiColon,
     StringLiteral,
     IfKeyword,
@@ -43,7 +43,7 @@ enum TokenType {
     FunctionKeyword,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct Token {
+pub struct Token {
     pub ty: TokenType,
     pub value: Option<String>,
 }
@@ -126,7 +126,7 @@ fn ambigious_ident(tok: &Token) -> Option<Token> {
         return None;
     }
 }
-fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
+pub fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
     let mut tokens: Vec<Token> = Vec::new();
     // TODO can we use Rc<Option<Token>> ?
     let mut current_token: Option<Token> = None;
