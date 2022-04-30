@@ -27,7 +27,7 @@ annotated using `mut` keyword. functions, variables, types everything is *JUST* 
     x + y
   };
 
-  // defining struct  
+  // defining struct
   s = struct {
     a: int,
     b: int,
@@ -75,7 +75,7 @@ You can see all types available in Loki down here
 
   []type // slice type, which is basically a reference to somewhere in an array + size
 
-  map[key_type]value_type // hashmap  
+  map[key_type]value_type // hashmap
 
   (type1, type2, type3) // tuples which are basically auto generated structs.
 

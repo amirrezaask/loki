@@ -41,6 +41,7 @@ pub enum TokenType {
     UnionKeyword,
     EnumKeyword,
     FunctionKeyword,
+    BangOp,
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Token {
@@ -307,6 +308,20 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
                 value: None,
             });
             current_token = None;
+        } else if c == '!' {
+            println!("Bang State");
+            if let Some(tok) = &current_token {
+                if let Some(actual) = ambigious_ident(tok) {
+                    tokens.push(actual);
+                } else {
+                    tokens.push(tok.clone());
+                }
+            }
+            tokens.push(Token {
+                ty: TokenType::BangOp,
+                value: None,
+            });
+            current_token = None;
         } else if c == ',' {
             println!("COMMA State");
             if let Some(tok) = &current_token {
@@ -391,9 +406,15 @@ pub fn tokenize(code: &str) -> Result<Vec<Token>, Errors> {
             }
         }
     }
-    if let Some(tok) = current_token {
-        tokens.push(tok);
+    if let Some(tok) = &current_token {
+        if let Some(actual) = ambigious_ident(tok) {
+            tokens.push(actual);
+        } else {
+            tokens.push(tok.clone());
+        }
     }
+
+
     Ok(tokens)
 }
 
@@ -989,6 +1010,36 @@ mod tests {
  
             ]
         ));
+    }
+    #[test]
+    fn bang() {
+        let tokens = tokenize("x = !true");
+        assert!(tokens.is_ok());
+        let tokens = tokens.unwrap();
+        println!("{:?}", tokens);
+        assert!(eq_vecs(
+            tokens,
+            vec![
+                Token {
+                    ty: TokenType::Ident,
+                    value: Some(String::from("x"))
+                },
+                Token {
+                    ty: TokenType::AssignOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::BangOp,
+                    value: None,
+                },
+                Token {
+                    ty: TokenType::TrueKeyword,
+                    value: None,
+                }
+
+            ]
+        ));
+
     }
     #[test]
     fn fns() {
