@@ -27,6 +27,7 @@ pub enum Expr {
     If(If),
     Bool(bool),
     FnCall(FnCall),
+    Ref(String),
     Str(String),
     Nil,
 }
@@ -56,17 +57,17 @@ impl Parser {
 
     pub fn parse_next_expr(&mut self) -> Result<Expr, Errors> {
         let mut expr_stack: Vec<Expr> = vec![];
-        // identifier
+        // identifier []
         // 10; [x]
         // ""; [x]
-        // expr op expr
+        // expr op expr []
         // fncall(arg1, arg2); [x]
-        // if true {} else {};
-        // struct {}
-        // interface {}
-        // union {}
-        // enum {}
-        // fn(arg1: t1): void {}
+        // if true {} else {}; []
+        // struct {} []
+        // interface {} []
+        // union {} []
+        // enum {} []
+        // fn(arg1: t1): void {} []
         'outer: loop {
             if self.cur >= self.tokens.len() {
                 break;
@@ -76,6 +77,13 @@ impl Parser {
                 let num: i64 = self.cur_token().value.as_ref().unwrap().parse().unwrap();
                 self.cur += 1;
                 expr_stack.push(Expr::Int(num));
+            } else if self.cur_token().ty == TokenType::Ident
+                && self.tokens[self.cur + 1].ty == TokenType::SemiColon
+            {
+                expr_stack.push(Expr::Ref(
+                    self.cur_token().value.as_ref().unwrap().to_string(),
+                ));
+                self.cur += 2;
             } else if self.cur_token().ty == TokenType::DoubleQuoteStart {
                 self.cur += 1; // move cursor to string literal token
                 let string = self.tokens[self.cur].value.as_ref().unwrap().to_string();
@@ -87,8 +95,7 @@ impl Parser {
             } else if self.cur_token().ty == TokenType::FalseKeyword {
                 self.cur += 1;
                 expr_stack.push(Expr::Bool(false));
-            } 
-            else if self.cur_token().ty == TokenType::Ident
+            } else if self.cur_token().ty == TokenType::Ident
                 && self.tokens[self.cur + 1].ty == TokenType::ParenOpen
             // Function call
             {
@@ -137,13 +144,13 @@ impl Parser {
                             }
                             _ => args.push(expr),
                         }
-                    } 
+                    }
                 }
 
-                self.cur+=1;
+                self.cur += 1;
             } else if self.cur_token().ty == TokenType::Comma {
-                self.cur+=1;
-            }  else {
+                self.cur += 1;
+            } else {
                 println!("{:?}", self.cur_token());
                 return Err(Errors::ParseErr("cannot create expr".to_string()));
             }
@@ -175,37 +182,7 @@ mod tests {
         }
         return true;
     }
-    // #[test]
-    // fn parse_op() {
-    //     let tokens: Vec<Token> = vec![
-    //         Token {
-    //             ty: TokenType::FalseKeyword,
-    //             value: None,
-    //         },
-    //         Token {
-    //             ty: TokenType::AssignOp,
-    //             value: None,
-    //         },
-    //         Token {
-    //             ty: TokenType::AssignOp,
-    //             value: None,
-    //         },
-    //         Token {
-    //             ty: TokenType::TrueKeyword,
-    //             value: None,
-    //         },
-    //     ];
 
-    //     let mut parser = Parser::new(tokens);
-    //     assert_eq!(
-    //         Expr::Op(Op {
-    //             lhs: Box::new(Expr::Bool(false)),
-    //             rhs: Box::new(Expr::Bool(true)),
-    //             op: "=".to_string(),
-    //         }),
-    //         parser.get_expr().unwrap()
-    //     );
-    // }
     #[test]
     fn parse_bool() {
         let tokens: Vec<Token> = vec![Token {
@@ -380,6 +357,22 @@ mod tests {
             Expr::Str("amirreza".to_string()),
             parser.parse_next_expr().unwrap()
         );
+    }
+    #[test]
+    fn parse_variable_ref() {
+        let tokens: Vec<Token> = vec![
+            Token {
+                ty: TokenType::Ident,
+                value: Some(String::from("x")),
+            },
+            Token {
+                ty: TokenType::SemiColon,
+                value: None,
+            },
+        ];
+
+        let mut parser = Parser::new(tokens);
+        assert_eq!(Expr::Ref("x".to_string()), parser.parse_next_expr().unwrap());
     }
     #[test]
     fn parse_number() {
