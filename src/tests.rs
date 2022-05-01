@@ -7,7 +7,7 @@ fn nested_fn_calls() {
     let tokens = tokenizer::tokenize("fn1(fn2(fn3(12)), 12, 34)").unwrap();
     let mut parser = parser::Parser::new(tokens);
 
-    assert_eq!(parser.get_expr().unwrap(), Expr::FnCall(FnCall {
+    assert_eq!(parser.parse_next_expr().unwrap(), Expr::FnCall(FnCall {
                 name: "fn1".to_string(),
                 args: vec![
                     Expr::FnCall(FnCall {

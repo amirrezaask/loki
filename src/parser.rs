@@ -1,22 +1,23 @@
-use std::{usize, default};
-
+#![allow(dead_code)]
 // Vec<Token> -> Module
 use crate::tokenizer::Errors;
 use crate::tokenizer::{Token, TokenType};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Types {
+// Basic types of loki.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum Type {
+    Struct,
+    Union,
+    Enum,
     Int,
-    Float32,
-    Float64,
-    String,
+    Str,
 }
 
 // Decl is everything done in Loki, anything is a declaration either with a name assigned to it or not.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Decl {
     pub name: Option<String>,
-    pub ty: Option<Types>,
+    pub ty: Option<Type>,
     pub expr: Expr,
 }
 
@@ -25,39 +26,11 @@ pub enum Expr {
     Int(i64),
     If(If),
     Bool(bool),
-    Block(Block),
     FnCall(FnCall),
     Str(String),
-    // Type(Type),
-    Op(Op),
     Nil,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Op {
-    lhs: Box<Expr>,
-    rhs: Box<Expr>,
-    op: String,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub enum Type {
-    Struct,
-    Union,
-    Enum,
-    Int,
-    Str,
-    // Fn(FnType)
-}
-struct FnType {}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Struct {
-    fields: Vec<(String, String)>,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct Block(Vec<Decl>);
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct If {
     pub cond: Box<Expr>,
@@ -81,7 +54,7 @@ impl Parser {
         Parser { tokens, cur: 0 }
     }
 
-    pub fn get_expr(&mut self) -> Result<Expr, Errors> {
+    pub fn parse_next_expr(&mut self) -> Result<Expr, Errors> {
         let mut expr_stack: Vec<Expr> = vec![];
         // identifier
         // 10; [x]
@@ -241,7 +214,7 @@ mod tests {
         }];
 
         let mut parser = Parser::new(tokens);
-        assert_eq!(Expr::Bool(true), parser.get_expr().unwrap());
+        assert_eq!(Expr::Bool(true), parser.parse_next_expr().unwrap());
     }
     #[test]
     fn parse_fn_with_args_nested() {
@@ -321,7 +294,7 @@ mod tests {
                     Expr::Int(12),
                 ],
             }),
-            parser.get_expr().unwrap()
+            parser.parse_next_expr().unwrap()
         );
     }
     #[test]
@@ -355,7 +328,7 @@ mod tests {
                 name: "fn_name".to_string(),
                 args: vec![Expr::Int(12), Expr::Int(12),],
             }),
-            parser.get_expr().unwrap()
+            parser.parse_next_expr().unwrap()
         );
     }
     #[test]
@@ -381,7 +354,7 @@ mod tests {
                 name: "fn_name".to_string(),
                 args: Vec::default(),
             }),
-            parser.get_expr().unwrap()
+            parser.parse_next_expr().unwrap()
         );
     }
 
@@ -405,7 +378,7 @@ mod tests {
         let mut parser = Parser::new(tokens);
         assert_eq!(
             Expr::Str("amirreza".to_string()),
-            parser.get_expr().unwrap()
+            parser.parse_next_expr().unwrap()
         );
     }
     #[test]
@@ -416,6 +389,6 @@ mod tests {
         }];
 
         let mut parser = Parser::new(tokens);
-        assert_eq!(Expr::Int(12), parser.get_expr().unwrap());
+        assert_eq!(Expr::Int(12), parser.parse_next_expr().unwrap());
     }
 }
