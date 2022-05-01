@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub enum Errors {
     CannotCreateStringWhileInOtherToken,
+    ParseErr(String),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

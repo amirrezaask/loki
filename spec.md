@@ -16,7 +16,7 @@ annotated using `mut` keyword. functions, variables, types everything is *JUST* 
     eat(): void
   }; 
   
-  z = if true {
+  z = if (true) {
     2
   } else {
     5
@@ -39,11 +39,11 @@ annotated using `mut` keyword. functions, variables, types everything is *JUST* 
 Loki has only one loop, *for*
 ```
   // for has 3 syntaxes for different scenarios
-  for i=0;i<10;i++ {} // C-style for loop
+  for (i=0;i<10;i++) {} // C-style for loop
   
   for (_, elem) in [array or slice] // for-each style syntax
   
-  for condition {} // while syntax
+  for (condition) {} // while syntax
   
 ```
 
