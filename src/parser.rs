@@ -28,7 +28,26 @@ pub enum Expr {
     Block(Block),
     FnCall(FnCall),
     Str(String),
+    Type(Type),
     Nil,
+}
+
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum Type {
+    Struct,
+    Union,
+    Enum,
+    Int,
+    Str,
+    // Fn(FnType)
+
+}
+struct FnType {}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Struct {
+    fields: Vec<(String, String)>
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -42,11 +61,11 @@ pub struct If {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FnCall {
-    name: String,
-    args: Vec<Expr>,
+    pub name: String,
+    pub args: Vec<Expr>,
 }
 
-struct Parser {
+pub struct Parser {
     tokens: Vec<Token>,
     cur: usize,
 }
@@ -88,7 +107,6 @@ impl Parser {
             && self.tokens[self.cur + 1].ty == TokenType::ParenOpen
         {
             // function call
-            //TODO: handle commas :))
             let name_ident = self.cur_token().clone();
             let mut args: Vec<Expr> = Vec::default();
 
