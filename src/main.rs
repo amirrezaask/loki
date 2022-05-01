@@ -1,5 +1,6 @@
 mod tokenizer;
 mod parser;
+mod parser_combinator;
 
 #[cfg(test)]
 mod tests;
