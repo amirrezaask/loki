@@ -57,7 +57,7 @@ impl Parser {
 
     pub fn parse_next_expr(&mut self) -> Result<Expr, Errors> {
         let mut expr_stack: Vec<Expr> = vec![];
-        // identifier []
+        // identifier [x]
         // 10; [x]
         // ""; [x]
         // expr op expr []
