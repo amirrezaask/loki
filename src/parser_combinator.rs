@@ -17,15 +17,18 @@
 //     FnCall
 // }
 
-#[derive(Debug, PartialEq, Eq)]
+
+#[derive(Debug, PartialEq)]
 enum ParseObj {
     Char(char),
     Uint(usize),
     Int(isize),
+    Float(f64),
     Str(String),
     Keyword(String),
     Bool(bool),
     List(Vec<ParseObj>),
+    Empty,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -37,10 +40,12 @@ impl ParseErr {
     pub fn wrap(msg: &str, inner: ParseErr) -> Self {
         return Self {
             msg: format!("{}: {}", msg, inner),
-        }
+        };
     }
     pub fn new(msg: &str) -> Self {
-        return Self { msg: String::from(msg) };
+        return Self {
+            msg: String::from(msg),
+        };
     }
 }
 
@@ -53,7 +58,7 @@ impl std::error::Error for ParseErr {}
 
 type ParseResult = Result<(String, ParseObj), ParseErr>;
 
-fn any_of<'a>(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
+fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         for parser in parsers.iter() {
             let res = parser(input.clone());
@@ -79,12 +84,10 @@ fn zero_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Pa
 
 fn zero_or_one(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
     return move |mut input: String| {
-        let mut result = Vec::new();
         if let Ok((remains, parsed)) = parser(input.clone()) {
-            input = remains;
-            result.push(parsed);
+            return Ok((remains, ParseObj::Char('-')));
         }
-        return Ok((input.clone(), ParseObj::List(result)));
+        return Ok((input, ParseObj::Empty));
     };
 }
 
@@ -118,9 +121,11 @@ fn parse_char<'a>(c: char) -> impl Fn(String) -> ParseResult {
         if input.chars().nth(0).unwrap() == c.clone() {
             return ParseResult::Ok((input[1..].to_string(), ParseObj::Char(c)));
         }
-        return ParseResult::Err(ParseErr::new(
-            &format!("expected {} saw {}", c, input.chars().nth(0).unwrap()),
-        ));
+        return ParseResult::Err(ParseErr::new(&format!(
+            "expected {} saw {}",
+            c,
+            input.chars().nth(0).unwrap()
+        )));
     };
 }
 
@@ -185,16 +190,20 @@ fn uint(input: String) -> ParseResult {
 
 fn int(input: String) -> ParseResult {
     let sign = zero_or_one(parse_char('-'));
-    match sign(input) {
-        Ok((input, _)) => {
-            match uint(input) {
-                Ok((remains, ParseObj::Uint(num))) => {
-                    return Ok((remains, ParseObj::Int(-1 * num as isize)))
-                },
-                _ => Err(ParseErr::new("Err"))
+    match sign(input.clone()) {
+        Ok((input, ParseObj::Char('-'))) => match uint(input) {
+            Ok((remains, ParseObj::Uint(num))) => {
+                return Ok((remains, ParseObj::Int(-1 * num as isize)))
             }
+            _ => Err(ParseErr::new("Err")),
         },
-        _ => Err(ParseErr::new("Err"))
+        Ok((input, ParseObj::Empty)) => match uint(input) {
+            Ok((remains, ParseObj::Uint(num))) => {
+                return Ok((remains, ParseObj::Int(num as isize)));
+            },
+            _ => Err(ParseErr::new("Err"))
+        },
+        _ => Err(ParseErr::new("Err")),
     }
 }
 
@@ -203,9 +212,27 @@ fn bool(input: String) -> ParseResult {
     let _false = keyword("false".to_string());
     let (remains, bool_parsed) = any_of(vec![_true, _false])(input)?;
     if let ParseObj::Keyword(b) = bool_parsed {
-        return Ok((remains, ParseObj::Bool(b == "true")))
+        return Ok((remains, ParseObj::Bool(b == "true")));
     } else {
         unreachable!()
+    }
+}
+
+fn float(input: String) -> ParseResult {
+    if let (remains, ParseObj::Int(int_part)) = int(input)? {
+        if let (remains, _) = parse_char('.')(remains)? {
+            if let (remains, ParseObj::Uint(float_part)) = uint(remains)? {
+                let float_str = format!("{}.{}", int_part, float_part);
+                let float: f64 = float_str.parse().unwrap();
+                Ok((remains, ParseObj::Float(float)))
+            } else {
+                return Err(ParseErr::new("some"));
+            }
+        } else {
+            return Err(ParseErr::new("some"));
+        }
+    } else {
+        return Err(ParseErr::new("some"));
     }
 }
 
@@ -218,10 +245,22 @@ fn test_parse_single_digit() {
 }
 
 #[test]
+fn test_parse_float() {
+    assert_eq!(
+        float("4.2".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Float(4.2)))
+    );
+}
+
+#[test]
 fn test_parse_int() {
     assert_eq!(
         int("-1234AB".to_string()),
         ParseResult::Ok(("AB".to_string(), ParseObj::Int(-1234)))
+    );
+    assert_eq!(
+        int("1234AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Int(1234)))
     );
 }
 
@@ -249,6 +288,6 @@ fn test_parse_bool() {
     );
     assert_eq!(
         bool("falsesomeshitaftertrue".to_string()),
-        ParseResult::Ok(("someshitaftertrue".to_string(), ParseObj::Bool(false), ))
+        ParseResult::Ok(("someshitaftertrue".to_string(), ParseObj::Bool(false),))
     );
 }
