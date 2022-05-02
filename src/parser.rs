@@ -1,387 +1,376 @@
-#![allow(dead_code)]
-// Vec<Token> -> Module
-use crate::tokenizer::Errors;
-use crate::tokenizer::{Token, TokenType};
-
-// Basic types of loki.
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub enum Type {
-    Struct,
-    Union,
-    Enum,
-    Int,
-    Str,
-}
-
-// Decl is everything done in Loki, anything is a declaration either with a name assigned to it or not.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Decl {
-    pub name: Option<String>,
-    pub ty: Option<Type>,
-    pub expr: Expr,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub enum Expr {
-    Int(i64),
-    If(If),
-    Bool(bool),
-    FnCall(FnCall),
-    Ref(String),
+#[derive(Debug, PartialEq)]
+enum ParseObj {
+    Char(char),
+    Uint(usize),
+    Int(isize),
+    Float(f64),
     Str(String),
-    Nil,
+    Keyword(String),
+    Ident(String),
+    Bool(bool),
+    List(Vec<ParseObj>),
+    Empty,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct If {
-    pub cond: Box<Expr>,
-    pub then_block: Box<Expr>,
-    pub else_block: Box<Option<Expr>>,
+#[derive(Debug, PartialEq, Eq)]
+enum ParseErr {
+    // unexpected (expected, found, location)
+    Unexpected(String, String, u64),
+    Unknown(String),
+}
+impl std::fmt::Display for ParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unexpected(_, _, _) => f.write_fmt(format_args!("{:?}", self)),
+            Self::Unknown(msg) => f.write_fmt(format_args!("{}", msg)),
+            _ => unreachable!(),
+        }
+    }
+}
+impl std::error::Error for ParseErr {}
+
+type ParseResult = Result<(String, ParseObj), ParseErr>;
+
+fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
+    println!("len of parsers created {}", parsers.len());
+    return move |input: String| {
+        for parser in parsers.iter() {
+            match parser(input.clone()) {
+                Ok((remaining, parsed)) => return Ok((remaining, parsed)),
+                Err(err) => continue,
+            }
+        }
+        return Err(ParseErr::Unexpected("".to_string(), "".to_string(), 0));
+    };
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct FnCall {
-    pub name: String,
-    pub args: Vec<Expr>,
+fn zero_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
+    return move |mut input: String| {
+        let mut result = Vec::new();
+        while let Ok((remains, parsed)) = parser(input.clone()) {
+            input = remains;
+            result.push(parsed);
+        }
+        return Ok((input.clone(), ParseObj::List(result)));
+    };
 }
 
-pub struct Parser {
-    tokens: Vec<Token>,
-    cur: usize,
+fn zero_or_one(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
+    return move |mut input: String| {
+        if let Ok((remains, parsed)) = parser(input.clone()) {
+            return Ok((remains, ParseObj::Char('-')));
+        }
+        return Ok((input, ParseObj::Empty));
+    };
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, cur: 0 }
+fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
+    return move |mut input: String| {
+        let mut result = Vec::new();
+
+        // we should first try to get one, if can't it's a parse error
+        match parser(input.clone()) {
+            Ok((remains, parsed)) => {
+                input = remains;
+                result.push(parsed);
+            }
+            Err(err) => {
+                return Err(err);
+            }
+        }
+        while let Ok((remains, parsed)) = parser(input.clone()) {
+            input = remains;
+            result.push(parsed);
+        }
+        return Ok((input.clone(), ParseObj::List(result)));
+    };
+}
+
+fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
+    return move |input: String| {
+        if input.len() < 1 {
+            return ParseResult::Err(ParseErr::Unexpected(
+                c.to_string(),
+                "nothing".to_string(),
+                0,
+            ));
+        }
+        if input.chars().nth(0).unwrap() == c.clone() {
+            return ParseResult::Ok((input[1..].to_string(), ParseObj::Char(c)));
+        }
+        return ParseResult::Err(ParseErr::Unexpected(
+            c.to_string(),
+            input.chars().nth(0).unwrap().to_string(),
+            0,
+        ));
+    };
+}
+
+fn keyword(word: String) -> impl Fn(String) -> ParseResult {
+    return move |mut input: String| {
+        let word_chars = word.chars();
+        for c in word_chars {
+            match parse_char(c)(input) {
+                Ok((remains, _)) => input = remains,
+                Err(err) => return Err(err),
+            }
+        }
+        return Ok((input, ParseObj::Keyword(word.clone())));
+    };
+}
+
+fn any_whitespace<'a>() -> impl Fn(String) -> ParseResult {
+    let sp = parse_char(' ');
+    let tab = parse_char('\t');
+    let newline = parse_char('\n');
+    return any_of(vec![sp, tab, newline]);
+}
+
+fn whitespace<'a>() -> impl Fn(String) -> ParseResult {
+    return zero_or_more(any_whitespace());
+}
+
+fn parse_chars(chars: &str) -> impl Fn(String) -> ParseResult {
+    let parsers = chars.chars().map(|c| parse_char(c)).collect();
+    return any_of(parsers);
+}
+
+fn digit() -> impl Fn(String) -> ParseResult {
+    return parse_chars("0123456789");
+}
+
+fn ident(input: String) -> ParseResult {
+    match one_or_more(parse_chars(
+        "abcdefghijklmnopqrstuvwxzABCDEFGHIJKLMNOPQRSTUVWXZ_",
+    ))(input)
+    {
+        Ok((remains, ParseObj::List(chars_parse_objects))) => {
+            let mut name = String::new();
+
+            for po in chars_parse_objects {
+                match po {
+                    ParseObj::Char(c) => name.push(c),
+                    _ => {
+                        return Err(ParseErr::Unexpected(
+                            "a char".to_string(),
+                            format!("{:?}", po),
+                            0,
+                        ))
+                    }
+                }
+            }
+            return Ok((remains, ParseObj::Ident((name))));
+        }
+        Ok((_, obj)) => {
+            return Err(ParseErr::Unexpected(
+                "list of chars".to_string(),
+                format!("{:?}", obj),
+                0,
+            ))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn semicolon(input: String) -> ParseResult {
+    return parse_char(';')(input);
+}
+
+fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
+    return move |input: String| {
+        let mut parsed = Vec::new();
+        for p in parsers.iter() {
+            let res = p(input.clone());
+            match res {
+                Ok((input, parsedObj)) => parsed.push(parsedObj),
+                Err(e) => return Err(e),
+            }
+        }
+
+        return Ok((input, ParseObj::List(parsed)));
+    };
+}
+
+// fn decl(input: String) -> ParseResult {
+//     // ident\s*=\s*expr;
+
+// }
+
+fn uint(input: String) -> ParseResult {
+    match one_or_more(digit())(input) {
+        Ok((remains, ParseObj::List(_digits))) => {
+            let mut number = String::new();
+            for d in _digits {
+                match d {
+                    ParseObj::Char(c) => {
+                        number.push(c);
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            let number: usize = number.parse().unwrap();
+            Ok((remains, ParseObj::Uint(number)))
+        }
+        Err(err) => return Err(err),
+        _ => unreachable!(),
+    }
+}
+
+fn int(mut input: String) -> ParseResult {
+    let sign = zero_or_one(parse_char('-'));
+    let mut with_sign: i8 = 1;
+    if let (remains, ParseObj::Char('-')) = sign(input.clone())? {
+        input = remains;
+        with_sign = -1;
+    } else {
+        with_sign = 1;
     }
 
-    pub fn parse_next_expr(&mut self) -> Result<Expr, Errors> {
-        let mut expr_stack: Vec<Expr> = vec![];
-        // identifier [x]
-        // 10; [x]
-        // ""; [x]
-        // expr op expr []
-        // fncall(arg1, arg2); [x]
-        // if true {} else {}; []
-        // struct {} []
-        // interface {} []
-        // union {} []
-        // enum {} []
-        // fn(arg1: t1): void {} []
-        'outer: loop {
-            if self.cur >= self.tokens.len() {
-                break;
-            }
-            println!("{:?}", self.cur_token());
-            if self.cur_token().ty == TokenType::Number {
-                let num: i64 = self.cur_token().value.as_ref().unwrap().parse().unwrap();
-                self.cur += 1;
-                expr_stack.push(Expr::Int(num));
-            } else if self.cur_token().ty == TokenType::Ident
-                && self.tokens[self.cur + 1].ty == TokenType::SemiColon
-            {
-                expr_stack.push(Expr::Ref(
-                    self.cur_token().value.as_ref().unwrap().to_string(),
-                ));
-                self.cur += 2;
-            } else if self.cur_token().ty == TokenType::DoubleQuoteStart {
-                self.cur += 1; // move cursor to string literal token
-                let string = self.tokens[self.cur].value.as_ref().unwrap().to_string();
-                self.cur += 2;
-                expr_stack.push(Expr::Str(string));
-            } else if self.cur_token().ty == TokenType::TrueKeyword {
-                self.cur += 1;
-                expr_stack.push(Expr::Bool(true));
-            } else if self.cur_token().ty == TokenType::FalseKeyword {
-                self.cur += 1;
-                expr_stack.push(Expr::Bool(false));
-            } else if self.cur_token().ty == TokenType::Ident
-                && self.tokens[self.cur + 1].ty == TokenType::ParenOpen
-            // Function call
-            {
-                // fn_name(fn_name2(fn_name3(12)), 12, 12)
-                let name_ident = self.cur_token().clone();
-                println!("resolving {}", name_ident.value.as_ref().unwrap());
-                expr_stack.push(Expr::FnCall(FnCall {
-                    name: name_ident.value.as_ref().unwrap().to_string(),
-                    args: Vec::default(),
-                }));
+    let (input, obj) = uint(input)?;
+    match obj {
+        ParseObj::Uint(num) => return Ok((input, ParseObj::Int(with_sign as isize * num as isize))),
+        _ => Err(ParseErr::Unknown(format!("expected a uint found {:?}", obj)))
+    }
+}
 
-                self.cur += 2; // move cursor to first argument
-                if self.cur_token().ty != TokenType::ParenClose {
-                    loop {
-                        if self.cur_token().ty == TokenType::ParenClose {
-                            self.cur += 1; // move over the paren close token
-                            break;
-                        }
-                        if self.cur_token().ty == TokenType::Comma {
-                            self.cur += 1; // move over the comma token
-                        }
+fn bool(input: String) -> ParseResult {
+    let _true = keyword("true".to_string());
+    let _false = keyword("false".to_string());
+    let (remains, bool_parsed) = any_of(vec![_true, _false])(input)?;
+    if let ParseObj::Keyword(b) = bool_parsed {
+        return Ok((remains, ParseObj::Bool(b == "true")));
+    } else {
+        unreachable!()
+    }
+}
 
-                        if self.cur_token().ty == TokenType::ParenOpen {
-                            self.cur += 1;
-                        }
-                        continue 'outer;
-                    }
-                }
-            } else if self.cur_token().ty == TokenType::ParenClose {
-                //closing a paren, probably a function call
-                let mut args: Vec<Expr> = vec![];
-                loop {
-                    if let Some(expr) = expr_stack.pop() {
-                        match expr {
-                            Expr::FnCall(mut fn_call) => {
-                                if fn_call.args.len() > 0 {
-                                    args.push(Expr::FnCall(fn_call));
-                                    continue;
-                                }
-                                let mut args_clone = args.clone();
-                                args_clone.reverse();
-                                fn_call.args = args_clone;
-                                println!("{:?}", fn_call);
-                                expr_stack.push(Expr::FnCall(fn_call));
-                                break;
-                            }
-                            _ => args.push(expr),
-                        }
-                    }
-                }
-
-                self.cur += 1;
-            } else if self.cur_token().ty == TokenType::Comma {
-                self.cur += 1;
+fn float(input: String) -> ParseResult {
+    if let (remains, ParseObj::Int(int_part)) = int(input)? {
+        if let (remains, _) = parse_char('.')(remains)? {
+            let parsed = uint(remains)?;
+            if let (remains, ParseObj::Uint(float_part)) = parsed {
+                let float_str = format!("{}.{}", int_part, float_part);
+                let float: f64 = float_str.parse().unwrap();
+                Ok((remains, ParseObj::Float(float)))
             } else {
-                println!("{:?}", self.cur_token());
-                return Err(Errors::ParseErr("cannot create expr".to_string()));
+                return Err(ParseErr::Unexpected(
+                    "uint".to_string(),
+                    format!("{:?}", parsed),
+                    0,
+                ));
             }
-        }
-        if expr_stack.len() > 0 {
-            return Ok(expr_stack[expr_stack.len() - 1].clone());
         } else {
-            return Err(Errors::ParseErr("No expr constructed".to_string()));
+            return Err(ParseErr::Unknown("not a float without a .".to_string()));
         }
-    }
-
-    fn cur_token(&self) -> &Token {
-        return &self.tokens[self.cur];
+    } else {
+        return Err(ParseErr::Unknown("not a number at all".to_string()));
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn eq_vecs<T: Eq + std::fmt::Debug>(v1: Vec<T>, v2: Vec<T>) -> bool {
-        if v1.len() != v2.len() {
-            assert_eq!(v1.len(), v2.len());
-        }
-        for i in 0..v1.len() {
-            assert_eq!(v1[i], v2[i]);
-            if v1[i] != v2[i] {
-                return false;
-            }
-        }
-        return true;
-    }
+fn expr(input: String) -> ParseResult {
+    // bool
+    // ident
+    // String
+    // int, uint, float
+    let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> =
+        vec![float, uint, int, bool, ident];
+    return any_of(parsers)(input);
+}
 
-    #[test]
-    fn parse_bool() {
-        let tokens: Vec<Token> = vec![Token {
-            ty: TokenType::TrueKeyword,
-            value: None,
-        }];
+#[test]
+fn test_parse_single_digit() {
+    assert_eq!(
+        digit()("1AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Char('1'),))
+    );
+}
 
-        let mut parser = Parser::new(tokens);
-        assert_eq!(Expr::Bool(true), parser.parse_next_expr().unwrap());
-    }
-    #[test]
-    fn parse_fn_with_args_nested() {
-        // fn_name(fn_name2(fn_name3(12)), 12, 12)
-        let tokens: Vec<Token> = vec![
-            Token {
-                ty: TokenType::Ident,
-                value: Some(String::from("fn_name")),
-            },
-            Token {
-                ty: TokenType::ParenOpen,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Ident,
-                value: Some(String::from("fn_name2")),
-            },
-            Token {
-                ty: TokenType::ParenOpen,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Ident,
-                value: Some("fn_name3".to_string()),
-            },
-            Token {
-                ty: TokenType::ParenOpen,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Number,
-                value: Some(String::from("12")),
-            },
-            Token {
-                ty: TokenType::ParenClose,
-                value: None,
-            },
-            Token {
-                ty: TokenType::ParenClose,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Comma,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Number,
-                value: Some("12".to_string()),
-            },
-            Token {
-                ty: TokenType::Comma,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Number,
-                value: Some("12".to_string()),
-            },
-            Token {
-                ty: TokenType::ParenClose,
-                value: None,
-            },
-        ];
+#[test]
+fn test_parse_float() {
+    assert_eq!(
+        float("4.2AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Float(4.2)))
+    );
+}
 
-        let mut parser = Parser::new(tokens);
-        assert_eq!(
-            Expr::FnCall(FnCall {
-                name: "fn_name".to_string(),
-                args: vec![
-                    Expr::FnCall(FnCall {
-                        name: "fn_name2".to_string(),
-                        args: vec![Expr::FnCall(FnCall {
-                            name: "fn_name3".to_string(),
-                            args: vec![Expr::Int(12)],
-                        })],
-                    }),
-                    Expr::Int(12),
-                    Expr::Int(12),
-                ],
-            }),
-            parser.parse_next_expr().unwrap()
-        );
-    }
-    #[test]
-    fn parse_fn_with_args_flat() {
-        let tokens: Vec<Token> = vec![
-            Token {
-                ty: TokenType::Ident,
-                value: Some(String::from("fn_name")),
-            },
-            Token {
-                ty: TokenType::ParenOpen,
-                value: None,
-            },
-            Token {
-                ty: TokenType::Number,
-                value: Some("12".to_string()),
-            },
-            Token {
-                ty: TokenType::Number,
-                value: Some("12".to_string()),
-            },
-            Token {
-                ty: TokenType::ParenClose,
-                value: None,
-            },
-        ];
+#[test]
+fn test_parse_int() {
+    assert_eq!(
+        int("-1234AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Int(-1234)))
+    );
+    assert_eq!(
+        int("1234AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Int(1234)))
+    );
+}
 
-        let mut parser = Parser::new(tokens);
-        assert_eq!(
-            Expr::FnCall(FnCall {
-                name: "fn_name".to_string(),
-                args: vec![Expr::Int(12), Expr::Int(12),],
-            }),
-            parser.parse_next_expr().unwrap()
-        );
-    }
-    #[test]
-    fn parse_fn_call() {
-        let tokens: Vec<Token> = vec![
-            Token {
-                ty: TokenType::Ident,
-                value: Some(String::from("fn_name")),
-            },
-            Token {
-                ty: TokenType::ParenOpen,
-                value: None,
-            },
-            Token {
-                ty: TokenType::ParenClose,
-                value: None,
-            },
-        ];
+#[test]
+fn test_parse_uint() {
+    assert_eq!(
+        uint("1234AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Uint(1234)))
+    );
+}
 
-        let mut parser = Parser::new(tokens);
-        assert_eq!(
-            Expr::FnCall(FnCall {
-                name: "fn_name".to_string(),
-                args: Vec::default(),
-            }),
-            parser.parse_next_expr().unwrap()
-        );
-    }
+#[test]
+fn test_parse_keyword() {
+    assert_eq!(
+        keyword("struct".to_string())("struct name".to_string()),
+        ParseResult::Ok((" name".to_string(), ParseObj::Keyword("struct".to_string())))
+    );
+}
+#[test]
+fn test_parse_ident() {
+    assert_eq!(
+        ident("name".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Ident("name".to_string())))
+    );
+    assert_eq!(
+        ident("name_str".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Ident("name_str".to_string()),))
+    );
+}
+#[test]
+fn test_parse_bool() {
+    assert_eq!(
+        bool("truesomeshitaftertrue".to_string()),
+        ParseResult::Ok(("someshitaftertrue".to_string(), ParseObj::Bool(true)))
+    );
+    assert_eq!(
+        bool("falsesomeshitaftertrue".to_string()),
+        ParseResult::Ok(("someshitaftertrue".to_string(), ParseObj::Bool(false),))
+    );
+}
 
-    #[test]
-    fn parse_string() {
-        let tokens: Vec<Token> = vec![
-            Token {
-                ty: TokenType::DoubleQuoteStart,
-                value: None,
-            },
-            Token {
-                ty: TokenType::StringLiteral,
-                value: Some(String::from("amirreza")),
-            },
-            Token {
-                ty: TokenType::DoubleQuoteEnd,
-                value: None,
-            },
-        ];
-
-        let mut parser = Parser::new(tokens);
-        assert_eq!(
-            Expr::Str("amirreza".to_string()),
-            parser.parse_next_expr().unwrap()
-        );
-    }
-    #[test]
-    fn parse_variable_ref() {
-        let tokens: Vec<Token> = vec![
-            Token {
-                ty: TokenType::Ident,
-                value: Some(String::from("x")),
-            },
-            Token {
-                ty: TokenType::SemiColon,
-                value: None,
-            },
-        ];
-
-        let mut parser = Parser::new(tokens);
-        assert_eq!(Expr::Ref("x".to_string()), parser.parse_next_expr().unwrap());
-    }
-    #[test]
-    fn parse_number() {
-        let tokens: Vec<Token> = vec![Token {
-            ty: TokenType::Number,
-            value: Some(String::from("12")),
-        }];
-
-        let mut parser = Parser::new(tokens);
-        assert_eq!(Expr::Int(12), parser.parse_next_expr().unwrap());
-    }
+#[test]
+fn test_parse_expr() {
+    assert_eq!(
+        expr("true".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Bool(true)))
+    );
+    assert_eq!(
+        expr("false".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Bool(false)))
+    );
+    assert_eq!(
+        expr("12".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Uint(12)))
+    );
+    assert_eq!(
+        expr("-12".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Int(-12)))
+    );
+    assert_eq!(
+        expr("12.2".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Float(12.2)))
+    );
+    assert_eq!(
+        expr("-12.2".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Float(-12.2)))
+    );
+    assert_eq!(
+        expr("name".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Ident("name".to_string())))
+    );
 }
