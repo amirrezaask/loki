@@ -1,22 +1,3 @@
-// pub enum Expr {
-//     Int(isize),
-//     Float(f64),
-//     Str(String),
-//     Block,
-//     Array,
-//     Slice,
-//     Fn,
-//     If,
-// }
-
-// pub enum Stmt {
-//     Expr,
-//     Decl,
-//     If,
-//     For,
-//     FnCall
-// }
-
 #[derive(Debug, PartialEq)]
 enum ParseObj {
     Char(char),
@@ -32,26 +13,18 @@ enum ParseObj {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct ParseErr {
-    msg: String,
+enum ParseErr {
+    // unexpected (expected, found, location)
+    Unexpected(String, String, u64),
+    Unknown(String),
 }
-
-impl ParseErr {
-    pub fn wrap(msg: &str, inner: ParseErr) -> Self {
-        return Self {
-            msg: format!("{}: {}", msg, inner),
-        };
-    }
-    pub fn new(msg: &str) -> Self {
-        return Self {
-            msg: String::from(msg),
-        };
-    }
-}
-
 impl std::fmt::Display for ParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self.msg))
+        match self {
+            Self::Unexpected(_,_ ,_) => f.write_fmt(format_args!("{:?}", self)),
+            Self::Unknown(msg) => f.write_fmt(format_args!("{}", msg)),
+            _ => unreachable!()
+        }
     }
 }
 impl std::error::Error for ParseErr {}
@@ -59,7 +32,6 @@ impl std::error::Error for ParseErr {}
 type ParseResult = Result<(String, ParseObj), ParseErr>;
 
 fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
-
     println!("len of parsers created {}", parsers.len());
     return move |input: String| {
         for parser in parsers.iter() {
@@ -68,7 +40,7 @@ fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> Pa
                 Err(err) => continue,
             }
         }
-        return Err(ParseErr::new("any_of err"));
+        return Err(ParseErr::Unexpected("".to_string(), "".to_string(), 0));
     };
 }
 
@@ -103,7 +75,7 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
                 result.push(parsed);
             }
             Err(err) => {
-                return Err(ParseErr::wrap("one_or_more err", err));
+                return Err(err);
             }
         }
         while let Ok((remains, parsed)) = parser(input.clone()) {
@@ -117,16 +89,12 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
 fn parse_char<'a>(c: char) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         if input.len() < 1 {
-            return ParseResult::Err(ParseErr::new("expected at least on char"));
+            return ParseResult::Err(ParseErr::Unexpected(c.to_string(), "nothing".to_string(), 0));
         }
         if input.chars().nth(0).unwrap() == c.clone() {
             return ParseResult::Ok((input[1..].to_string(), ParseObj::Char(c)));
         }
-        return ParseResult::Err(ParseErr::new(&format!(
-            "expected {} saw {}",
-            c,
-            input.chars().nth(0).unwrap()
-        )));
+        return ParseResult::Err(ParseErr::Unexpected(c.to_string(), input.chars().nth(0).unwrap().to_string(), 0));
     };
 }
 
@@ -175,14 +143,14 @@ fn ident(input: String) -> ParseResult {
             for po in chars_parse_objects {
                 match po {
                     ParseObj::Char(c) => name.push(c),
-                    _ => return Err(ParseErr::new("idents should be valid")),
+                    _ => return Err(ParseErr::Unexpected("a char".to_string(), format!("{:?}", po), 0)),
                 }
             }
             return Ok((remains, ParseObj::Ident((name))));
             
         },
-        Ok(_) => return Err(ParseErr::new("idents should be valid")),
-        Err(err) => return Err(ParseErr::wrap("error in parsing ident", err))
+        Ok((_, obj)) => return Err(ParseErr::Unexpected("list of chars".to_string(), format!("{:?}", obj), 0)),
+        Err(err) => Err(err), 
     }
 }
 
@@ -213,15 +181,17 @@ fn int(input: String) -> ParseResult {
             Ok((remains, ParseObj::Uint(num))) => {
                 return Ok((remains, ParseObj::Int(-1 * num as isize)))
             }
-            _ => Err(ParseErr::new("Err")),
+            Ok((remains, obj)) => Err(ParseErr::Unexpected("number".to_string(), format!("{:?}", obj), 0)),
+            Err(err) => Err(err),
         },
         Ok((input, ParseObj::Empty)) => match uint(input) {
             Ok((remains, ParseObj::Uint(num))) => {
                 return Ok((remains, ParseObj::Int(num as isize)));
             }
-            _ => Err(ParseErr::new("Err")),
+            Ok((remains, obj)) => Err(ParseErr::Unexpected("number".to_string(), format!("{:?}", obj), 0)),
+            Err(err) => Err(err),
         },
-        _ => Err(ParseErr::new("Err")),
+        _ => Err(ParseErr::Unknown("expected sign to be found or not but failed with error ?".to_string())),
     }
 }
 
@@ -239,18 +209,19 @@ fn bool(input: String) -> ParseResult {
 fn float(input: String) -> ParseResult {
     if let (remains, ParseObj::Int(int_part)) = int(input)? {
         if let (remains, _) = parse_char('.')(remains)? {
-            if let (remains, ParseObj::Uint(float_part)) = uint(remains)? {
+            let parsed = uint(remains)?;
+            if let (remains, ParseObj::Uint(float_part)) = parsed {
                 let float_str = format!("{}.{}", int_part, float_part);
                 let float: f64 = float_str.parse().unwrap();
                 Ok((remains, ParseObj::Float(float)))
             } else {
-                return Err(ParseErr::new("some"));
+                return Err(ParseErr::Unexpected("uint".to_string(), format!("{:?}", parsed), 0));
             }
         } else {
-            return Err(ParseErr::new("some"));
+            return Err(ParseErr::Unknown("not a float without a .".to_string()));
         }
     } else {
-        return Err(ParseErr::new("some"));
+        return Err(ParseErr::Unknown("not a number at all".to_string()));
     }
 }
 
@@ -354,5 +325,9 @@ fn test_parse_expr() {
     assert_eq!(
         expr("-12.2".to_string()),
         ParseResult::Ok(("".to_string(), ParseObj::Float(-12.2)))
+    );
+    assert_eq!(
+        expr("name".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Ident("name".to_string())))
     );
 }
