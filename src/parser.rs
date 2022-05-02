@@ -1,3 +1,5 @@
+use nom::bytes::complete::escaped;
+
 #[derive(Debug, PartialEq)]
 enum ParseObj {
     Char(char),
@@ -86,7 +88,19 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
         return Ok((input.clone(), ParseObj::List(result)));
     };
 }
+fn any() -> impl Fn(String) -> ParseResult {
+    return move |input: String| {
+        if input.len() < 1 {
+            return ParseResult::Err(ParseErr::Unexpected(
+                "any".to_string(),
+                "nothing".to_string(),
+                0,
+            ));
+        }
 
+        return ParseResult::Ok((input[1..].to_string(), ParseObj::Char(input.chars().nth(0).unwrap())));
+    };
+}
 fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         if input.len() < 1 {
@@ -105,6 +119,27 @@ fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
             0,
         ));
     };
+}
+
+fn string(input: String) -> ParseResult {
+    let (remains, _) = parse_char('"')(input)?;
+    let mut end: usize = 0;
+    for (idx, c) in remains.chars().enumerate() {
+
+        if c== '"' {
+            if remains.chars().nth(idx-1).is_some() {
+               if remains.chars().nth(idx-1).unwrap() != '\\' {
+                   end = idx;
+               }
+            }
+        } 
+    }
+    if end != 0 {
+        return Ok((remains[end+1..].to_string(), ParseObj::Str(remains[..end].to_string())));
+    } else {
+        return Err(ParseErr::Unknown("cannot find end of string".to_string()))
+    }
+    
 }
 
 fn keyword(word: String) -> impl Fn(String) -> ParseResult {
@@ -268,10 +303,10 @@ fn float(input: String) -> ParseResult {
 fn expr(input: String) -> ParseResult {
     // bool
     // ident
-    // String
+    // String []
     // int, uint, float
     let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> =
-        vec![float, uint, int, bool, ident];
+        vec![float, uint, int, bool, string, ident];
     return any_of(parsers)(input);
 }
 
@@ -340,7 +375,13 @@ fn test_parse_float() {
         ParseResult::Ok(("AB".to_string(), ParseObj::Float(4.2)))
     );
 }
-
+#[test]
+fn test_parse_string() {
+    assert_eq!(
+        string("\"amirreza\"".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Str("amirreza".to_string())))
+    );
+}
 #[test]
 fn test_parse_int() {
     assert_eq!(
@@ -420,5 +461,9 @@ fn test_parse_expr() {
     assert_eq!(
         expr("name".to_string()),
         ParseResult::Ok(("".to_string(), ParseObj::Ident("name".to_string())))
+    );
+    assert_eq!(
+        expr("\"name\"".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Str("name".to_string())))
     );
 }
