@@ -254,6 +254,15 @@ fn float(input: String) -> ParseResult {
     }
 }
 
+fn expr(input: String) -> ParseResult {
+    // bool
+    // ident
+    // String
+    // int, uint, float
+    let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> = vec![float, uint, int, bool, ident];
+    return any_of(parsers)(input);
+}
+
 #[test]
 fn test_parse_single_digit() {
     assert_eq!(
@@ -317,5 +326,33 @@ fn test_parse_bool() {
     assert_eq!(
         bool("falsesomeshitaftertrue".to_string()),
         ParseResult::Ok(("someshitaftertrue".to_string(), ParseObj::Bool(false),))
+    );
+}
+
+#[test]
+fn test_parse_expr() {
+    assert_eq!(
+        expr("true".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Bool(true)))
+    );
+    assert_eq!(
+        expr("false".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Bool(false)))
+    );
+    assert_eq!(
+        expr("12".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Uint(12)))
+    );
+    assert_eq!(
+        expr("-12".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Int(-12)))
+    );
+    assert_eq!(
+        expr("12.2".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Float(12.2)))
+    );
+    assert_eq!(
+        expr("-12.2".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Float(-12.2)))
     );
 }
