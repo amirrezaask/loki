@@ -17,7 +17,6 @@
 //     FnCall
 // }
 
-
 #[derive(Debug, PartialEq)]
 enum ParseObj {
     Char(char),
@@ -26,6 +25,7 @@ enum ParseObj {
     Float(f64),
     Str(String),
     Keyword(String),
+    Ident(String),
     Bool(bool),
     List(Vec<ParseObj>),
     Empty,
@@ -59,10 +59,11 @@ impl std::error::Error for ParseErr {}
 type ParseResult = Result<(String, ParseObj), ParseErr>;
 
 fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
+
+    println!("len of parsers created {}", parsers.len());
     return move |input: String| {
         for parser in parsers.iter() {
-            let res = parser(input.clone());
-            match res {
+            match parser(input.clone()) {
                 Ok((remaining, parsed)) => return Ok((remaining, parsed)),
                 Err(err) => continue,
             }
@@ -153,19 +154,36 @@ fn whitespace<'a>() -> impl Fn(String) -> ParseResult {
     return zero_or_more(any_whitespace());
 }
 
+fn parse_chars(chars: &str) -> impl Fn(String) -> ParseResult {
+    println!("-- > {}", chars);
+    let parsers  = chars.chars().map(|c| {
+        parse_char(c)
+    }).collect();
+    return any_of(parsers);
+}
+
 fn digit(input: String) -> ParseResult {
-    return any_of(vec![
-        parse_char('0'),
-        parse_char('1'),
-        parse_char('2'),
-        parse_char('3'),
-        parse_char('4'),
-        parse_char('5'),
-        parse_char('6'),
-        parse_char('7'),
-        parse_char('8'),
-        parse_char('9'),
-    ])(input);
+    return parse_chars("0123456789")(input);
+}
+
+
+fn ident(input: String) -> ParseResult {
+    match one_or_more(parse_chars("abcdefghijklmnopqrstuvwxzABCDEFGHIJKLMNOPQRSTUVWXZ_"))(input) {
+        Ok((remains, ParseObj::List(chars_parse_objects))) => {
+            let mut name = String::new();
+
+            for po in chars_parse_objects {
+                match po {
+                    ParseObj::Char(c) => name.push(c),
+                    _ => return Err(ParseErr::new("idents should be valid")),
+                }
+            }
+            return Ok((remains, ParseObj::Ident((name))));
+            
+        },
+        Ok(_) => return Err(ParseErr::new("idents should be valid")),
+        Err(err) => return Err(ParseErr::wrap("error in parsing ident", err))
+    }
 }
 
 fn uint(input: String) -> ParseResult {
@@ -200,8 +218,8 @@ fn int(input: String) -> ParseResult {
         Ok((input, ParseObj::Empty)) => match uint(input) {
             Ok((remains, ParseObj::Uint(num))) => {
                 return Ok((remains, ParseObj::Int(num as isize)));
-            },
-            _ => Err(ParseErr::new("Err"))
+            }
+            _ => Err(ParseErr::new("Err")),
         },
         _ => Err(ParseErr::new("Err")),
     }
@@ -247,8 +265,8 @@ fn test_parse_single_digit() {
 #[test]
 fn test_parse_float() {
     assert_eq!(
-        float("4.2".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Float(4.2)))
+        float("4.2AB".to_string()),
+        ParseResult::Ok(("AB".to_string(), ParseObj::Float(4.2)))
     );
 }
 
@@ -279,7 +297,17 @@ fn test_parse_keyword() {
         ParseResult::Ok((" name".to_string(), ParseObj::Keyword("struct".to_string())))
     );
 }
-
+#[test]
+fn test_parse_ident() {
+    assert_eq!(
+        ident("name".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Ident("name".to_string())))
+    );
+    assert_eq!(
+        ident("name_str".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Ident("name_str".to_string()),))
+    );
+}
 #[test]
 fn test_parse_bool() {
     assert_eq!(
