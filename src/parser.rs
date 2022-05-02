@@ -9,6 +9,7 @@ enum ParseObj {
     Ident(String),
     Bool(bool),
     List(Vec<ParseObj>),
+    Decl(String, Box<ParseObj>),
     Empty,
 }
 
@@ -191,10 +192,7 @@ fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> 
     };
 }
 
-// fn decl(input: String) -> ParseResult {
-//     // ident\s*=\s*expr;
 
-// }
 
 fn uint(input: String) -> ParseResult {
     match one_or_more(digit())(input) {
@@ -277,6 +275,56 @@ fn expr(input: String) -> ParseResult {
     return any_of(parsers)(input);
 }
 
+fn decl(mut input: String) -> ParseResult {
+    // ident\s*=\s*expr;
+    let (remains, obj) = ident(input)?;
+    let mut identifier = "".to_string();
+    match obj {
+        ParseObj::Ident(i) => identifier = i,
+        _ => return Err(ParseErr::Unexpected("ident".to_string(), format!("{:?}", obj), 0))
+    }
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, _) = parse_char('=')(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, e) = expr(remains)?;
+    return Ok((remains, ParseObj::Decl(identifier, Box::new(e))));
+}
+#[test]
+fn test_parse_decl_bool() {
+    let decl_res = decl("a = false".to_string());
+    assert!(decl_res.is_ok());
+    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+        assert_eq!(name, "a");
+        assert_eq!(be, Box::new(ParseObj::Bool(false)));
+
+    } else {
+        assert!(false);
+    }
+}
+#[test]
+fn test_parse_decl_int() {
+    let decl_res = decl("a = -2".to_string());
+    assert!(decl_res.is_ok());
+    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+        assert_eq!(name, "a");
+        assert_eq!(be, Box::new(ParseObj::Int(-2)));
+
+    } else {
+        assert!(false);
+    }
+}
+#[test]
+fn test_parse_decl_uint() {
+    let decl_res = decl("a = 2".to_string());
+    assert!(decl_res.is_ok());
+    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+        assert_eq!(name, "a");
+        assert_eq!(be, Box::new(ParseObj::Uint(2)));
+
+    } else {
+        assert!(false);
+    }
+}
 #[test]
 fn test_parse_single_digit() {
     assert_eq!(
