@@ -12,6 +12,7 @@ enum ParseObj {
     Bool(bool),
     List(Vec<ParseObj>),
     Decl(String, Box<ParseObj>),
+    FnCall(String, Vec<ParseObj>),
     Empty,
 }
 
@@ -35,7 +36,6 @@ impl std::error::Error for ParseErr {}
 type ParseResult = Result<(String, ParseObj), ParseErr>;
 
 fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
-    println!("len of parsers created {}", parsers.len());
     return move |input: String| {
         for parser in parsers.iter() {
             match parser(input.clone()) {
@@ -208,6 +208,36 @@ fn ident(input: String) -> ParseResult {
     }
 }
 
+fn fn_call(input: String) -> ParseResult {
+    let (remains, obj) = ident(input)?;
+    let mut identifier = "".to_string();
+    match obj {
+        ParseObj::Ident(i) => identifier = i,
+        _ => return Err(ParseErr::Unexpected("ident".to_string(), format!("{:?}", obj), 0))
+    }
+    let (mut remains, _) = parse_char('(')(remains)?;
+    // we know it's a function call
+    let mut args: Vec<ParseObj> = Vec::new();
+    loop {
+        let expr_res = expr(remains.clone())?;
+        remains = expr_res.0;
+        let obj = expr_res.1;
+        args.push(obj);
+        //,2)
+        let comma = parse_char(',')(remains.clone());
+        if let Ok((r, _)) = comma {
+            remains = r;
+        } else {
+            break;
+        }
+    }
+
+    let (mut remains, _) = parse_char(')')(remains)?;
+    return Ok((remains, ParseObj::FnCall(identifier, args)));
+
+
+} 
+
 fn semicolon(input: String) -> ParseResult {
     return parse_char(';')(input);
 }
@@ -303,10 +333,11 @@ fn float(input: String) -> ParseResult {
 fn expr(input: String) -> ParseResult {
     // bool
     // ident
-    // String []
+    // String
     // int, uint, float
+    // fn_call
     let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> =
-        vec![float, uint, int, bool, string, ident];
+        vec![float, uint, int, bool, string, fn_call, ident];
     return any_of(parsers)(input);
 }
 
@@ -343,6 +374,18 @@ fn test_parse_decl_int() {
     if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Int(-2)));
+
+    } else {
+        assert!(false);
+    }
+}
+#[test]
+fn test_parse_decl_str() {
+    let decl_res = decl("a = \"amirreza\"".to_string());
+    assert!(decl_res.is_ok());
+    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+        assert_eq!(name, "a");
+        assert_eq!(be, Box::new(ParseObj::Str("amirreza".to_string())));
 
     } else {
         assert!(false);
@@ -421,6 +464,20 @@ fn test_parse_ident() {
     );
 }
 #[test]
+fn test_parse_fn_call() {
+    assert_eq!(
+        fn_call("name(1,2)".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::FnCall("name".to_string(), vec![ParseObj::Uint(1), ParseObj::Uint(2)])))
+    );
+    assert_eq!(
+        fn_call("name(1,fn(2))".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::FnCall("name".to_string(), vec![
+            ParseObj::Uint(1), 
+            ParseObj::FnCall("fn".to_string(), vec![ParseObj::Uint(2)]),
+        ])))
+    );
+}
+#[test]
 fn test_parse_bool() {
     assert_eq!(
         bool("truesomeshitaftertrue".to_string()),
@@ -465,5 +522,12 @@ fn test_parse_expr() {
     assert_eq!(
         expr("\"name\"".to_string()),
         ParseResult::Ok(("".to_string(), ParseObj::Str("name".to_string())))
+    );
+    assert_eq!(
+        expr("fn_call(1,2)".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::FnCall("fn_call".to_string(), vec![
+            ParseObj::Uint(1),
+            ParseObj::Uint(2),
+        ])))
     );
 }
