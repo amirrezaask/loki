@@ -14,6 +14,7 @@ pub enum ParseObj {
     Decl(String, Box<Option<ParseObj>> ,Box<ParseObj>),
     FnCall(String, Vec<ParseObj>),
     Struct(Vec<(ParseObj, ParseObj)>),
+    Array(Box<Option<ParseObj>>, Box<ParseObj>),
     Empty,
 }
 
@@ -361,8 +362,23 @@ pub fn _struct(input: String) -> ParseResult {
 
     let (mut remains, _) = parse_char('}')(remains)?;
     return Ok((remains, ParseObj::Struct(idents_tys)));
+}
 
-
+fn array(input: String) -> ParseResult {
+    let (remains, _) = parse_char('[')(input)?;
+    let (mut remains, ty) = expr(remains)?;
+    let semicolon_res = semicolon(remains.clone());
+    let mut size: Option<ParseObj> = None;
+    match semicolon_res {
+        Ok((r, ParseObj::Char(';'))) => {
+            let (r, size_obj) = expr(r)?;
+            remains = r; 
+            size = Some(size_obj);
+        },
+        _ => (),
+    };
+    let (remains, _) = parse_char(']')(remains)?;
+    return Ok((remains, ParseObj::Array(Box::new(size), Box::new(ty))));
 }
 
 fn float(input: String) -> ParseResult {
@@ -396,7 +412,7 @@ fn expr(input: String) -> ParseResult {
     // int, uint, float
     // fn_call
     let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> =
-        vec![float, uint, int, bool, string, fn_call, _struct, ident ];
+        vec![float, uint, int, bool, string, fn_call, _struct, ident , array];
     return any_of(parsers)(input);
 }
 
@@ -603,6 +619,18 @@ fn test_parse_decl_struct() {
     }
 }
 
+#[test]
+fn test_parse_array_type() {
+    assert_eq!(
+        expr("[int]".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(None), Box::new(ParseObj::Ident("int".to_string())))))
+    );
+    assert_eq!(
+        expr("[int;2]".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(Some(ParseObj::Uint(2))), Box::new(ParseObj::Ident("int".to_string())))))
+    );
+}
+
 
 #[test]
 fn test_parse_expr() {
@@ -661,5 +689,16 @@ fn test_parse_expr() {
             ParseObj::Uint(1),
             ParseObj::Uint(2),
         ])))
+    );
+    assert_eq!(
+        expr("[struct {name: string}]".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(None), Box::new(ParseObj::Struct(vec![
+            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string()))
+        ])))))
+    );
+    assert_eq!(
+        expr("[struct {name: string};2]".to_string()),
+        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(Some(ParseObj::Uint(2))), Box::new(ParseObj::Struct(vec![
+            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string()))])))))
     );
 }
