@@ -321,31 +321,24 @@ pub fn _struct(input: String) -> ParseResult {
     // we know it's a function call
     let mut idents_tys: Vec<(ParseObj, ParseObj)> = Vec::new();
     loop {
-
         println!("remains: {}", remains);
         let whitespace_res = whitespace()(remains.clone())?;
         remains = whitespace_res.0;
 
-        println!("without ws remains: {}", remains);
         let ident_res = ident(remains.clone())?;
         remains = ident_res.0;
 
         let ident_obj = ident_res.1;
 
-        println!("parsed ident of field: {:?}", ident_obj);
         let whitespace_res = whitespace()(remains)?;
         remains = whitespace_res.0;
-
-        println!("whitespace ...");
 
         let colon_res = parse_char(':')(remains.clone())?;
         remains = colon_res.0;
 
-        println!("colon ...");
         let whitespace_res = whitespace()(remains)?;
         remains = whitespace_res.0;
 
-        println!("whitespace ...");
         println!("parsing type for field: {:?}", ident_obj);
         let type_res = expr(remains.clone())?;
         remains = type_res.0;
@@ -610,7 +603,7 @@ fn test_parse_expr() {
         ParseResult::Ok(("".to_string(), ParseObj::Str("name".to_string())))
     );
     assert_eq!(
-        expr("struct {\n\tname: string,\n\tpayload: date}".to_string()),
+        expr("struct {\n\tname: string,\n\tupdated_at: date}".to_string()),
         ParseResult::Ok(("".to_string(), ParseObj::Struct(vec![
             (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
             (ParseObj::Ident("updated_at".to_string()), ParseObj::Ident("date".to_string()))
