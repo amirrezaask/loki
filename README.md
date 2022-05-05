@@ -4,12 +4,10 @@ Loki is an experimental programming language that I am building both to learn mo
 ## Compiler Flow
 ```mermaid
 graph TD
-    A[Tokenize] -->|Produces Token Stream| B[Parser]
-    B --> |Produces AST| C[Semantic Analyzer]
-    C -->|Produces AST| D[IR Gen]
-    D --> |IR| X[Semantic Analysis again]
-    X --> |Produces IR| E[Target Code Generator]
-    E --> |Target Project| F[Target Toolchain]
+    A[Parser] --> |Produces AST| B[Semantic Analyzer/Type Inference]
+    B --> C[Comptimes]
+    C --> |AST| D[Target Code Generator]
+    D --> |Target Project| E[Target Toolchain]
                     
 ```
 
