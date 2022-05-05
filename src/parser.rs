@@ -569,6 +569,24 @@ fn test_parse_struct() {
 
 
 #[test]
+fn test_parse_decl_struct() {
+    let decl_res = decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string());
+    assert!(decl_res.is_ok());
+    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+        assert_eq!(name, "s");
+        assert_eq!(be, Box::new(ParseObj::Struct(vec![
+            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
+            (ParseObj::Ident("age".to_string()), ParseObj::Ident("int".to_string())),
+            (ParseObj::Ident("meta".to_string()), ParseObj::Struct(vec![(ParseObj::Ident("mature".to_string()), ParseObj::Ident("bool".to_string()))]))
+        ])));
+
+    } else {
+        assert!(false);
+    }
+}
+
+
+#[test]
 fn test_parse_expr() {
     assert_eq!(
         expr("true".to_string()),
