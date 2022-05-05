@@ -1,5 +1,10 @@
 #![allow(dead_code)]
-
+/*TODO
+- If
+- for
+- function def
+- interface
+*/
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseObj {
     Char(char),
