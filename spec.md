@@ -68,23 +68,8 @@ If conditions *only* accept boolean value or option values nothing else. It will
 You can see all types available in Loki down here
 ```
   int8, int16, int32, int64, isize
-
   float32, float64
-  
-  [size]type  // array type
-
-  []type // slice type, which is basically a reference to somewhere in an array + size
-
-  map[key_type]value_type // hashmap
-
-  (type1, type2, type3) // tuples which are basically auto generated structs.
-
-  type1? // optional type can be null, other values cannot be null
-
-  type1!type2 // tuple shorthand equivalent to (type1, type2)
-   
-  type // type itself is a type :) since types are first class values and you can work with them like any other value.
-  
+  [type;size]  // array type, if size is not there it would become a slice.
 ```
 Loki also has complex data structures.
 ```

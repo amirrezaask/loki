@@ -1,12 +1,9 @@
-mod tokenizer;
 mod parser;
 
-#[cfg(test)]
-mod tests;
+fn main() -> Result<(), parser::ParseErr> {
 
-fn main() {
-    let tokens = tokenizer::tokenize("fn_name(fn_name2(fn_name3(12)), 12, 34)").unwrap();
-    println!("{:?}", parser::Parser::new(tokens).parse_next_expr().unwrap());
+    println!("{:?}", parser::_struct("struct {\n\tname: string,\n\tage: int\n}".to_string())?);
+    Ok(())
 }
 
 
