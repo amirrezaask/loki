@@ -11,7 +11,7 @@ pub enum ParseObj {
     Ident(String),
     Bool(bool),
     List(Vec<ParseObj>),
-    Decl(String, Box<ParseObj>),
+    Decl(String, Box<Option<ParseObj>> ,Box<ParseObj>),
     FnCall(String, Vec<ParseObj>),
     Struct(Vec<(ParseObj, ParseObj)>),
     Empty,
@@ -401,24 +401,37 @@ fn expr(input: String) -> ParseResult {
 }
 
 fn decl(mut input: String) -> ParseResult {
-    // ident\s*=\s*expr;
+    // ident\s*:=\s*expr;
     let (remains, obj) = ident(input)?;
     let mut identifier = "".to_string();
     match obj {
         ParseObj::Ident(i) => identifier = i,
         _ => return Err(ParseErr::Unexpected("ident".to_string(), format!("{:?}", obj), 0))
     }
-    let (remains, _) = whitespace()(remains)?;
+    let (mut remains, _) = whitespace()(remains)?;
+    let mut ty: Option<ParseObj> = None;
+    let colon_res = parse_char(':')(remains.clone());
+    match colon_res {
+       Ok((r, ParseObj::Char(':'))) => {
+            let ty_res = expr(r)?;
+            remains = ty_res.0;
+            ty = Some(ty_res.1);
+        },
+        _ => {
+        },
+     
+    }
     let (remains, _) = parse_char('=')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, e) = expr(remains)?;
-    return Ok((remains, ParseObj::Decl(identifier, Box::new(e))));
+    return Ok((remains, ParseObj::Decl(identifier, Box::new(ty), Box::new(e))));
 }
 #[test]
 fn test_parse_decl_bool() {
     let decl_res = decl("a = false".to_string());
     assert!(decl_res.is_ok());
-    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+    let none: Box<Option<ParseObj>> = Box::new(None);
+    if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Bool(false)));
 
@@ -430,7 +443,8 @@ fn test_parse_decl_bool() {
 fn test_parse_decl_int() {
     let decl_res = decl("a = -2".to_string());
     assert!(decl_res.is_ok());
-    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+    let none: Box<Option<ParseObj>> = Box::new(None);
+    if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Int(-2)));
 
@@ -442,7 +456,9 @@ fn test_parse_decl_int() {
 fn test_parse_decl_str() {
     let decl_res = decl("a = \"amirreza\"".to_string());
     assert!(decl_res.is_ok());
-    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+
+    let none: Box<Option<ParseObj>> = Box::new(None);
+    if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Str("amirreza".to_string())));
 
@@ -454,7 +470,8 @@ fn test_parse_decl_str() {
 fn test_parse_decl_uint() {
     let decl_res = decl("a = 2".to_string());
     assert!(decl_res.is_ok());
-    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+    let none: Box<Option<ParseObj>> = Box::new(None);
+    if let (_, ParseObj::Decl(name,none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Uint(2)));
 
@@ -572,7 +589,8 @@ fn test_parse_struct() {
 fn test_parse_decl_struct() {
     let decl_res = decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string());
     assert!(decl_res.is_ok());
-    if let (_, ParseObj::Decl(name, be)) = decl_res.unwrap() {
+    let none: Box<Option<ParseObj>> = Box::new(None);
+    if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "s");
         assert_eq!(be, Box::new(ParseObj::Struct(vec![
             (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
