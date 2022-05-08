@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 /*TODO
-- If
-- for
-- function def
-- interface
+    - for
+        - c syntax
+        - foreach
+        - while syntax
+    - interface
+    - operator expressions
 */
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseObj {
@@ -24,6 +26,7 @@ pub enum ParseObj {
     Stmt(Box<ParseObj>),
     Block(Vec<ParseObj>),
     If(Box<ParseObj>, Box<ParseObj>),
+    ForC(Box<ParseObj>, Box<ParseObj>, Box<ParseObj>, Box<ParseObj>),
     Empty,
 }
 
@@ -418,20 +421,31 @@ fn _if(input: String) -> ParseResult {
     let (remains, _) = keyword("if".to_string())(input)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, cond) = expr(remains)?;
-    println!("cond: {:?}", cond);
     let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char('{')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, _block) = block(remains)?;
-    println!("block: {:?}", _block);
-    println!("remains after block: {}", remains);
     let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((remains, ParseObj::If(Box::new(cond), Box::new(_block))));
 }
 
 fn _for(input: String) -> ParseResult {
-    unimplemented!();
+    let (remains, _) = keyword("for".to_string())(input)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, init) = decl(remains)?;
+    let (remains, _) = parse_char(';')(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, cond) = expr(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, _) = parse_char(';')(remains)?;
+    let (remains, cont) = expr(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, _) = parse_char('{')(remains)?;
+    let (remains, body) = block(remains)?;
+    let (remains, _) = parse_char('}')(remains)?;
+    return Ok((remains, ParseObj::ForC(Box::new(init), Box::new(cond), Box::new(cont), Box::new(body))));
+
 }
 
 fn fn_def(input: String) -> ParseResult {
@@ -529,6 +543,30 @@ fn expr(input: String) -> ParseResult {
     return any_of(parsers)(input);
 }
 
+// fn op(mut input: String) -> ParseResult {
+//     // ident\s*:=\s*expr;
+//     let (remains, _) = whitespace()(input.clone())?;
+//     let (remains, obj) = ident(remains)?;
+//     let mut identifier = "".to_string();
+//     match obj {
+//         ParseObj::Ident(i) => identifier = i,
+//         _ => {
+//             return Err(ParseErr::Unexpected(
+//                 "ident".to_string(),
+//                 format!("{:?}", obj),
+//                 0,
+//             ))
+//         }
+//     }
+//     let (mut remains, _) = whitespace()(remains)?;
+//     let (remains, _) = parse_chars("")(remains)?;
+//     let (remains, _) = whitespace()(remains)?;
+//     let (remains, e) = expr(remains)?;
+//     return Ok((
+//         remains,
+//         ParseObj::Decl(identifier, Box::new(ty), Box::new(e)),
+//     ));
+// }
 fn decl(mut input: String) -> ParseResult {
     // ident\s*:=\s*expr;
     let (remains, _) = whitespace()(input.clone())?;
@@ -810,7 +848,18 @@ fn test_parse_array_type() {
         ))
     );
 }
-
+// #[test]
+// fn test_parse_for_c() {
+//     assert_eq!(
+//         _if("for i=0;i<10;i++ { print(i); }".to_string()),
+//         ParseResult::Ok((
+//             "".to_string(),
+//             ParseObj::ForC(
+//                 Box::new(ParseObj::Decl(ParseObj::Ident("i".to_string()), Box::new(None), Box::new(ParseObj::Uint(0)))),
+//                 )
+//             )
+//         ));
+// }
 #[test]
 fn test_parse_if() {
     assert_eq!(
