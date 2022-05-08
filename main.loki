@@ -1,0 +1,3 @@
+main = fn() void {
+    printf("Salam donya");
+};
