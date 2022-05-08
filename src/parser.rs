@@ -16,10 +16,13 @@ pub enum ParseObj {
     Ident(String),
     Bool(bool),
     List(Vec<ParseObj>),
-    Decl(String, Box<Option<ParseObj>> ,Box<ParseObj>),
+    Decl(String, Box<Option<ParseObj>>, Box<ParseObj>),
     FnCall(String, Vec<ParseObj>),
     Struct(Vec<(ParseObj, ParseObj)>),
     Array(Box<Option<ParseObj>>, Box<ParseObj>),
+    Stmt(Box<ParseObj>),
+    Block(Vec<ParseObj>),
+    If(Box<ParseObj>, Box<ParseObj>),
     Empty,
 }
 
@@ -105,7 +108,10 @@ fn any() -> impl Fn(String) -> ParseResult {
             ));
         }
 
-        return ParseResult::Ok((input[1..].to_string(), ParseObj::Char(input.chars().nth(0).unwrap())));
+        return ParseResult::Ok((
+            input[1..].to_string(),
+            ParseObj::Char(input.chars().nth(0).unwrap()),
+        ));
     };
 }
 fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
@@ -132,21 +138,22 @@ fn string(input: String) -> ParseResult {
     let (remains, _) = parse_char('"')(input)?;
     let mut end: usize = 0;
     for (idx, c) in remains.chars().enumerate() {
-
-        if c== '"' {
-            if remains.chars().nth(idx-1).is_some() {
-               if remains.chars().nth(idx-1).unwrap() != '\\' {
-                   end = idx;
-               }
+        if c == '"' {
+            if remains.chars().nth(idx - 1).is_some() {
+                if remains.chars().nth(idx - 1).unwrap() != '\\' {
+                    end = idx;
+                }
             }
-        } 
+        }
     }
     if end != 0 {
-        return Ok((remains[end+1..].to_string(), ParseObj::Str(remains[..end].to_string())));
+        return Ok((
+            remains[end + 1..].to_string(),
+            ParseObj::Str(remains[..end].to_string()),
+        ));
     } else {
-        return Err(ParseErr::Unknown("cannot find end of string".to_string()))
+        return Err(ParseErr::Unknown("cannot find end of string".to_string()));
     }
-    
 }
 
 fn keyword(word: String) -> impl Fn(String) -> ParseResult {
@@ -188,7 +195,6 @@ fn ident(input: String) -> ParseResult {
     ))(input)
     {
         Ok((remains, ParseObj::List(chars_parse_objects))) => {
-            println!("@${:?}", chars_parse_objects);
             let mut name = String::new();
 
             for po in chars_parse_objects {
@@ -221,7 +227,13 @@ fn fn_call(input: String) -> ParseResult {
     let mut identifier = "".to_string();
     match obj {
         ParseObj::Ident(i) => identifier = i,
-        _ => return Err(ParseErr::Unexpected("ident".to_string(), format!("{:?}", obj), 0))
+        _ => {
+            return Err(ParseErr::Unexpected(
+                "ident".to_string(),
+                format!("{:?}", obj),
+                0,
+            ))
+        }
     }
     let (mut remains, _) = parse_char('(')(remains)?;
     // we know it's a function call
@@ -243,9 +255,7 @@ fn fn_call(input: String) -> ParseResult {
 
     let (mut remains, _) = parse_char(')')(remains)?;
     return Ok((remains, ParseObj::FnCall(identifier, args)));
-
-
-} 
+}
 
 fn semicolon(input: String) -> ParseResult {
     return parse_char(';')(input);
@@ -265,8 +275,6 @@ fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> 
         return Ok((input, ParseObj::List(parsed)));
     };
 }
-
-
 
 fn uint(input: String) -> ParseResult {
     match one_or_more(digit())(input) {
@@ -301,8 +309,13 @@ fn int(mut input: String) -> ParseResult {
 
     let (input, obj) = uint(input)?;
     match obj {
-        ParseObj::Uint(num) => return Ok((input, ParseObj::Int(with_sign as isize * num as isize))),
-        _ => Err(ParseErr::Unknown(format!("expected a uint found {:?}", obj)))
+        ParseObj::Uint(num) => {
+            return Ok((input, ParseObj::Int(with_sign as isize * num as isize)))
+        }
+        _ => Err(ParseErr::Unknown(format!(
+            "expected a uint found {:?}",
+            obj
+        ))),
     }
 }
 
@@ -317,9 +330,8 @@ fn bool(input: String) -> ParseResult {
     }
 }
 
-
 pub fn _struct(input: String) -> ParseResult {
-    // struct { ident: type, }  
+    // struct { ident: type, }
     let (mut remains, _) = keyword("struct".to_string())(input)?;
     let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('{')(remains)?;
@@ -327,7 +339,6 @@ pub fn _struct(input: String) -> ParseResult {
     // we know it's a function call
     let mut idents_tys: Vec<(ParseObj, ParseObj)> = Vec::new();
     loop {
-        println!("remains: {}", remains);
         let whitespace_res = whitespace()(remains.clone())?;
         remains = whitespace_res.0;
 
@@ -345,14 +356,11 @@ pub fn _struct(input: String) -> ParseResult {
         let whitespace_res = whitespace()(remains)?;
         remains = whitespace_res.0;
 
-        println!("parsing type for field: {:?}", ident_obj);
         let type_res = expr(remains.clone())?;
         remains = type_res.0;
 
         let type_obj = type_res.1;
         idents_tys.push((ident_obj.clone(), type_obj.clone()));
-        println!("struct field: {:?}", (ident_obj, type_obj));
-
 
         let whitespace_res = whitespace()(remains)?;
         remains = whitespace_res.0;
@@ -377,13 +385,56 @@ fn array(input: String) -> ParseResult {
     match semicolon_res {
         Ok((r, ParseObj::Char(';'))) => {
             let (r, size_obj) = expr(r)?;
-            remains = r; 
+            remains = r;
             size = Some(size_obj);
-        },
+        }
         _ => (),
     };
     let (remains, _) = parse_char(']')(remains)?;
     return Ok((remains, ParseObj::Array(Box::new(size), Box::new(ty))));
+}
+
+fn statement(input: String) -> ParseResult {
+    let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> = vec![decl, expr]; //TODO: add _for
+    let (remains, _) = whitespace()(input.clone())?;
+    let (remains, stmt) = any_of(parsers)(remains)?;
+    let (remains, _) = parse_char(';')(remains.clone())?;
+    return Ok((remains, stmt));
+}
+
+fn block(input: String) -> ParseResult {
+    return match zero_or_more(statement)(input)? {
+        (remains, ParseObj::List(items)) => Ok((remains, ParseObj::Block(items))),
+        (_remains, obj) => Err(ParseErr::Unexpected(
+            "ParseObj::List".to_string(),
+            format!("{:?}", obj),
+            0,
+        )),
+    };
+}
+
+fn _if(input: String) -> ParseResult {
+    let (remains, _) = keyword("if".to_string())(input)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, cond) = expr(remains)?;
+    println!("cond: {:?}", cond);
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, _) = parse_char('{')(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, _block) = block(remains)?;
+    println!("block: {:?}", _block);
+    println!("remains after block: {}", remains);
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, _) = parse_char('}')(remains)?;
+    return Ok((remains, ParseObj::If(Box::new(cond), Box::new(_block))));
+}
+
+fn _for(input: String) -> ParseResult {
+    unimplemented!();
+}
+
+fn fn_def(input: String) -> ParseResult {
+    unimplemented!();
 }
 
 fn float(input: String) -> ParseResult {
@@ -416,36 +467,45 @@ fn expr(input: String) -> ParseResult {
     // String
     // int, uint, float
     // fn_call
-    let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> =
-        vec![float, uint, int, bool, string, fn_call, _struct, ident , array];
+    let parsers: Vec<fn(String) -> Result<(String, ParseObj), ParseErr>> = vec![
+        float, uint, int, bool, string, _if, _struct, fn_call, ident, array,
+    ];
     return any_of(parsers)(input);
 }
 
 fn decl(mut input: String) -> ParseResult {
     // ident\s*:=\s*expr;
-    let (remains, obj) = ident(input)?;
+    let (remains, _) = whitespace()(input.clone())?;
+    let (remains, obj) = ident(remains)?;
     let mut identifier = "".to_string();
     match obj {
         ParseObj::Ident(i) => identifier = i,
-        _ => return Err(ParseErr::Unexpected("ident".to_string(), format!("{:?}", obj), 0))
+        _ => {
+            return Err(ParseErr::Unexpected(
+                "ident".to_string(),
+                format!("{:?}", obj),
+                0,
+            ))
+        }
     }
     let (mut remains, _) = whitespace()(remains)?;
     let mut ty: Option<ParseObj> = None;
     let colon_res = parse_char(':')(remains.clone());
     match colon_res {
-       Ok((r, ParseObj::Char(':'))) => {
+        Ok((r, ParseObj::Char(':'))) => {
             let ty_res = expr(r)?;
             remains = ty_res.0;
             ty = Some(ty_res.1);
-        },
-        _ => {
-        },
-     
+        }
+        _ => {}
     }
     let (remains, _) = parse_char('=')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, e) = expr(remains)?;
-    return Ok((remains, ParseObj::Decl(identifier, Box::new(ty), Box::new(e))));
+    return Ok((
+        remains,
+        ParseObj::Decl(identifier, Box::new(ty), Box::new(e)),
+    ));
 }
 #[test]
 fn test_parse_decl_bool() {
@@ -455,7 +515,6 @@ fn test_parse_decl_bool() {
     if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Bool(false)));
-
     } else {
         assert!(false);
     }
@@ -468,7 +527,6 @@ fn test_parse_decl_int() {
     if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Int(-2)));
-
     } else {
         assert!(false);
     }
@@ -482,7 +540,6 @@ fn test_parse_decl_str() {
     if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Str("amirreza".to_string())));
-
     } else {
         assert!(false);
     }
@@ -492,10 +549,9 @@ fn test_parse_decl_uint() {
     let decl_res = decl("a = 2".to_string());
     assert!(decl_res.is_ok());
     let none: Box<Option<ParseObj>> = Box::new(None);
-    if let (_, ParseObj::Decl(name,none, be)) = decl_res.unwrap() {
+    if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "a");
         assert_eq!(be, Box::new(ParseObj::Uint(2)));
-
     } else {
         assert!(false);
     }
@@ -572,14 +628,26 @@ fn test_parse_payload_string_as_ident() {
 fn test_parse_fn_call() {
     assert_eq!(
         fn_call("name(1,2)".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::FnCall("name".to_string(), vec![ParseObj::Uint(1), ParseObj::Uint(2)])))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::FnCall(
+                "name".to_string(),
+                vec![ParseObj::Uint(1), ParseObj::Uint(2)]
+            )
+        ))
     );
     assert_eq!(
         fn_call("name(1,fn(2))".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::FnCall("name".to_string(), vec![
-            ParseObj::Uint(1), 
-            ParseObj::FnCall("fn".to_string(), vec![ParseObj::Uint(2)]),
-        ])))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::FnCall(
+                "name".to_string(),
+                vec![
+                    ParseObj::Uint(1),
+                    ParseObj::FnCall("fn".to_string(), vec![ParseObj::Uint(2)]),
+                ]
+            )
+        ))
     );
 }
 #[test]
@@ -598,27 +666,50 @@ fn test_parse_bool() {
 fn test_parse_struct() {
     assert_eq!(
         _struct("struct {\n\tname: string,\n\tage:int\n}".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Struct(vec![
-            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
-            (ParseObj::Ident("age".to_string()), ParseObj::Ident("int".to_string())),
-        ])))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Struct(vec![
+                (
+                    ParseObj::Ident("name".to_string()),
+                    ParseObj::Ident("string".to_string())
+                ),
+                (
+                    ParseObj::Ident("age".to_string()),
+                    ParseObj::Ident("int".to_string())
+                ),
+            ])
+        ))
     );
 }
 
-
 #[test]
 fn test_parse_decl_struct() {
-    let decl_res = decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string());
+    let decl_res =
+        decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string());
     assert!(decl_res.is_ok());
     let none: Box<Option<ParseObj>> = Box::new(None);
     if let (_, ParseObj::Decl(name, none, be)) = decl_res.unwrap() {
         assert_eq!(name, "s");
-        assert_eq!(be, Box::new(ParseObj::Struct(vec![
-            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
-            (ParseObj::Ident("age".to_string()), ParseObj::Ident("int".to_string())),
-            (ParseObj::Ident("meta".to_string()), ParseObj::Struct(vec![(ParseObj::Ident("mature".to_string()), ParseObj::Ident("bool".to_string()))]))
-        ])));
-
+        assert_eq!(
+            be,
+            Box::new(ParseObj::Struct(vec![
+                (
+                    ParseObj::Ident("name".to_string()),
+                    ParseObj::Ident("string".to_string())
+                ),
+                (
+                    ParseObj::Ident("age".to_string()),
+                    ParseObj::Ident("int".to_string())
+                ),
+                (
+                    ParseObj::Ident("meta".to_string()),
+                    ParseObj::Struct(vec![(
+                        ParseObj::Ident("mature".to_string()),
+                        ParseObj::Ident("bool".to_string())
+                    )])
+                )
+            ]))
+        );
     } else {
         assert!(false);
     }
@@ -628,14 +719,39 @@ fn test_parse_decl_struct() {
 fn test_parse_array_type() {
     assert_eq!(
         expr("[int]".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(None), Box::new(ParseObj::Ident("int".to_string())))))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Array(Box::new(None), Box::new(ParseObj::Ident("int".to_string())))
+        ))
     );
     assert_eq!(
         expr("[int;2]".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(Some(ParseObj::Uint(2))), Box::new(ParseObj::Ident("int".to_string())))))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Array(
+                Box::new(Some(ParseObj::Uint(2))),
+                Box::new(ParseObj::Ident("int".to_string()))
+            )
+        ))
     );
 }
 
+#[test]
+fn test_parse_if() {
+    assert_eq!(
+        _if("if true {\n\tfn(1);\n\tfn(2);}".to_string()),
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::If(
+                Box::new(ParseObj::Bool(true)),
+                Box::new(ParseObj::Block(vec![
+                    ParseObj::FnCall("fn".to_string(), vec![ParseObj::Uint(1)]),
+                    ParseObj::FnCall("fn".to_string(), vec![ParseObj::Uint(2)]),
+                ]))
+            )
+        ))
+    );
+}
 
 #[test]
 fn test_parse_expr() {
@@ -673,37 +789,90 @@ fn test_parse_expr() {
     );
     assert_eq!(
         expr("struct {\n\tname: string,\n\tupdated_at: date}".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Struct(vec![
-            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
-            (ParseObj::Ident("updated_at".to_string()), ParseObj::Ident("date".to_string()))
-        ])))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Struct(vec![
+                (
+                    ParseObj::Ident("name".to_string()),
+                    ParseObj::Ident("string".to_string())
+                ),
+                (
+                    ParseObj::Ident("updated_at".to_string()),
+                    ParseObj::Ident("date".to_string())
+                )
+            ])
+        ))
     );
 
     assert_eq!(
         expr("struct {\n\tname: string,\n\tpayload: struct {created_at: date}}".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Struct(vec![
-            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string())),
-            (ParseObj::Ident("payload".to_string()), ParseObj::Struct(vec![
-                (ParseObj::Ident("created_at".to_string()), ParseObj::Ident("date".to_string()))
-            ])),
-        ])))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Struct(vec![
+                (
+                    ParseObj::Ident("name".to_string()),
+                    ParseObj::Ident("string".to_string())
+                ),
+                (
+                    ParseObj::Ident("payload".to_string()),
+                    ParseObj::Struct(vec![(
+                        ParseObj::Ident("created_at".to_string()),
+                        ParseObj::Ident("date".to_string())
+                    )])
+                ),
+            ])
+        ))
     );
     assert_eq!(
         expr("fn_call(1,2)".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::FnCall("fn_call".to_string(), vec![
-            ParseObj::Uint(1),
-            ParseObj::Uint(2),
-        ])))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::FnCall(
+                "fn_call".to_string(),
+                vec![ParseObj::Uint(1), ParseObj::Uint(2),]
+            )
+        ))
     );
     assert_eq!(
         expr("[struct {name: string}]".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(None), Box::new(ParseObj::Struct(vec![
-            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string()))
-        ])))))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Array(
+                Box::new(None),
+                Box::new(ParseObj::Struct(vec![(
+                    ParseObj::Ident("name".to_string()),
+                    ParseObj::Ident("string".to_string())
+                )]))
+            )
+        ))
     );
     assert_eq!(
         expr("[struct {name: string};2]".to_string()),
-        ParseResult::Ok(("".to_string(), ParseObj::Array(Box::new(Some(ParseObj::Uint(2))), Box::new(ParseObj::Struct(vec![
-            (ParseObj::Ident("name".to_string()), ParseObj::Ident("string".to_string()))])))))
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::Array(
+                Box::new(Some(ParseObj::Uint(2))),
+                Box::new(ParseObj::Struct(vec![(
+                    ParseObj::Ident("name".to_string()),
+                    ParseObj::Ident("string".to_string())
+                )]))
+            )
+        ))
+    );
+    assert_eq!(
+        expr("if cond(true) {\n\ta = 1;fn(a);\n}".to_string()),
+        ParseResult::Ok((
+            "".to_string(),
+            ParseObj::If(
+                Box::new(ParseObj::FnCall(
+                    "cond".to_string(),
+                    vec![ParseObj::Bool(true)]
+                )),
+                Box::new(ParseObj::Block(vec![
+                    ParseObj::Decl("a".to_string(), Box::new(None), Box::new(ParseObj::Uint(1))),
+                    ParseObj::FnCall("fn".to_string(), vec![ParseObj::Ident("a".to_string())]),
+                ]))
+            )
+        ))
     );
 }
