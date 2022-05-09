@@ -43,25 +43,28 @@ pub enum Type {
     Boolean,
     Array,
     Slice,
+    UserDefined(String),
     Fn(FnTy),
+    Struct(Vec<IdentAndTy>),
 }
 
-// impl From<Node> for Type {
-//     fn from(node: Node) -> Self {
-//         match node {
-//             Node::Ident(ty_name) => {
-//                 match ty_name.as_ref() {
-//                     "int" => Self::Int,
-//                     "uint" => Self::Uint,
-//                     "float" => Self::Float,
-//                     "char" => Self::Char,
-//                     "string" => Self::String,
-//                     "Boolean" => Self::String,
-//                 }
-//             }
-//         }
-//     }
-// }
+impl From<Node> for Type {
+    fn from(node: Node) -> Self {
+        match node {
+            Node::Ident(ty_name) => match ty_name.as_ref() {
+                "int" => Self::Int,
+                "uint" => Self::Uint,
+                "float" => Self::Float,
+                "char" => Self::Char,
+                "string" => Self::String,
+                "bool" => Self::Boolean,
+                _ => Self::UserDefined(ty_name) 
+            },
+            Node::StructTy(ident_and_types) => Self::Struct(ident_and_types),
+            _ => unimplemented!()
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IdentAndTy {
@@ -79,10 +82,8 @@ pub struct FnDef {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnTy {
     args: Vec<IdentAndTy>,
-    return_ty: Node
+    return_ty: Node,
 }
-
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnCall {
@@ -457,7 +458,10 @@ fn _struct(input: String) -> ParseResult {
             remains = type_res.0;
 
             let type_obj = type_res.1;
-            idents_tys.push(IdentAndTy{ident: ident_obj.clone(), ty: type_obj.clone()});
+            idents_tys.push(IdentAndTy {
+                ident: ident_obj.clone(),
+                ty: type_obj.clone(),
+            });
 
             let whitespace_res = whitespace()(remains)?;
             remains = whitespace_res.0;
@@ -559,8 +563,7 @@ fn _for(input: String) -> ParseResult {
         ),
     ));
 }
-
-fn fn_def(input: String) -> ParseResult {
+fn fn_ty(input: String) -> ParseResult {
     let (mut remains, _) = keyword("fn".to_string())(input)?;
     let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('(')(remains)?;
@@ -588,7 +591,10 @@ fn fn_def(input: String) -> ParseResult {
             remains = type_res.0;
 
             let type_obj = type_res.1;
-            args_tys.push(IdentAndTy{ident: ident_obj.clone(), ty: type_obj.clone()});
+            args_tys.push(IdentAndTy {
+                ident: ident_obj.clone(),
+                ty: type_obj.clone(),
+            });
 
             let whitespace_res = whitespace()(remains)?;
             remains = whitespace_res.0;
@@ -604,6 +610,17 @@ fn fn_def(input: String) -> ParseResult {
     let (remains, _) = parse_char(')')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, return_ty) = expr(remains)?;
+    return Ok((remains, Node::FnTy(Box::new(FnTy { args: args_tys, return_ty: return_ty }))))
+}
+
+fn fn_def(input: String) -> ParseResult {
+    let (remains, _ty ) = fn_ty(input)?;
+    let mut ty: Option<FnTy> = None; 
+    if let Node::FnTy(__ty) = _ty {
+        ty = Some(*__ty);
+    } else {
+        unreachable!()
+    }
     let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char('{')(remains)?;
     let (remains, _) = whitespace()(remains)?;
@@ -612,13 +629,10 @@ fn fn_def(input: String) -> ParseResult {
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((
         remains,
-        Node::FnDef(Box::new(FnDef{
-            ty: FnTy {
-                args: args_tys,
-                return_ty
-            },
+        Node::FnDef(Box::new(FnDef {
+            ty: ty.unwrap(),
             block: _block,
-        }))
+        })),
     ));
 }
 
