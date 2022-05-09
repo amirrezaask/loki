@@ -20,7 +20,7 @@ pub enum Node {
     Bool(bool),
     List(Vec<Node>),
     Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
-    FnCall(String, Vec<Node>),
+    FnCall(Box<Node>, Vec<Node>),
     Struct(Vec<(Node, Node)>),
     Fn(Vec<(Node, Node)>, Box<Node>, Box<Node>),
     Array(Box<Option<Node>>, Box<Node>),
@@ -263,7 +263,7 @@ fn fn_call(input: String) -> ParseResult {
     let close_paren_res = parse_char(')')(remains)?;
     remains = close_paren_res.0;
 
-    return Ok((remains, Node::FnCall(identifier, args)));
+    return Ok((remains, Node::FnCall(Box::new(Node::Ident(identifier)), args)));
 }
 
 fn semicolon(input: String) -> ParseResult {
@@ -708,7 +708,7 @@ fn test_parse_fn() {
                 )],
                 Box::new(Node::Ident("string".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
-                    "print".to_string(),
+                    Box::new(Node::Ident("print".to_string())),
                     vec![Node::Ident("a".to_string())]
                 )]))
             )
@@ -729,7 +729,7 @@ fn test_parse_decl_fn() {
                 vec![],
                 Box::new(Node::Ident("void".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
-                    "println".to_string(),
+                    Box::new(Node::Ident("println".to_string())),
                     vec![Node::Str("Salam donya!".to_string())]
                 )]))
             ))
@@ -761,14 +761,14 @@ fn test_parse_payload_string_as_ident() {
 fn test_parse_fn_call() {
     assert_eq!(
         fn_call("name()".to_string()),
-        ParseResult::Ok(("".to_string(), Node::FnCall("name".to_string(), vec![])))
+        ParseResult::Ok(("".to_string(), Node::FnCall(Box::new(Node::Ident("name".to_string())), vec![])))
     );
     assert_eq!(
         fn_call("name(1,2)".to_string()),
         ParseResult::Ok((
             "".to_string(),
             Node::FnCall(
-                "name".to_string(),
+                Box::new(Node::Ident("name".to_string())),
                 vec![Node::Uint(1), Node::Uint(2)]
             )
         ))
@@ -778,10 +778,10 @@ fn test_parse_fn_call() {
         ParseResult::Ok((
             "".to_string(),
             Node::FnCall(
-                "name".to_string(),
+                Box::new(Node::Ident("name".to_string())),
                 vec![
                     Node::Uint(1),
-                    Node::FnCall("fn".to_string(), vec![Node::Uint(2)]),
+                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(2)]),
                 ]
             )
         ))
@@ -893,8 +893,8 @@ fn test_parse_if() {
             Node::If(
                 Box::new(Node::Bool(true)),
                 Box::new(Node::Block(vec![
-                    Node::FnCall("fn".to_string(), vec![Node::Uint(1)]),
-                    Node::FnCall("fn".to_string(), vec![Node::Uint(2)]),
+                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(1)]),
+                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(2)]),
                 ]))
             )
         ))
@@ -976,7 +976,7 @@ fn test_parse_expr() {
         ParseResult::Ok((
             "".to_string(),
             Node::FnCall(
-                "fn_call".to_string(),
+                Box::new(Node::Ident("fn_call".to_string())),
                 vec![Node::Uint(1), Node::Uint(2),]
             )
         ))
@@ -1013,12 +1013,12 @@ fn test_parse_expr() {
             "".to_string(),
             Node::If(
                 Box::new(Node::FnCall(
-                    "cond".to_string(),
+                    Box::new(Node::Ident("cond".to_string())),
                     vec![Node::Bool(true)]
                 )),
                 Box::new(Node::Block(vec![
                     Node::Decl(Box::new(Node::Ident("a".to_string())), Box::new(None), Box::new(Node::Uint(1))),
-                    Node::FnCall("fn".to_string(), vec![Node::Ident("a".to_string())]),
+                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Ident("a".to_string())]),
                 ]))
             )
         ))
@@ -1031,7 +1031,7 @@ fn test_parse_expr() {
                 vec![],
                 Box::new(Node::Ident("void".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
-                    "print".to_string(),
+                    Box::new(Node::Ident("print".to_string())),
                     vec![Node::Str("salam".to_string())]
                 )]))
             )
@@ -1051,7 +1051,7 @@ fn test_parse_expr() {
                 )],
                 Box::new(Node::Ident("void".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
-                    "print".to_string(),
+                    Box::new(Node::Ident("print".to_string())),
                     vec![Node::Str("salam".to_string())]
                 )]))
             )
@@ -1072,7 +1072,7 @@ fn test_parse_module() {
                     vec![],
                     Box::new(Node::Ident("void".to_string())),
                     Box::new(Node::Block(vec![Node::FnCall(
-                        "println".to_string(),
+                        Box::new(Node::Ident("println".to_string())),
                         vec![Node::Str("Hello World".to_string())]
                     )]))
                 ))
