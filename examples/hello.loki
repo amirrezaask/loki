@@ -1,12 +1,3 @@
 main = fn() void {
-    printf("**************** \
-    \
-    \
-    \
-    Hello World From LOKI \
-    \
-    \
-    \
-    ****************\
-    ");
+    printf("hello", 1);
 };

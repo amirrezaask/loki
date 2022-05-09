@@ -50,9 +50,10 @@ fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
 
     let c_code_gen = C{arch: "".to_string(), os:"".to_string(), ast};
     let output = c_code_gen.generate()?;
-    let generated_file_name = format!("/tmp/{}_{}.c", file_name.split(".").nth(0).unwrap(), time::SystemTime::now().duration_since(time::UNIX_EPOCH).unwrap().as_secs());
+    let bin = file_name.split(".").nth(0).unwrap();
+    let generated_file_name = format!("./{}.c", bin);
     std::fs::write(generated_file_name.clone(), output)?;
-    C::compile("./main.c".as_ref(), file_name.split(".").nth(0).unwrap());
+    C::compile(&generated_file_name, bin);
     std::fs::remove_file(generated_file_name)?;
     Ok(())
 }

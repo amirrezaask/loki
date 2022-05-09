@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 /*TODO
+    - return
     - char literals
     - for
         - c syntax
@@ -468,6 +469,10 @@ fn _struct(input: String) -> ParseResult {
     }
     let (mut remains, _) = parse_char('}')(remains)?;
     return Ok((remains, Node::StructTy(idents_tys)));
+}
+
+fn _return(input: String) -> ParseResult {
+    return keyword("return".to_string())(input);
 }
 
 fn array(input: String) -> ParseResult {
