@@ -229,14 +229,14 @@ fn test_parse_struct() {
         ParseResult::Ok((
             "".to_string(),
             Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("age".to_string()),
-                    Node::Ident("int".to_string())
-                ),
+                IdentAndTy {
+                    ident: Node::Ident("name".to_string()),
+                    ty: Node::Ident("string".to_string())
+                },
+                IdentAndTy {
+                    ident: Node::Ident("age".to_string()),
+                    ty: Node::Ident("int".to_string())
+                },
             ])
         ))
     );
@@ -253,21 +253,21 @@ fn test_parse_decl_struct() {
         assert_eq!(
             be,
             Box::new(Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("age".to_string()),
-                    Node::Ident("int".to_string())
-                ),
-                (
-                    Node::Ident("meta".to_string()),
-                    Node::StructTy(vec![(
-                        Node::Ident("mature".to_string()),
-                        Node::Ident("bool".to_string())
-                    )])
-                ),
+                IdentAndTy {
+                    ident: Node::Ident("name".to_string()),
+                    ty: Node::Ident("string".to_string())
+                },
+                IdentAndTy {
+                    ident: Node::Ident("age".to_string()),
+                    ty: Node::Ident("int".to_string())
+                },
+                IdentAndTy {
+                    ident: Node::Ident("meta".to_string()),
+                    ty: Node::StructTy(vec![IdentAndTy {
+                        ident: Node::Ident("mature".to_string()),
+                        ty: Node::Ident("bool".to_string())
+                    }])
+                },
             ]))
         );
     } else {
@@ -373,14 +373,14 @@ fn test_parse_expr() {
         ParseResult::Ok((
             "".to_string(),
             Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("updated_at".to_string()),
-                    Node::Ident("date".to_string())
-                ),
+                IdentAndTy {
+                    ident: Node::Ident("name".to_string()),
+                    ty: Node::Ident("string".to_string())
+                },
+                IdentAndTy {
+                    ident: Node::Ident("updated_at".to_string()),
+                    ty: Node::Ident("date".to_string())
+                },
             ])
         ))
     );
@@ -390,17 +390,17 @@ fn test_parse_expr() {
         ParseResult::Ok((
             "".to_string(),
             Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("payload".to_string()),
-                    Node::StructTy(vec![(
-                        Node::Ident("created_at".to_string()),
-                        Node::Ident("date".to_string())
-                    )])
-                ),
+                IdentAndTy {
+                    ident: Node::Ident("name".to_string()),
+                    ty: Node::Ident("string".to_string())
+                },
+                IdentAndTy {
+                    ident: Node::Ident("payload".to_string()),
+                    ty: Node::StructTy(vec![IdentAndTy {
+                        ident: Node::Ident("created_at".to_string()),
+                        ty: Node::Ident("date".to_string())
+                    }])
+                },
             ])
         ))
     );
@@ -420,10 +420,10 @@ fn test_parse_expr() {
             "".to_string(),
             Node::ArrayTy(Box::new(ArrayTy {
                 size: None,
-                inner_ty: Node::StructTy(vec![(
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                )]),
+                inner_ty: Node::StructTy(vec![IdentAndTy{
+                    ident: Node::Ident("name".to_string()),
+                    ty: Node::Ident("string".to_string())
+                }]),
             }))
         ))
     );
@@ -433,10 +433,10 @@ fn test_parse_expr() {
             "".to_string(),
             Node::ArrayTy(Box::new(ArrayTy {
                 size: Some(Node::Uint(2)),
-                inner_ty: Node::StructTy(vec![(
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                )]),
+                inner_ty: Node::StructTy(vec![IdentAndTy{
+                    ident: Node::Ident("name".to_string()),
+                    ty: Node::Ident("string".to_string())
+                }]),
             }))
         ))
     );
@@ -487,10 +487,10 @@ fn test_parse_expr() {
                 ty: FnTy {
                     args: vec![(
                         Node::Ident("a".to_string()),
-                        Node::StructTy(vec![(
-                            Node::Ident("b".to_string()),
-                            Node::Ident("string".to_string())
-                        )]),
+                        Node::StructTy(vec![IdentAndTy{
+                            ident: Node::Ident("b".to_string()),
+                            ty: Node::Ident("string".to_string())
+                        }]),
                     )],
                     return_ty: Node::Ident("void".to_string()),
                 },

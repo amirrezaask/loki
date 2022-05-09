@@ -23,7 +23,7 @@ pub enum Node {
     List(Vec<Node>),
     Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
     FnCall(Box<FnCall>),
-    StructTy(Vec<(Node, Node)>),
+    StructTy(Vec<IdentAndTy>),
     FnDef(Box<FnDef>),
     FnTy(Box<FnTy>),
     ArrayTy(Box<ArrayTy>),
@@ -32,6 +32,12 @@ pub enum Node {
     If(Box<If>),
     ForC(Box<Node>, Box<Node>, Box<Node>, Box<Node>),
     Empty,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IdentAndTy {
+    ident: Node,
+    ty: Node,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -397,7 +403,7 @@ fn _struct(input: String) -> ParseResult {
     let (mut remains, _) = parse_char('{')(remains)?;
 
     // we know it's a function call
-    let mut idents_tys: Vec<(Node, Node)> = Vec::new();
+    let mut idents_tys: Vec<IdentAndTy> = Vec::new();
 
     if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
         loop {
@@ -422,7 +428,7 @@ fn _struct(input: String) -> ParseResult {
             remains = type_res.0;
 
             let type_obj = type_res.1;
-            idents_tys.push((ident_obj.clone(), type_obj.clone()));
+            idents_tys.push(IdentAndTy{ident: ident_obj.clone(), ty: type_obj.clone()});
 
             let whitespace_res = whitespace()(remains)?;
             remains = whitespace_res.0;
