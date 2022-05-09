@@ -113,7 +113,7 @@ fn test_parse_fn() {
             "".to_string(),
             Node::FnDef(Box::new(FnDef {
                 ty: FnTy {
-                    args: vec![(Node::Ident("a".to_string()), Node::Ident("int".to_string()))],
+                    args: vec![IdentAndTy{ident: Node::Ident("a".to_string()), ty: Node::Ident("int".to_string())}],
                     return_ty: Node::Ident("string".to_string())
                 },
                 block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
@@ -485,13 +485,13 @@ fn test_parse_expr() {
             "".to_string(),
             Node::FnDef(Box::new(FnDef {
                 ty: FnTy {
-                    args: vec![(
-                        Node::Ident("a".to_string()),
-                        Node::StructTy(vec![IdentAndTy{
+                    args: vec![IdentAndTy{
+                        ident: Node::Ident("a".to_string()),
+                        ty: Node::StructTy(vec![IdentAndTy{
                             ident: Node::Ident("b".to_string()),
                             ty: Node::Ident("string".to_string())
                         }]),
-                    )],
+                    }],
                     return_ty: Node::Ident("void".to_string()),
                 },
                 block: Node::Block(vec![Node::FnCall(Box::new(FnCall {

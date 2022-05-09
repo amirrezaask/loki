@@ -34,6 +34,35 @@ pub enum Node {
     Empty,
 }
 
+pub enum Type {
+    Int,
+    Uint,
+    Float,
+    Char,
+    String,
+    Boolean,
+    Array,
+    Slice,
+    Fn(FnTy),
+}
+
+// impl From<Node> for Type {
+//     fn from(node: Node) -> Self {
+//         match node {
+//             Node::Ident(ty_name) => {
+//                 match ty_name.as_ref() {
+//                     "int" => Self::Int,
+//                     "uint" => Self::Uint,
+//                     "float" => Self::Float,
+//                     "char" => Self::Char,
+//                     "string" => Self::String,
+//                     "Boolean" => Self::String,
+//                 }
+//             }
+//         }
+//     }
+// }
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct IdentAndTy {
     ident: Node,
@@ -49,7 +78,7 @@ pub struct FnDef {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnTy {
-    args: Vec<(Node, Node)>,
+    args: Vec<IdentAndTy>,
     return_ty: Node
 }
 
@@ -535,7 +564,7 @@ fn fn_def(input: String) -> ParseResult {
     let (mut remains, _) = keyword("fn".to_string())(input)?;
     let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('(')(remains)?;
-    let mut args_tys: Vec<(Node, Node)> = Vec::new();
+    let mut args_tys: Vec<IdentAndTy> = Vec::new();
     if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != ')' {
         loop {
             let whitespace_res = whitespace()(remains.clone())?;
@@ -559,7 +588,7 @@ fn fn_def(input: String) -> ParseResult {
             remains = type_res.0;
 
             let type_obj = type_res.1;
-            args_tys.push((ident_obj.clone(), type_obj.clone()));
+            args_tys.push(IdentAndTy{ident: ident_obj.clone(), ty: type_obj.clone()});
 
             let whitespace_res = whitespace()(remains)?;
             remains = whitespace_res.0;
