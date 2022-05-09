@@ -21,14 +21,36 @@ pub enum Node {
     List(Vec<Node>),
     Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
     FnCall(Box<Node>, Vec<Node>),
-    Struct(Vec<(Node, Node)>),
-    Fn(Vec<(Node, Node)>, Box<Node>, Box<Node>),
-    Array(Box<Option<Node>>, Box<Node>),
+    StructTy(Vec<(Node, Node)>),
+    FnDef(Vec<(Node, Node)>, Box<Node>, Box<Node>),
+    FnTy(Vec<(Node, Node)>, Box<Node>),
+    ArrayTy(Box<Option<Node>>, Box<Node>),
     Stmt(Box<Node>),
     Block(Vec<Node>),
-    If(Box<Node>, Box<Node>),
+    If(Box<If>),
     ForC(Box<Node>, Box<Node>, Box<Node>, Box<Node>),
     Empty,
+}
+#[derive(Clone, Debug, PartialEq)]
+struct If {
+    cond: Node,
+    block: Node,
+}
+struct ArrayTy {
+    size: Option<Node>,
+    inner_ty: Node,
+}
+
+struct Decl {
+    name: Node,
+    ty: Option<Node>,
+    value: Node,
+}
+
+impl Decl {
+    fn new(name: Node, ty: Option<Node>, value: Node) -> Self {
+        return Self { name, ty, value };
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -263,7 +285,10 @@ fn fn_call(input: String) -> ParseResult {
     let close_paren_res = parse_char(')')(remains)?;
     remains = close_paren_res.0;
 
-    return Ok((remains, Node::FnCall(Box::new(Node::Ident(identifier)), args)));
+    return Ok((
+        remains,
+        Node::FnCall(Box::new(Node::Ident(identifier)), args),
+    ));
 }
 
 fn semicolon(input: String) -> ParseResult {
@@ -318,9 +343,7 @@ fn int(mut input: String) -> ParseResult {
 
     let (input, obj) = uint(input)?;
     match obj {
-        Node::Uint(num) => {
-            return Ok((input, Node::Int(with_sign as isize * num as isize)))
-        }
+        Node::Uint(num) => return Ok((input, Node::Int(with_sign as isize * num as isize))),
         _ => Err(ParseErr::Unknown(format!(
             "expected a uint found {:?}",
             obj
@@ -385,7 +408,7 @@ pub fn _struct(input: String) -> ParseResult {
         }
     }
     let (mut remains, _) = parse_char('}')(remains)?;
-    return Ok((remains, Node::Struct(idents_tys)));
+    return Ok((remains, Node::StructTy(idents_tys)));
 }
 
 fn array(input: String) -> ParseResult {
@@ -402,7 +425,7 @@ fn array(input: String) -> ParseResult {
         _ => (),
     };
     let (remains, _) = parse_char(']')(remains)?;
-    return Ok((remains, Node::Array(Box::new(size), Box::new(ty))));
+    return Ok((remains, Node::ArrayTy(Box::new(size), Box::new(ty))));
 }
 
 fn statement(input: String) -> ParseResult {
@@ -434,7 +457,13 @@ fn _if(input: String) -> ParseResult {
     let (remains, _block) = block(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char('}')(remains)?;
-    return Ok((remains, Node::If(Box::new(cond), Box::new(_block))));
+    return Ok((
+        remains,
+        Node::If(Box::new(If {
+            cond: cond,
+            block: _block,
+        })),
+    ));
 }
 
 fn _for(input: String) -> ParseResult {
@@ -514,7 +543,7 @@ fn fn_def(input: String) -> ParseResult {
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((
         remains,
-        Node::Fn(args_tys, Box::new(ty), Box::new(_block)),
+        Node::FnDef(args_tys, Box::new(ty), Box::new(_block)),
     ));
 }
 
@@ -701,11 +730,8 @@ fn test_parse_fn() {
         fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Fn(
-                vec![(
-                    Node::Ident("a".to_string()),
-                    Node::Ident("int".to_string())
-                )],
+            Node::FnDef(
+                vec![(Node::Ident("a".to_string()), Node::Ident("int".to_string()))],
                 Box::new(Node::Ident("string".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
                     Box::new(Node::Ident("print".to_string())),
@@ -725,7 +751,7 @@ fn test_parse_decl_fn() {
         assert_eq!(name, Box::new(Node::Ident("f".to_string())));
         assert_eq!(
             f,
-            Box::new(Node::Fn(
+            Box::new(Node::FnDef(
                 vec![],
                 Box::new(Node::Ident("void".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
@@ -761,7 +787,10 @@ fn test_parse_payload_string_as_ident() {
 fn test_parse_fn_call() {
     assert_eq!(
         fn_call("name()".to_string()),
-        ParseResult::Ok(("".to_string(), Node::FnCall(Box::new(Node::Ident("name".to_string())), vec![])))
+        ParseResult::Ok((
+            "".to_string(),
+            Node::FnCall(Box::new(Node::Ident("name".to_string())), vec![])
+        ))
     );
     assert_eq!(
         fn_call("name(1,2)".to_string()),
@@ -805,7 +834,7 @@ fn test_parse_struct() {
         _struct("struct {\n\tname: string,\n\tage:int\n}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Struct(vec![
+            Node::StructTy(vec![
                 (
                     Node::Ident("name".to_string()),
                     Node::Ident("string".to_string())
@@ -829,7 +858,7 @@ fn test_parse_decl_struct() {
         assert_eq!(name, Box::new(Node::Ident("s".to_string())));
         assert_eq!(
             be,
-            Box::new(Node::Struct(vec![
+            Box::new(Node::StructTy(vec![
                 (
                     Node::Ident("name".to_string()),
                     Node::Ident("string".to_string())
@@ -840,7 +869,7 @@ fn test_parse_decl_struct() {
                 ),
                 (
                     Node::Ident("meta".to_string()),
-                    Node::Struct(vec![(
+                    Node::StructTy(vec![(
                         Node::Ident("mature".to_string()),
                         Node::Ident("bool".to_string())
                     )])
@@ -858,14 +887,14 @@ fn test_parse_array_type() {
         expr("[int]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Array(Box::new(None), Box::new(Node::Ident("int".to_string())))
+            Node::ArrayTy(Box::new(None), Box::new(Node::Ident("int".to_string())))
         ))
     );
     assert_eq!(
         expr("[int;2]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Array(
+            Node::ArrayTy(
                 Box::new(Some(Node::Uint(2))),
                 Box::new(Node::Ident("int".to_string()))
             )
@@ -890,13 +919,13 @@ fn test_parse_if() {
         _if("if true {\n\tfn(1);\n\tfn(2);}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::If(
-                Box::new(Node::Bool(true)),
-                Box::new(Node::Block(vec![
+            Node::If(Box::new(If {
+                cond: Node::Bool(true),
+                block: Node::Block(vec![
                     Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(1)]),
-                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(2)]),
-                ]))
-            )
+                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(2)])
+                ])
+            }))
         ))
     );
 }
@@ -939,7 +968,7 @@ fn test_parse_expr() {
         expr("struct {\n\tname: string,\n\tupdated_at: date}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Struct(vec![
+            Node::StructTy(vec![
                 (
                     Node::Ident("name".to_string()),
                     Node::Ident("string".to_string())
@@ -956,14 +985,14 @@ fn test_parse_expr() {
         expr("struct {\n\tname: string,\n\tpayload: struct {created_at: date}}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Struct(vec![
+            Node::StructTy(vec![
                 (
                     Node::Ident("name".to_string()),
                     Node::Ident("string".to_string())
                 ),
                 (
                     Node::Ident("payload".to_string()),
-                    Node::Struct(vec![(
+                    Node::StructTy(vec![(
                         Node::Ident("created_at".to_string()),
                         Node::Ident("date".to_string())
                     )])
@@ -985,9 +1014,9 @@ fn test_parse_expr() {
         expr("[struct {name: string}]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Array(
+            Node::ArrayTy(
                 Box::new(None),
-                Box::new(Node::Struct(vec![(
+                Box::new(Node::StructTy(vec![(
                     Node::Ident("name".to_string()),
                     Node::Ident("string".to_string())
                 )]))
@@ -998,9 +1027,9 @@ fn test_parse_expr() {
         expr("[struct {name: string};2]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Array(
+            Node::ArrayTy(
                 Box::new(Some(Node::Uint(2))),
-                Box::new(Node::Struct(vec![(
+                Box::new(Node::StructTy(vec![(
                     Node::Ident("name".to_string()),
                     Node::Ident("string".to_string())
                 )]))
@@ -1011,23 +1040,30 @@ fn test_parse_expr() {
         expr("if cond(true) {\n\ta = 1;fn(a);\n}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::If(
-                Box::new(Node::FnCall(
+            Node::If(Box::new(If {
+                cond: Node::FnCall(
                     Box::new(Node::Ident("cond".to_string())),
                     vec![Node::Bool(true)]
-                )),
-                Box::new(Node::Block(vec![
-                    Node::Decl(Box::new(Node::Ident("a".to_string())), Box::new(None), Box::new(Node::Uint(1))),
-                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Ident("a".to_string())]),
-                ]))
-            )
+                ),
+                block: Node::Block(vec![
+                    Node::Decl(
+                        Box::new(Node::Ident("a".to_string())),
+                        Box::new(None),
+                        Box::new(Node::Uint(1))
+                    ),
+                    Node::FnCall(
+                        Box::new(Node::Ident("fn".to_string())),
+                        vec![Node::Ident("a".to_string())]
+                    ),
+                ])
+            }))
         ))
     );
     assert_eq!(
         expr("fn() void {\n\t print(\"salam\");\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Fn(
+            Node::FnDef(
                 vec![],
                 Box::new(Node::Ident("void".to_string())),
                 Box::new(Node::Block(vec![Node::FnCall(
@@ -1041,10 +1077,10 @@ fn test_parse_expr() {
         expr("fn(a: struct { b: string }) void {\n\t print(\"salam\");\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::Fn(
+            Node::FnDef(
                 vec![(
                     Node::Ident("a".to_string()),
-                    Node::Struct(vec![(
+                    Node::StructTy(vec![(
                         Node::Ident("b".to_string()),
                         Node::Ident("string".to_string())
                     )]),
@@ -1068,7 +1104,7 @@ fn test_parse_module() {
             Node::List(vec![Node::Decl(
                 Box::new(Node::Ident("main".to_string())),
                 Box::new(None),
-                Box::new(Node::Fn(
+                Box::new(Node::FnDef(
                     vec![],
                     Box::new(Node::Ident("void".to_string())),
                     Box::new(Node::Block(vec![Node::FnCall(
