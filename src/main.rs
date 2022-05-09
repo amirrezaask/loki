@@ -1,6 +1,8 @@
 mod parser;
 mod backend;
 
+use std::fs::remove_file;
+
 use anyhow::Result;
 use backend::Compiler;
 use clap::{arg, Arg, ArgMatches, Command};
@@ -49,8 +51,10 @@ fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
     let output = c_code_gen.generate()?;
     std::fs::write("./main.c", output)?;
     C::compile("./main.c".as_ref(), file_name.split(".").nth(0).unwrap());
+    std::fs::remove_file("./main.c")?;
     Ok(())
 }
+
 fn main() -> Result<()> {
     let matches = parse_cli();
     let backend = matches.value_of("backend").expect("need a backend");

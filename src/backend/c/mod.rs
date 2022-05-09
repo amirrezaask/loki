@@ -24,7 +24,7 @@ impl CodeGen for C {
 
 impl Compiler for C {
     fn compile(name: &str, output: &str) {
-        Command::new("zig").args(vec!["cc", name, "-Wno-everything", "-o", output]).output().expect("compile error");
+        Command::new("cc").args(vec![name, "-Wno-everything", "-o", output]).output().expect("compile error");
     }
 }
 
