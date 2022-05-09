@@ -303,7 +303,7 @@ fn test_parse_array_type() {
             "".to_string(),
             Node::ArrayTy(Box::new(ArrayTy {
                 size: None,
-                inner_ty: Node::Ident("int".to_string()),
+                inner_ty: Node::IntTy,
             }))
         ))
     );
@@ -313,7 +313,7 @@ fn test_parse_array_type() {
             "".to_string(),
             Node::ArrayTy(Box::new(ArrayTy {
                 size: Some(Node::Uint(2)),
-                inner_ty: Node::Ident("int".to_string()),
+                inner_ty: Node::IntTy,
             }))
         ))
     );
