@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::parser::ASTNode;
+use crate::parser::Node;
 pub trait CodeGen {
-    fn generate(node: ASTNode) -> Result<String>;
+    fn generate(node: Node) -> Result<String>;
 }

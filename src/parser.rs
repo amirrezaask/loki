@@ -9,7 +9,7 @@
 */
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ASTNode {
+pub enum Node {
     Char(char),
     Uint(usize),
     Int(isize),
@@ -18,16 +18,16 @@ pub enum ASTNode {
     Keyword(String),
     Ident(String),
     Bool(bool),
-    List(Vec<ASTNode>),
-    Decl(String, Box<Option<ASTNode>>, Box<ASTNode>),
-    FnCall(String, Vec<ASTNode>),
-    Struct(Vec<(ASTNode, ASTNode)>),
-    Fn(Vec<(ASTNode, ASTNode)>, Box<ASTNode>, Box<ASTNode>),
-    Array(Box<Option<ASTNode>>, Box<ASTNode>),
-    Stmt(Box<ASTNode>),
-    Block(Vec<ASTNode>),
-    If(Box<ASTNode>, Box<ASTNode>),
-    ForC(Box<ASTNode>, Box<ASTNode>, Box<ASTNode>, Box<ASTNode>),
+    List(Vec<Node>),
+    Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
+    FnCall(String, Vec<Node>),
+    Struct(Vec<(Node, Node)>),
+    Fn(Vec<(Node, Node)>, Box<Node>, Box<Node>),
+    Array(Box<Option<Node>>, Box<Node>),
+    Stmt(Box<Node>),
+    Block(Vec<Node>),
+    If(Box<Node>, Box<Node>),
+    ForC(Box<Node>, Box<Node>, Box<Node>, Box<Node>),
     Empty,
 }
 
@@ -48,7 +48,7 @@ impl std::fmt::Display for ParseErr {
 }
 impl std::error::Error for ParseErr {}
 
-type ParseResult = Result<(String, ASTNode), ParseErr>;
+type ParseResult = Result<(String, Node), ParseErr>;
 
 fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
@@ -69,16 +69,16 @@ fn zero_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Pa
             input = remains;
             result.push(parsed);
         }
-        return Ok((input.clone(), ASTNode::List(result)));
+        return Ok((input.clone(), Node::List(result)));
     };
 }
 
 fn zero_or_one(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
     return move |mut input: String| {
         if let Ok((remains, parsed)) = parser(input.clone()) {
-            return Ok((remains, ASTNode::Char('-')));
+            return Ok((remains, Node::Char('-')));
         }
-        return Ok((input, ASTNode::Empty));
+        return Ok((input, Node::Empty));
     };
 }
 
@@ -100,7 +100,7 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
             input = remains;
             result.push(parsed);
         }
-        return Ok((input.clone(), ASTNode::List(result)));
+        return Ok((input.clone(), Node::List(result)));
     };
 }
 fn any() -> impl Fn(String) -> ParseResult {
@@ -115,7 +115,7 @@ fn any() -> impl Fn(String) -> ParseResult {
 
         return ParseResult::Ok((
             input[1..].to_string(),
-            ASTNode::Char(input.chars().nth(0).unwrap()),
+            Node::Char(input.chars().nth(0).unwrap()),
         ));
     };
 }
@@ -129,7 +129,7 @@ fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
             ));
         }
         if input.chars().nth(0).unwrap() == c.clone() {
-            return ParseResult::Ok((input[1..].to_string(), ASTNode::Char(c)));
+            return ParseResult::Ok((input[1..].to_string(), Node::Char(c)));
         }
         return ParseResult::Err(ParseErr::Unexpected(
             c.to_string(),
@@ -154,7 +154,7 @@ fn string(input: String) -> ParseResult {
     if end != 0 {
         return Ok((
             remains[end + 1..].to_string(),
-            ASTNode::Str(remains[..end].to_string()),
+            Node::Str(remains[..end].to_string()),
         ));
     } else {
         return Err(ParseErr::Unknown("cannot find end of string".to_string()));
@@ -170,7 +170,7 @@ fn keyword(word: String) -> impl Fn(String) -> ParseResult {
                 Err(err) => return Err(err),
             }
         }
-        return Ok((input, ASTNode::Keyword(word.clone())));
+        return Ok((input, Node::Keyword(word.clone())));
     };
 }
 
@@ -199,12 +199,12 @@ fn ident(input: String) -> ParseResult {
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_",
     ))(input)
     {
-        Ok((remains, ASTNode::List(chars_parse_objects))) => {
+        Ok((remains, Node::List(chars_parse_objects))) => {
             let mut name = String::new();
 
             for po in chars_parse_objects {
                 match po {
-                    ASTNode::Char(c) => name.push(c),
+                    Node::Char(c) => name.push(c),
                     _ => {
                         return Err(ParseErr::Unexpected(
                             "a char".to_string(),
@@ -214,7 +214,7 @@ fn ident(input: String) -> ParseResult {
                     }
                 }
             }
-            return Ok((remains, ASTNode::Ident(name)));
+            return Ok((remains, Node::Ident(name)));
         }
         Ok((_, obj)) => {
             return Err(ParseErr::Unexpected(
@@ -231,7 +231,7 @@ fn fn_call(input: String) -> ParseResult {
     let (remains, obj) = ident(input)?;
     let mut identifier = "".to_string();
     match obj {
-        ASTNode::Ident(i) => identifier = i,
+        Node::Ident(i) => identifier = i,
         _ => {
             return Err(ParseErr::Unexpected(
                 "ident".to_string(),
@@ -242,7 +242,7 @@ fn fn_call(input: String) -> ParseResult {
     }
     let (mut remains, _) = parse_char('(')(remains)?;
     // we know it's a function call
-    let mut args: Vec<ASTNode> = Vec::new();
+    let mut args: Vec<Node> = Vec::new();
     if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != ')' {
         loop {
             // fn(1,2,3,4)
@@ -263,7 +263,7 @@ fn fn_call(input: String) -> ParseResult {
     let close_paren_res = parse_char(')')(remains)?;
     remains = close_paren_res.0;
 
-    return Ok((remains, ASTNode::FnCall(identifier, args)));
+    return Ok((remains, Node::FnCall(identifier, args)));
 }
 
 fn semicolon(input: String) -> ParseResult {
@@ -281,24 +281,24 @@ fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> 
             }
         }
 
-        return Ok((input, ASTNode::List(parsed)));
+        return Ok((input, Node::List(parsed)));
     };
 }
 
 fn uint(input: String) -> ParseResult {
     match one_or_more(digit())(input) {
-        Ok((remains, ASTNode::List(_digits))) => {
+        Ok((remains, Node::List(_digits))) => {
             let mut number = String::new();
             for d in _digits {
                 match d {
-                    ASTNode::Char(c) => {
+                    Node::Char(c) => {
                         number.push(c);
                     }
                     _ => unreachable!(),
                 }
             }
             let number: usize = number.parse().unwrap();
-            Ok((remains, ASTNode::Uint(number)))
+            Ok((remains, Node::Uint(number)))
         }
         Err(err) => return Err(err),
         _ => unreachable!(),
@@ -309,7 +309,7 @@ fn int(mut input: String) -> ParseResult {
     // int = sign uint
     let sign = zero_or_one(parse_char('-'));
     let mut with_sign: i8 = 1;
-    if let (remains, ASTNode::Char('-')) = sign(input.clone())? {
+    if let (remains, Node::Char('-')) = sign(input.clone())? {
         input = remains;
         with_sign = -1;
     } else {
@@ -318,8 +318,8 @@ fn int(mut input: String) -> ParseResult {
 
     let (input, obj) = uint(input)?;
     match obj {
-        ASTNode::Uint(num) => {
-            return Ok((input, ASTNode::Int(with_sign as isize * num as isize)))
+        Node::Uint(num) => {
+            return Ok((input, Node::Int(with_sign as isize * num as isize)))
         }
         _ => Err(ParseErr::Unknown(format!(
             "expected a uint found {:?}",
@@ -332,8 +332,8 @@ fn bool(input: String) -> ParseResult {
     let _true = keyword("true".to_string());
     let _false = keyword("false".to_string());
     let (remains, bool_parsed) = any_of(vec![_true, _false])(input)?;
-    if let ASTNode::Keyword(b) = bool_parsed {
-        return Ok((remains, ASTNode::Bool(b == "true")));
+    if let Node::Keyword(b) = bool_parsed {
+        return Ok((remains, Node::Bool(b == "true")));
     } else {
         unreachable!()
     }
@@ -346,7 +346,7 @@ pub fn _struct(input: String) -> ParseResult {
     let (mut remains, _) = parse_char('{')(remains)?;
 
     // we know it's a function call
-    let mut idents_tys: Vec<(ASTNode, ASTNode)> = Vec::new();
+    let mut idents_tys: Vec<(Node, Node)> = Vec::new();
 
     if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
         loop {
@@ -385,16 +385,16 @@ pub fn _struct(input: String) -> ParseResult {
         }
     }
     let (mut remains, _) = parse_char('}')(remains)?;
-    return Ok((remains, ASTNode::Struct(idents_tys)));
+    return Ok((remains, Node::Struct(idents_tys)));
 }
 
 fn array(input: String) -> ParseResult {
     let (remains, _) = parse_char('[')(input)?;
     let (mut remains, ty) = expr(remains)?;
     let semicolon_res = semicolon(remains.clone());
-    let mut size: Option<ASTNode> = None;
+    let mut size: Option<Node> = None;
     match semicolon_res {
-        Ok((r, ASTNode::Char(';'))) => {
+        Ok((r, Node::Char(';'))) => {
             let (r, size_obj) = expr(r)?;
             remains = r;
             size = Some(size_obj);
@@ -402,11 +402,11 @@ fn array(input: String) -> ParseResult {
         _ => (),
     };
     let (remains, _) = parse_char(']')(remains)?;
-    return Ok((remains, ASTNode::Array(Box::new(size), Box::new(ty))));
+    return Ok((remains, Node::Array(Box::new(size), Box::new(ty))));
 }
 
 fn statement(input: String) -> ParseResult {
-    let parsers: Vec<fn(String) -> Result<(String, ASTNode), ParseErr>> = vec![decl, expr]; //TODO: add _for
+    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![decl, expr]; //TODO: add _for
     let (remains, _) = whitespace()(input.clone())?;
     let (remains, stmt) = any_of(parsers)(remains)?;
     let (remains, _) = parse_char(';')(remains.clone())?;
@@ -415,7 +415,7 @@ fn statement(input: String) -> ParseResult {
 
 fn block(input: String) -> ParseResult {
     return match zero_or_more(statement)(input)? {
-        (remains, ASTNode::List(items)) => Ok((remains, ASTNode::Block(items))),
+        (remains, Node::List(items)) => Ok((remains, Node::Block(items))),
         (_remains, obj) => Err(ParseErr::Unexpected(
             "ParseObj::List".to_string(),
             format!("{:?}", obj),
@@ -434,7 +434,7 @@ fn _if(input: String) -> ParseResult {
     let (remains, _block) = block(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char('}')(remains)?;
-    return Ok((remains, ASTNode::If(Box::new(cond), Box::new(_block))));
+    return Ok((remains, Node::If(Box::new(cond), Box::new(_block))));
 }
 
 fn _for(input: String) -> ParseResult {
@@ -453,7 +453,7 @@ fn _for(input: String) -> ParseResult {
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((
         remains,
-        ASTNode::ForC(
+        Node::ForC(
             Box::new(init),
             Box::new(cond),
             Box::new(cont),
@@ -466,7 +466,7 @@ fn fn_def(input: String) -> ParseResult {
     let (mut remains, _) = keyword("fn".to_string())(input)?;
     let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('(')(remains)?;
-    let mut args_tys: Vec<(ASTNode, ASTNode)> = Vec::new();
+    let mut args_tys: Vec<(Node, Node)> = Vec::new();
     if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != ')' {
         loop {
             let whitespace_res = whitespace()(remains.clone())?;
@@ -514,19 +514,19 @@ fn fn_def(input: String) -> ParseResult {
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((
         remains,
-        ASTNode::Fn(args_tys, Box::new(ty), Box::new(_block)),
+        Node::Fn(args_tys, Box::new(ty), Box::new(_block)),
     ));
 }
 
 fn float(input: String) -> ParseResult {
     // int parse_char('.') uint
-    if let (remains, ASTNode::Int(int_part)) = int(input)? {
+    if let (remains, Node::Int(int_part)) = int(input)? {
         if let (remains, _) = parse_char('.')(remains)? {
             let parsed = uint(remains)?;
-            if let (remains, ASTNode::Uint(float_part)) = parsed {
+            if let (remains, Node::Uint(float_part)) = parsed {
                 let float_str = format!("{}.{}", int_part, float_part);
                 let float: f64 = float_str.parse().unwrap();
-                Ok((remains, ASTNode::Float(float)))
+                Ok((remains, Node::Float(float)))
             } else {
                 return Err(ParseErr::Unexpected(
                     "uint".to_string(),
@@ -550,7 +550,7 @@ fn expr(input: String) -> ParseResult {
     // fn_call
     // fn_def
     // if
-    let parsers: Vec<fn(String) -> Result<(String, ASTNode), ParseErr>> = vec![
+    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![
         float, uint, int, bool, string, _if, fn_def, _struct, fn_call, ident, array,
     ];
     return any_of(parsers)(input);
@@ -562,7 +562,7 @@ fn decl(mut input: String) -> ParseResult {
     let (remains, obj) = ident(remains)?;
     let mut identifier = "".to_string();
     match obj {
-        ASTNode::Ident(i) => identifier = i,
+        Node::Ident(i) => identifier = i,
         _ => {
             return Err(ParseErr::Unexpected(
                 "ident".to_string(),
@@ -573,10 +573,10 @@ fn decl(mut input: String) -> ParseResult {
     }
     println!("ident: {} remains: \"{}\"", identifier, remains);
     let (mut remains, _) = whitespace()(remains)?;
-    let mut ty: Option<ASTNode> = None;
+    let mut ty: Option<Node> = None;
     let colon_res = parse_char(':')(remains.clone());
     match colon_res {
-        Ok((r, ASTNode::Char(':'))) => {
+        Ok((r, Node::Char(':'))) => {
             let ty_res = expr(r)?;
             remains = ty_res.0;
             ty = Some(ty_res.1);
@@ -590,7 +590,7 @@ fn decl(mut input: String) -> ParseResult {
     println!("expr: {:?} remains: \"{}\"", e, remains);
     return Ok((
         remains,
-        ASTNode::Decl(identifier, Box::new(ty), Box::new(e)),
+        Node::Decl(Box::new(Node::Ident(identifier)), Box::new(ty), Box::new(e)),
     ));
 }
 pub fn module(input: String) -> ParseResult {
@@ -600,10 +600,10 @@ pub fn module(input: String) -> ParseResult {
 fn test_parse_decl_bool() {
     let decl_res = decl("a = false".to_string());
     assert!(decl_res.is_ok());
-    let none: Box<Option<ASTNode>> = Box::new(None);
-    if let (_, ASTNode::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, "a");
-        assert_eq!(be, Box::new(ASTNode::Bool(false)));
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Bool(false)));
     } else {
         assert!(false);
     }
@@ -612,10 +612,10 @@ fn test_parse_decl_bool() {
 fn test_parse_decl_int() {
     let decl_res = decl("a = -2".to_string());
     assert!(decl_res.is_ok());
-    let none: Box<Option<ASTNode>> = Box::new(None);
-    if let (_, ASTNode::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, "a");
-        assert_eq!(be, Box::new(ASTNode::Int(-2)));
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Int(-2)));
     } else {
         assert!(false);
     }
@@ -626,10 +626,10 @@ fn test_parse_decl_str() {
     let decl_res = decl("a = \"amirreza\"".to_string());
     assert!(decl_res.is_ok());
 
-    let none: Box<Option<ASTNode>> = Box::new(None);
-    if let (_, ASTNode::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, "a");
-        assert_eq!(be, Box::new(ASTNode::Str("amirreza".to_string())));
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Str("amirreza".to_string())));
     } else {
         assert!(false);
     }
@@ -638,10 +638,10 @@ fn test_parse_decl_str() {
 fn test_parse_decl_uint() {
     let decl_res = decl("a = 2".to_string());
     assert!(decl_res.is_ok());
-    let none: Box<Option<ASTNode>> = Box::new(None);
-    if let (_, ASTNode::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, "a");
-        assert_eq!(be, Box::new(ASTNode::Uint(2)));
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Uint(2)));
     } else {
         assert!(false);
     }
@@ -650,7 +650,7 @@ fn test_parse_decl_uint() {
 fn test_parse_single_digit() {
     assert_eq!(
         digit()("1AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), ASTNode::Char('1'),))
+        ParseResult::Ok(("AB".to_string(), Node::Char('1'),))
     );
 }
 
@@ -658,25 +658,25 @@ fn test_parse_single_digit() {
 fn test_parse_float() {
     assert_eq!(
         float("4.2AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), ASTNode::Float(4.2)))
+        ParseResult::Ok(("AB".to_string(), Node::Float(4.2)))
     );
 }
 #[test]
 fn test_parse_string() {
     assert_eq!(
         string("\"amirreza\"".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Str("amirreza".to_string())))
+        ParseResult::Ok(("".to_string(), Node::Str("amirreza".to_string())))
     );
 }
 #[test]
 fn test_parse_int() {
     assert_eq!(
         int("-1234AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), ASTNode::Int(-1234)))
+        ParseResult::Ok(("AB".to_string(), Node::Int(-1234)))
     );
     assert_eq!(
         int("1234AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), ASTNode::Int(1234)))
+        ParseResult::Ok(("AB".to_string(), Node::Int(1234)))
     );
 }
 
@@ -684,7 +684,7 @@ fn test_parse_int() {
 fn test_parse_uint() {
     assert_eq!(
         uint("1234AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), ASTNode::Uint(1234)))
+        ParseResult::Ok(("AB".to_string(), Node::Uint(1234)))
     );
 }
 
@@ -692,7 +692,7 @@ fn test_parse_uint() {
 fn test_parse_keyword() {
     assert_eq!(
         keyword("struct".to_string())("struct name".to_string()),
-        ParseResult::Ok((" name".to_string(), ASTNode::Keyword("struct".to_string())))
+        ParseResult::Ok((" name".to_string(), Node::Keyword("struct".to_string())))
     );
 }
 #[test]
@@ -701,15 +701,15 @@ fn test_parse_fn() {
         fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Fn(
+            Node::Fn(
                 vec![(
-                    ASTNode::Ident("a".to_string()),
-                    ASTNode::Ident("int".to_string())
+                    Node::Ident("a".to_string()),
+                    Node::Ident("int".to_string())
                 )],
-                Box::new(ASTNode::Ident("string".to_string())),
-                Box::new(ASTNode::Block(vec![ASTNode::FnCall(
+                Box::new(Node::Ident("string".to_string())),
+                Box::new(Node::Block(vec![Node::FnCall(
                     "print".to_string(),
-                    vec![ASTNode::Ident("a".to_string())]
+                    vec![Node::Ident("a".to_string())]
                 )]))
             )
         ))
@@ -720,17 +720,17 @@ fn test_parse_fn() {
 fn test_parse_decl_fn() {
     let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string());
     assert!(decl_res.is_ok());
-    let none: Box<Option<ASTNode>> = Box::new(None);
-    if let (_, ASTNode::Decl(name, none, f)) = decl_res.unwrap() {
-        assert_eq!(name, "f");
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("f".to_string())));
         assert_eq!(
             f,
-            Box::new(ASTNode::Fn(
+            Box::new(Node::Fn(
                 vec![],
-                Box::new(ASTNode::Ident("void".to_string())),
-                Box::new(ASTNode::Block(vec![ASTNode::FnCall(
+                Box::new(Node::Ident("void".to_string())),
+                Box::new(Node::Block(vec![Node::FnCall(
                     "println".to_string(),
-                    vec![ASTNode::Str("Salam donya!".to_string())]
+                    vec![Node::Str("Salam donya!".to_string())]
                 )]))
             ))
         );
@@ -742,11 +742,11 @@ fn test_parse_decl_fn() {
 fn test_parse_ident() {
     assert_eq!(
         ident("name".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Ident("name".to_string())))
+        ParseResult::Ok(("".to_string(), Node::Ident("name".to_string())))
     );
     assert_eq!(
         ident("name_str".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Ident("name_str".to_string()),))
+        ParseResult::Ok(("".to_string(), Node::Ident("name_str".to_string()),))
     );
 }
 
@@ -754,22 +754,22 @@ fn test_parse_ident() {
 fn test_parse_payload_string_as_ident() {
     assert_eq!(
         ident("payload".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Ident("payload".to_string())))
+        ParseResult::Ok(("".to_string(), Node::Ident("payload".to_string())))
     );
 }
 #[test]
 fn test_parse_fn_call() {
     assert_eq!(
         fn_call("name()".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::FnCall("name".to_string(), vec![])))
+        ParseResult::Ok(("".to_string(), Node::FnCall("name".to_string(), vec![])))
     );
     assert_eq!(
         fn_call("name(1,2)".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::FnCall(
+            Node::FnCall(
                 "name".to_string(),
-                vec![ASTNode::Uint(1), ASTNode::Uint(2)]
+                vec![Node::Uint(1), Node::Uint(2)]
             )
         ))
     );
@@ -777,11 +777,11 @@ fn test_parse_fn_call() {
         fn_call("name(1,fn(2))".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::FnCall(
+            Node::FnCall(
                 "name".to_string(),
                 vec![
-                    ASTNode::Uint(1),
-                    ASTNode::FnCall("fn".to_string(), vec![ASTNode::Uint(2)]),
+                    Node::Uint(1),
+                    Node::FnCall("fn".to_string(), vec![Node::Uint(2)]),
                 ]
             )
         ))
@@ -791,11 +791,11 @@ fn test_parse_fn_call() {
 fn test_parse_bool() {
     assert_eq!(
         bool("truesomeshitaftertrue".to_string()),
-        ParseResult::Ok(("someshitaftertrue".to_string(), ASTNode::Bool(true)))
+        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(true)))
     );
     assert_eq!(
         bool("falsesomeshitaftertrue".to_string()),
-        ParseResult::Ok(("someshitaftertrue".to_string(), ASTNode::Bool(false),))
+        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false),))
     );
 }
 
@@ -805,14 +805,14 @@ fn test_parse_struct() {
         _struct("struct {\n\tname: string,\n\tage:int\n}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Struct(vec![
+            Node::Struct(vec![
                 (
-                    ASTNode::Ident("name".to_string()),
-                    ASTNode::Ident("string".to_string())
+                    Node::Ident("name".to_string()),
+                    Node::Ident("string".to_string())
                 ),
                 (
-                    ASTNode::Ident("age".to_string()),
-                    ASTNode::Ident("int".to_string())
+                    Node::Ident("age".to_string()),
+                    Node::Ident("int".to_string())
                 ),
             ])
         ))
@@ -824,25 +824,25 @@ fn test_parse_decl_struct() {
     let decl_res =
         decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string());
     assert!(decl_res.is_ok());
-    let none: Box<Option<ASTNode>> = Box::new(None);
-    if let (_, ASTNode::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, "s");
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("s".to_string())));
         assert_eq!(
             be,
-            Box::new(ASTNode::Struct(vec![
+            Box::new(Node::Struct(vec![
                 (
-                    ASTNode::Ident("name".to_string()),
-                    ASTNode::Ident("string".to_string())
+                    Node::Ident("name".to_string()),
+                    Node::Ident("string".to_string())
                 ),
                 (
-                    ASTNode::Ident("age".to_string()),
-                    ASTNode::Ident("int".to_string())
+                    Node::Ident("age".to_string()),
+                    Node::Ident("int".to_string())
                 ),
                 (
-                    ASTNode::Ident("meta".to_string()),
-                    ASTNode::Struct(vec![(
-                        ASTNode::Ident("mature".to_string()),
-                        ASTNode::Ident("bool".to_string())
+                    Node::Ident("meta".to_string()),
+                    Node::Struct(vec![(
+                        Node::Ident("mature".to_string()),
+                        Node::Ident("bool".to_string())
                     )])
                 )
             ]))
@@ -858,16 +858,16 @@ fn test_parse_array_type() {
         expr("[int]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Array(Box::new(None), Box::new(ASTNode::Ident("int".to_string())))
+            Node::Array(Box::new(None), Box::new(Node::Ident("int".to_string())))
         ))
     );
     assert_eq!(
         expr("[int;2]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Array(
-                Box::new(Some(ASTNode::Uint(2))),
-                Box::new(ASTNode::Ident("int".to_string()))
+            Node::Array(
+                Box::new(Some(Node::Uint(2))),
+                Box::new(Node::Ident("int".to_string()))
             )
         ))
     );
@@ -890,11 +890,11 @@ fn test_parse_if() {
         _if("if true {\n\tfn(1);\n\tfn(2);}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::If(
-                Box::new(ASTNode::Bool(true)),
-                Box::new(ASTNode::Block(vec![
-                    ASTNode::FnCall("fn".to_string(), vec![ASTNode::Uint(1)]),
-                    ASTNode::FnCall("fn".to_string(), vec![ASTNode::Uint(2)]),
+            Node::If(
+                Box::new(Node::Bool(true)),
+                Box::new(Node::Block(vec![
+                    Node::FnCall("fn".to_string(), vec![Node::Uint(1)]),
+                    Node::FnCall("fn".to_string(), vec![Node::Uint(2)]),
                 ]))
             )
         ))
@@ -905,48 +905,48 @@ fn test_parse_if() {
 fn test_parse_expr() {
     assert_eq!(
         expr("true".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Bool(true)))
+        ParseResult::Ok(("".to_string(), Node::Bool(true)))
     );
     assert_eq!(
         expr("false".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Bool(false)))
+        ParseResult::Ok(("".to_string(), Node::Bool(false)))
     );
     assert_eq!(
         expr("12".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Uint(12)))
+        ParseResult::Ok(("".to_string(), Node::Uint(12)))
     );
     assert_eq!(
         expr("-12".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Int(-12)))
+        ParseResult::Ok(("".to_string(), Node::Int(-12)))
     );
     assert_eq!(
         expr("12.2".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Float(12.2)))
+        ParseResult::Ok(("".to_string(), Node::Float(12.2)))
     );
     assert_eq!(
         expr("-12.2".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Float(-12.2)))
+        ParseResult::Ok(("".to_string(), Node::Float(-12.2)))
     );
     assert_eq!(
         expr("name".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Ident("name".to_string())))
+        ParseResult::Ok(("".to_string(), Node::Ident("name".to_string())))
     );
     assert_eq!(
         expr("\"name\"".to_string()),
-        ParseResult::Ok(("".to_string(), ASTNode::Str("name".to_string())))
+        ParseResult::Ok(("".to_string(), Node::Str("name".to_string())))
     );
     assert_eq!(
         expr("struct {\n\tname: string,\n\tupdated_at: date}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Struct(vec![
+            Node::Struct(vec![
                 (
-                    ASTNode::Ident("name".to_string()),
-                    ASTNode::Ident("string".to_string())
+                    Node::Ident("name".to_string()),
+                    Node::Ident("string".to_string())
                 ),
                 (
-                    ASTNode::Ident("updated_at".to_string()),
-                    ASTNode::Ident("date".to_string())
+                    Node::Ident("updated_at".to_string()),
+                    Node::Ident("date".to_string())
                 )
             ])
         ))
@@ -956,16 +956,16 @@ fn test_parse_expr() {
         expr("struct {\n\tname: string,\n\tpayload: struct {created_at: date}}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Struct(vec![
+            Node::Struct(vec![
                 (
-                    ASTNode::Ident("name".to_string()),
-                    ASTNode::Ident("string".to_string())
+                    Node::Ident("name".to_string()),
+                    Node::Ident("string".to_string())
                 ),
                 (
-                    ASTNode::Ident("payload".to_string()),
-                    ASTNode::Struct(vec![(
-                        ASTNode::Ident("created_at".to_string()),
-                        ASTNode::Ident("date".to_string())
+                    Node::Ident("payload".to_string()),
+                    Node::Struct(vec![(
+                        Node::Ident("created_at".to_string()),
+                        Node::Ident("date".to_string())
                     )])
                 ),
             ])
@@ -975,9 +975,9 @@ fn test_parse_expr() {
         expr("fn_call(1,2)".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::FnCall(
+            Node::FnCall(
                 "fn_call".to_string(),
-                vec![ASTNode::Uint(1), ASTNode::Uint(2),]
+                vec![Node::Uint(1), Node::Uint(2),]
             )
         ))
     );
@@ -985,11 +985,11 @@ fn test_parse_expr() {
         expr("[struct {name: string}]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Array(
+            Node::Array(
                 Box::new(None),
-                Box::new(ASTNode::Struct(vec![(
-                    ASTNode::Ident("name".to_string()),
-                    ASTNode::Ident("string".to_string())
+                Box::new(Node::Struct(vec![(
+                    Node::Ident("name".to_string()),
+                    Node::Ident("string".to_string())
                 )]))
             )
         ))
@@ -998,11 +998,11 @@ fn test_parse_expr() {
         expr("[struct {name: string};2]".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Array(
-                Box::new(Some(ASTNode::Uint(2))),
-                Box::new(ASTNode::Struct(vec![(
-                    ASTNode::Ident("name".to_string()),
-                    ASTNode::Ident("string".to_string())
+            Node::Array(
+                Box::new(Some(Node::Uint(2))),
+                Box::new(Node::Struct(vec![(
+                    Node::Ident("name".to_string()),
+                    Node::Ident("string".to_string())
                 )]))
             )
         ))
@@ -1011,14 +1011,14 @@ fn test_parse_expr() {
         expr("if cond(true) {\n\ta = 1;fn(a);\n}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::If(
-                Box::new(ASTNode::FnCall(
+            Node::If(
+                Box::new(Node::FnCall(
                     "cond".to_string(),
-                    vec![ASTNode::Bool(true)]
+                    vec![Node::Bool(true)]
                 )),
-                Box::new(ASTNode::Block(vec![
-                    ASTNode::Decl("a".to_string(), Box::new(None), Box::new(ASTNode::Uint(1))),
-                    ASTNode::FnCall("fn".to_string(), vec![ASTNode::Ident("a".to_string())]),
+                Box::new(Node::Block(vec![
+                    Node::Decl(Box::new(Node::Ident("a".to_string())), Box::new(None), Box::new(Node::Uint(1))),
+                    Node::FnCall("fn".to_string(), vec![Node::Ident("a".to_string())]),
                 ]))
             )
         ))
@@ -1027,12 +1027,12 @@ fn test_parse_expr() {
         expr("fn() void {\n\t print(\"salam\");\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Fn(
+            Node::Fn(
                 vec![],
-                Box::new(ASTNode::Ident("void".to_string())),
-                Box::new(ASTNode::Block(vec![ASTNode::FnCall(
+                Box::new(Node::Ident("void".to_string())),
+                Box::new(Node::Block(vec![Node::FnCall(
                     "print".to_string(),
-                    vec![ASTNode::Str("salam".to_string())]
+                    vec![Node::Str("salam".to_string())]
                 )]))
             )
         ))
@@ -1041,18 +1041,18 @@ fn test_parse_expr() {
         expr("fn(a: struct { b: string }) void {\n\t print(\"salam\");\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::Fn(
+            Node::Fn(
                 vec![(
-                    ASTNode::Ident("a".to_string()),
-                    ASTNode::Struct(vec![(
-                        ASTNode::Ident("b".to_string()),
-                        ASTNode::Ident("string".to_string())
+                    Node::Ident("a".to_string()),
+                    Node::Struct(vec![(
+                        Node::Ident("b".to_string()),
+                        Node::Ident("string".to_string())
                     )]),
                 )],
-                Box::new(ASTNode::Ident("void".to_string())),
-                Box::new(ASTNode::Block(vec![ASTNode::FnCall(
+                Box::new(Node::Ident("void".to_string())),
+                Box::new(Node::Block(vec![Node::FnCall(
                     "print".to_string(),
-                    vec![ASTNode::Str("salam".to_string())]
+                    vec![Node::Str("salam".to_string())]
                 )]))
             )
         ))
@@ -1065,15 +1065,15 @@ fn test_parse_module() {
         module("main = fn() void {\n\tprintln(\"Hello World\");};".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            ASTNode::List(vec![ASTNode::Decl(
-                "main".to_string(),
+            Node::List(vec![Node::Decl(
+                Box::new(Node::Ident("main".to_string())),
                 Box::new(None),
-                Box::new(ASTNode::Fn(
+                Box::new(Node::Fn(
                     vec![],
-                    Box::new(ASTNode::Ident("void".to_string())),
-                    Box::new(ASTNode::Block(vec![ASTNode::FnCall(
+                    Box::new(Node::Ident("void".to_string())),
+                    Box::new(Node::Block(vec![Node::FnCall(
                         "println".to_string(),
-                        vec![ASTNode::Str("Hello World".to_string())]
+                        vec![Node::Str("Hello World".to_string())]
                     )]))
                 ))
             )])
