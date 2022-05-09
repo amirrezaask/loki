@@ -526,22 +526,47 @@ fn test_parse_expr() {
 #[test]
 fn test_parse_module() {
     assert_eq!(
-        module("main = fn() void {\n\tprintln(\"Hello World\");};".to_string()),
+        module(
+"
+a = 2;
+b = 32.2;
+c = false;
+main = fn() void {
+    println(\"Hello World\");
+};"
+
+.to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::List(vec![Node::Decl(
-                Box::new(Node::Ident("main".to_string())),
-                Box::new(None),
-                Box::new(Node::FnDef(Box::new(FnDef {
-                    ty: FnTy {
-                        args: vec![],
-                        return_ty: Node::Ident("void".to_string()),
-                    },
-                    block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
-                        name: Node::Ident("println".to_string()),
-                        args: vec![Node::Str("Hello World".to_string())]
-                    }))])
-                })))
+            Node::List(vec![
+                Node::Decl(
+                    Box::new(Node::Ident("a".to_string())),
+                    Box::new(None),
+                    Box::new(Node::Uint(2)),
+                ),
+                Node::Decl(
+                    Box::new(Node::Ident("b".to_string())),
+                    Box::new(None),
+                    Box::new(Node::Float(32.2)),
+                ),
+                Node::Decl(
+                    Box::new(Node::Ident("c".to_string())),
+                    Box::new(None),
+                    Box::new(Node::Bool(false)),
+                ),
+                Node::Decl(
+                    Box::new(Node::Ident("main".to_string())),
+                    Box::new(None),
+                    Box::new(Node::FnDef(Box::new(FnDef {
+                        ty: FnTy {
+                            args: vec![],
+                            return_ty: Node::Ident("void".to_string()),
+                        },
+                        block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                            name: Node::Ident("println".to_string()),
+                            args: vec![Node::Str("Hello World".to_string())]
+                        }))])
+                    })))
             )])
         ))
     );

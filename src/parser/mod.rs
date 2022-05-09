@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 /*TODO
+    - char literals
     - for
         - c syntax
         - foreach
@@ -59,27 +60,27 @@ impl Node {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IdentAndTy {
-    ident: Node,
-    ty: Node,
+    pub ident: Node,
+    pub ty: Node,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnDef {
     // FnTy
-    ty: FnTy,
-    block: Node,
+    pub ty: FnTy,
+    pub block: Node,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnTy {
-    args: Vec<IdentAndTy>,
-    return_ty: Node,
+    pub args: Vec<IdentAndTy>,
+    pub return_ty: Node,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnCall {
-    name: Node,
-    args: Vec<Node>,
+    pub name: Node,
+    pub args: Vec<Node>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -683,7 +684,6 @@ fn decl(input: String) -> ParseResult {
             ))
         }
     }
-    println!("ident: {} remains: \"{}\"", identifier, remains);
     let (mut remains, _) = whitespace()(remains)?;
     let mut ty: Option<Node> = None;
     let colon_res = parse_char(':')(remains.clone());
@@ -697,9 +697,7 @@ fn decl(input: String) -> ParseResult {
     }
     let (remains, _) = parse_char('=')(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    println!("remains: \"{}\"", remains);
     let (remains, e) = expr(remains)?;
-    println!("expr: {:?} remains: \"{}\"", e, remains);
     return Ok((
         remains,
         Node::Decl(Box::new(Node::Ident(identifier)), Box::new(ty), Box::new(e)),
