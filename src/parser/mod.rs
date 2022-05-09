@@ -12,6 +12,12 @@ mod tests;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
+    IntTy,
+    UintTy,
+    FloatTy,
+    CharTy,
+    StringTy,
+    BooleanTy,
     Char(char),
     Uint(usize),
     Int(isize),
@@ -34,34 +40,19 @@ pub enum Node {
     Empty,
 }
 
-pub enum Type {
-    Int,
-    Uint,
-    Float,
-    Char,
-    String,
-    Boolean,
-    Array,
-    Slice,
-    UserDefined(String),
-    Fn(FnTy),
-    Struct(Vec<IdentAndTy>),
-}
-
-impl From<Node> for Type {
-    fn from(node: Node) -> Self {
-        match node {
-            Node::Ident(ty_name) => match ty_name.as_ref() {
-                "int" => Self::Int,
-                "uint" => Self::Uint,
-                "float" => Self::Float,
-                "char" => Self::Char,
-                "string" => Self::String,
-                "bool" => Self::Boolean,
-                _ => Self::UserDefined(ty_name) 
+impl Node {
+    fn primitive(self) -> Self {
+        match &self {
+            Node::Ident(name) => match name.as_ref() {
+                "int" => Self::IntTy,
+                "uint" => Self::UintTy,
+                "float" => Self::FloatTy,
+                "string" => Self::StringTy,
+                "char" => Self::CharTy,
+                "bool" => Self::BooleanTy,
+                _ => self,
             },
-            Node::StructTy(ident_and_types) => Self::Struct(ident_and_types),
-            _ => unimplemented!()
+            _ => self,
         }
     }
 }
@@ -460,7 +451,7 @@ fn _struct(input: String) -> ParseResult {
             let type_obj = type_res.1;
             idents_tys.push(IdentAndTy {
                 ident: ident_obj.clone(),
-                ty: type_obj.clone(),
+                ty: type_obj.primitive().clone(),
             });
 
             let whitespace_res = whitespace()(remains)?;
@@ -481,6 +472,7 @@ fn _struct(input: String) -> ParseResult {
 fn array(input: String) -> ParseResult {
     let (remains, _) = parse_char('[')(input)?;
     let (mut remains, ty) = expr(remains)?;
+    let ty = ty.primitive();
     let semicolon_res = semicolon(remains.clone());
     let mut size: Option<Node> = None;
     match semicolon_res {
@@ -591,9 +583,10 @@ fn fn_ty(input: String) -> ParseResult {
             remains = type_res.0;
 
             let type_obj = type_res.1;
+            let type_obj = type_obj.primitive();
             args_tys.push(IdentAndTy {
                 ident: ident_obj.clone(),
-                ty: type_obj.clone(),
+                ty: type_obj.primitive().clone(),
             });
 
             let whitespace_res = whitespace()(remains)?;
@@ -610,6 +603,7 @@ fn fn_ty(input: String) -> ParseResult {
     let (remains, _) = parse_char(')')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, return_ty) = expr(remains)?;
+    let return_ty = return_ty.primitive();
     return Ok((remains, Node::FnTy(Box::new(FnTy { args: args_tys, return_ty: return_ty }))))
 }
 
