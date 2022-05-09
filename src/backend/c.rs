@@ -1,6 +1,6 @@
 use crate::parser;
-use crate::backend::CodeGen;
-use super::parser::Node;
+use super::CodeGen;
+use crate::parser::Node;
 use anyhow::Result;
 const OUTPUT_DIR: &str = "./c_out/";
 const ZIG_BUILD: &str = "const std = @import(\"std\");
@@ -25,9 +25,11 @@ pub fn build(b: *std.build.Builder) void {
     run_step.dependOn(&run_cmd.step);
 }";
 
-struct CCodeGen {
-
+pub struct C {
+    arch: String,
+    os: String,
 }
+
 fn boostrap_zig_build(output_dir: &str) -> Result<()> {
     std::fs::create_dir(output_dir)?;
     std::fs::write(format!("{}/build.zig", output_dir), ZIG_BUILD)?;

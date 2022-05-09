@@ -8,6 +8,8 @@
     - operator expressions
 */
 
+mod tests;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Char(char),
@@ -20,25 +22,33 @@ pub enum Node {
     Bool(bool),
     List(Vec<Node>),
     Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
-    FnCall(Box<Node>, Vec<Node>),
+    FnCall(Box<FnCall>),
     StructTy(Vec<(Node, Node)>),
     FnDef(Vec<(Node, Node)>, Box<Node>, Box<Node>),
     FnTy(Vec<(Node, Node)>, Box<Node>),
-    ArrayTy(Box<Option<Node>>, Box<Node>),
+    ArrayTy(Box<ArrayTy>),
     Stmt(Box<Node>),
     Block(Vec<Node>),
     If(Box<If>),
     ForC(Box<Node>, Box<Node>, Box<Node>, Box<Node>),
     Empty,
 }
+
 #[derive(Clone, Debug, PartialEq)]
-struct If {
-    cond: Node,
-    block: Node,
+pub struct FnCall {
+    name: Node,
+    args: Vec<Node>,
 }
-struct ArrayTy {
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ArrayTy {
     size: Option<Node>,
     inner_ty: Node,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct If {
+    cond: Node,
+    block: Node,
 }
 
 struct Decl {
@@ -287,7 +297,10 @@ fn fn_call(input: String) -> ParseResult {
 
     return Ok((
         remains,
-        Node::FnCall(Box::new(Node::Ident(identifier)), args),
+        Node::FnCall(Box::new(FnCall {
+            name: Node::Ident(identifier),
+            args: args,
+        })),
     ));
 }
 
@@ -425,7 +438,13 @@ fn array(input: String) -> ParseResult {
         _ => (),
     };
     let (remains, _) = parse_char(']')(remains)?;
-    return Ok((remains, Node::ArrayTy(Box::new(size), Box::new(ty))));
+    return Ok((
+        remains,
+        Node::ArrayTy(Box::new(ArrayTy {
+            size: size,
+            inner_ty: ty,
+        })),
+    ));
 }
 
 fn statement(input: String) -> ParseResult {
@@ -624,495 +643,4 @@ fn decl(mut input: String) -> ParseResult {
 }
 pub fn module(input: String) -> ParseResult {
     return zero_or_more(statement)(input);
-}
-#[test]
-fn test_parse_decl_bool() {
-    let decl_res = decl("a = false".to_string());
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-        assert_eq!(be, Box::new(Node::Bool(false)));
-    } else {
-        assert!(false);
-    }
-}
-#[test]
-fn test_parse_decl_int() {
-    let decl_res = decl("a = -2".to_string());
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-        assert_eq!(be, Box::new(Node::Int(-2)));
-    } else {
-        assert!(false);
-    }
-}
-
-#[test]
-fn test_parse_decl_str() {
-    let decl_res = decl("a = \"amirreza\"".to_string());
-    assert!(decl_res.is_ok());
-
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-        assert_eq!(be, Box::new(Node::Str("amirreza".to_string())));
-    } else {
-        assert!(false);
-    }
-}
-#[test]
-fn test_parse_decl_uint() {
-    let decl_res = decl("a = 2".to_string());
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-        assert_eq!(be, Box::new(Node::Uint(2)));
-    } else {
-        assert!(false);
-    }
-}
-#[test]
-fn test_parse_single_digit() {
-    assert_eq!(
-        digit()("1AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), Node::Char('1'),))
-    );
-}
-
-#[test]
-fn test_parse_float() {
-    assert_eq!(
-        float("4.2AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), Node::Float(4.2)))
-    );
-}
-#[test]
-fn test_parse_string() {
-    assert_eq!(
-        string("\"amirreza\"".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Str("amirreza".to_string())))
-    );
-}
-#[test]
-fn test_parse_int() {
-    assert_eq!(
-        int("-1234AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), Node::Int(-1234)))
-    );
-    assert_eq!(
-        int("1234AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), Node::Int(1234)))
-    );
-}
-
-#[test]
-fn test_parse_uint() {
-    assert_eq!(
-        uint("1234AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), Node::Uint(1234)))
-    );
-}
-
-#[test]
-fn test_parse_keyword() {
-    assert_eq!(
-        keyword("struct".to_string())("struct name".to_string()),
-        ParseResult::Ok((" name".to_string(), Node::Keyword("struct".to_string())))
-    );
-}
-#[test]
-fn test_parse_fn() {
-    assert_eq!(
-        fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnDef(
-                vec![(Node::Ident("a".to_string()), Node::Ident("int".to_string()))],
-                Box::new(Node::Ident("string".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(
-                    Box::new(Node::Ident("print".to_string())),
-                    vec![Node::Ident("a".to_string())]
-                )]))
-            )
-        ))
-    );
-}
-
-#[test]
-fn test_parse_decl_fn() {
-    let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string());
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("f".to_string())));
-        assert_eq!(
-            f,
-            Box::new(Node::FnDef(
-                vec![],
-                Box::new(Node::Ident("void".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(
-                    Box::new(Node::Ident("println".to_string())),
-                    vec![Node::Str("Salam donya!".to_string())]
-                )]))
-            ))
-        );
-    } else {
-        assert!(false);
-    }
-}
-#[test]
-fn test_parse_ident() {
-    assert_eq!(
-        ident("name".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Ident("name".to_string())))
-    );
-    assert_eq!(
-        ident("name_str".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Ident("name_str".to_string()),))
-    );
-}
-
-#[test]
-fn test_parse_payload_string_as_ident() {
-    assert_eq!(
-        ident("payload".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Ident("payload".to_string())))
-    );
-}
-#[test]
-fn test_parse_fn_call() {
-    assert_eq!(
-        fn_call("name()".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnCall(Box::new(Node::Ident("name".to_string())), vec![])
-        ))
-    );
-    assert_eq!(
-        fn_call("name(1,2)".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnCall(
-                Box::new(Node::Ident("name".to_string())),
-                vec![Node::Uint(1), Node::Uint(2)]
-            )
-        ))
-    );
-    assert_eq!(
-        fn_call("name(1,fn(2))".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnCall(
-                Box::new(Node::Ident("name".to_string())),
-                vec![
-                    Node::Uint(1),
-                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(2)]),
-                ]
-            )
-        ))
-    );
-}
-#[test]
-fn test_parse_bool() {
-    assert_eq!(
-        bool("truesomeshitaftertrue".to_string()),
-        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(true)))
-    );
-    assert_eq!(
-        bool("falsesomeshitaftertrue".to_string()),
-        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false),))
-    );
-}
-
-#[test]
-fn test_parse_struct() {
-    assert_eq!(
-        _struct("struct {\n\tname: string,\n\tage:int\n}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("age".to_string()),
-                    Node::Ident("int".to_string())
-                ),
-            ])
-        ))
-    );
-}
-
-#[test]
-fn test_parse_decl_struct() {
-    let decl_res =
-        decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string());
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("s".to_string())));
-        assert_eq!(
-            be,
-            Box::new(Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("age".to_string()),
-                    Node::Ident("int".to_string())
-                ),
-                (
-                    Node::Ident("meta".to_string()),
-                    Node::StructTy(vec![(
-                        Node::Ident("mature".to_string()),
-                        Node::Ident("bool".to_string())
-                    )])
-                )
-            ]))
-        );
-    } else {
-        assert!(false);
-    }
-}
-
-#[test]
-fn test_parse_array_type() {
-    assert_eq!(
-        expr("[int]".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::ArrayTy(Box::new(None), Box::new(Node::Ident("int".to_string())))
-        ))
-    );
-    assert_eq!(
-        expr("[int;2]".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::ArrayTy(
-                Box::new(Some(Node::Uint(2))),
-                Box::new(Node::Ident("int".to_string()))
-            )
-        ))
-    );
-}
-// #[test]
-// fn test_parse_for_c() {
-//     assert_eq!(
-//         _if("for i=0;i<10;i++ { print(i); }".to_string()),
-//         ParseResult::Ok((
-//             "".to_string(),
-//             ParseObj::ForC(
-//                 Box::new(ParseObj::Decl(ParseObj::Ident("i".to_string()), Box::new(None), Box::new(ParseObj::Uint(0)))),
-//                 )
-//             )
-//         ));
-// }
-#[test]
-fn test_parse_if() {
-    assert_eq!(
-        _if("if true {\n\tfn(1);\n\tfn(2);}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::If(Box::new(If {
-                cond: Node::Bool(true),
-                block: Node::Block(vec![
-                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(1)]),
-                    Node::FnCall(Box::new(Node::Ident("fn".to_string())), vec![Node::Uint(2)])
-                ])
-            }))
-        ))
-    );
-}
-
-#[test]
-fn test_parse_expr() {
-    assert_eq!(
-        expr("true".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Bool(true)))
-    );
-    assert_eq!(
-        expr("false".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Bool(false)))
-    );
-    assert_eq!(
-        expr("12".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Uint(12)))
-    );
-    assert_eq!(
-        expr("-12".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Int(-12)))
-    );
-    assert_eq!(
-        expr("12.2".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Float(12.2)))
-    );
-    assert_eq!(
-        expr("-12.2".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Float(-12.2)))
-    );
-    assert_eq!(
-        expr("name".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Ident("name".to_string())))
-    );
-    assert_eq!(
-        expr("\"name\"".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Str("name".to_string())))
-    );
-    assert_eq!(
-        expr("struct {\n\tname: string,\n\tupdated_at: date}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("updated_at".to_string()),
-                    Node::Ident("date".to_string())
-                )
-            ])
-        ))
-    );
-
-    assert_eq!(
-        expr("struct {\n\tname: string,\n\tpayload: struct {created_at: date}}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::StructTy(vec![
-                (
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                ),
-                (
-                    Node::Ident("payload".to_string()),
-                    Node::StructTy(vec![(
-                        Node::Ident("created_at".to_string()),
-                        Node::Ident("date".to_string())
-                    )])
-                ),
-            ])
-        ))
-    );
-    assert_eq!(
-        expr("fn_call(1,2)".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnCall(
-                Box::new(Node::Ident("fn_call".to_string())),
-                vec![Node::Uint(1), Node::Uint(2),]
-            )
-        ))
-    );
-    assert_eq!(
-        expr("[struct {name: string}]".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::ArrayTy(
-                Box::new(None),
-                Box::new(Node::StructTy(vec![(
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                )]))
-            )
-        ))
-    );
-    assert_eq!(
-        expr("[struct {name: string};2]".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::ArrayTy(
-                Box::new(Some(Node::Uint(2))),
-                Box::new(Node::StructTy(vec![(
-                    Node::Ident("name".to_string()),
-                    Node::Ident("string".to_string())
-                )]))
-            )
-        ))
-    );
-    assert_eq!(
-        expr("if cond(true) {\n\ta = 1;fn(a);\n}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::If(Box::new(If {
-                cond: Node::FnCall(
-                    Box::new(Node::Ident("cond".to_string())),
-                    vec![Node::Bool(true)]
-                ),
-                block: Node::Block(vec![
-                    Node::Decl(
-                        Box::new(Node::Ident("a".to_string())),
-                        Box::new(None),
-                        Box::new(Node::Uint(1))
-                    ),
-                    Node::FnCall(
-                        Box::new(Node::Ident("fn".to_string())),
-                        vec![Node::Ident("a".to_string())]
-                    ),
-                ])
-            }))
-        ))
-    );
-    assert_eq!(
-        expr("fn() void {\n\t print(\"salam\");\n\t}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnDef(
-                vec![],
-                Box::new(Node::Ident("void".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(
-                    Box::new(Node::Ident("print".to_string())),
-                    vec![Node::Str("salam".to_string())]
-                )]))
-            )
-        ))
-    );
-    assert_eq!(
-        expr("fn(a: struct { b: string }) void {\n\t print(\"salam\");\n\t}".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::FnDef(
-                vec![(
-                    Node::Ident("a".to_string()),
-                    Node::StructTy(vec![(
-                        Node::Ident("b".to_string()),
-                        Node::Ident("string".to_string())
-                    )]),
-                )],
-                Box::new(Node::Ident("void".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(
-                    Box::new(Node::Ident("print".to_string())),
-                    vec![Node::Str("salam".to_string())]
-                )]))
-            )
-        ))
-    );
-}
-
-#[test]
-fn test_parse_module() {
-    assert_eq!(
-        module("main = fn() void {\n\tprintln(\"Hello World\");};".to_string()),
-        ParseResult::Ok((
-            "".to_string(),
-            Node::List(vec![Node::Decl(
-                Box::new(Node::Ident("main".to_string())),
-                Box::new(None),
-                Box::new(Node::FnDef(
-                    vec![],
-                    Box::new(Node::Ident("void".to_string())),
-                    Box::new(Node::Block(vec![Node::FnCall(
-                        Box::new(Node::Ident("println".to_string())),
-                        vec![Node::Str("Hello World".to_string())]
-                    )]))
-                ))
-            )])
-        ))
-    );
 }

@@ -1,8 +1,9 @@
 mod parser;
 mod backend;
-mod c_backend;
+
 use anyhow::Result;
 use clap::{arg, Arg, ArgMatches, Command};
+use backend::c;
 
 fn parse_cli() -> ArgMatches {
     Command::new("loki")
@@ -27,7 +28,7 @@ fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
     println!("{:?}", ast);
 
-    c_backend::codegen(ast)?;
+    c::codegen(ast)?;
 
     Ok(())
 }
@@ -39,6 +40,6 @@ fn main() -> Result<()> {
         Some(("compile", arg_matches)) => compile(backend, arg_matches),
         _ => unreachable!(),
     };
-    // println!("{:?}", parser::_struct("struct {\n\tname: string,\n\tage: int\n}".to_string())?);
+    // println!("{:?}", mod::_struct("struct {\n\tname: string,\n\tage: int\n}".to_string())?);
     Ok(())
 }
