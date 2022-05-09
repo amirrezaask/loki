@@ -4,6 +4,10 @@ use crate::parser::Node;
 
 pub mod c;
 
+pub trait Compiler {
+    fn compile(input: &str, output: &str);
+}
+
 pub trait CodeGen {
     fn generate(&self) -> Result<String>;
 }

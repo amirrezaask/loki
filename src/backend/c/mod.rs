@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::process::Command;
 
-use super::Repr;
+use super::{Repr, Compiler};
 use crate::backend::CodeGen;
 use crate::parser::{self};
 use crate::parser::Node;
@@ -21,6 +22,11 @@ impl CodeGen for C {
     }
 }
 
+impl Compiler for C {
+    fn compile(name: &str, output: &str) {
+        Command::new("zig").args(vec!["cc", name, "-Wno-everything", "-o", output]).output().expect("compile error");
+    }
+}
 
 impl Repr<C> for parser::IdentAndTy {
     fn repr(&self) -> String {
