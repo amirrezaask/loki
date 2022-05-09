@@ -24,8 +24,8 @@ pub enum Node {
     Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
     FnCall(Box<FnCall>),
     StructTy(Vec<(Node, Node)>),
-    FnDef(Vec<(Node, Node)>, Box<Node>, Box<Node>),
-    FnTy(Vec<(Node, Node)>, Box<Node>),
+    FnDef(Box<FnDef>),
+    FnTy(Box<FnTy>),
     ArrayTy(Box<ArrayTy>),
     Stmt(Box<Node>),
     Block(Vec<Node>),
@@ -33,6 +33,21 @@ pub enum Node {
     ForC(Box<Node>, Box<Node>, Box<Node>, Box<Node>),
     Empty,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FnDef {
+    // FnTy
+    ty: FnTy,
+    block: Node,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FnTy {
+    args: Vec<(Node, Node)>,
+    return_ty: Node
+}
+
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnCall {
@@ -375,7 +390,7 @@ fn bool(input: String) -> ParseResult {
     }
 }
 
-pub fn _struct(input: String) -> ParseResult {
+fn _struct(input: String) -> ParseResult {
     // struct { ident: type, }
     let (mut remains, _) = keyword("struct".to_string())(input)?;
     let (mut remains, _) = whitespace()(remains)?;
@@ -553,7 +568,7 @@ fn fn_def(input: String) -> ParseResult {
     }
     let (remains, _) = parse_char(')')(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    let (remains, ty) = expr(remains)?;
+    let (remains, return_ty) = expr(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char('{')(remains)?;
     let (remains, _) = whitespace()(remains)?;
@@ -562,7 +577,13 @@ fn fn_def(input: String) -> ParseResult {
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((
         remains,
-        Node::FnDef(args_tys, Box::new(ty), Box::new(_block)),
+        Node::FnDef(Box::new(FnDef{
+            ty: FnTy {
+                args: args_tys,
+                return_ty
+            },
+            block: _block,
+        }))
     ));
 }
 
@@ -604,7 +625,7 @@ fn expr(input: String) -> ParseResult {
     return any_of(parsers)(input);
 }
 
-fn decl(mut input: String) -> ParseResult {
+fn decl(input: String) -> ParseResult {
     // ident: expr = expr;
     let (remains, _) = whitespace()(input.clone())?;
     let (remains, obj) = ident(remains)?;
@@ -641,6 +662,7 @@ fn decl(mut input: String) -> ParseResult {
         Node::Decl(Box::new(Node::Ident(identifier)), Box::new(ty), Box::new(e)),
     ));
 }
+
 pub fn module(input: String) -> ParseResult {
     return zero_or_more(statement)(input);
 }

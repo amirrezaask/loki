@@ -111,14 +111,16 @@ fn test_parse_fn() {
         fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnDef(
-                vec![(Node::Ident("a".to_string()), Node::Ident("int".to_string()))],
-                Box::new(Node::Ident("string".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(Box::new(FnCall {
+            Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![(Node::Ident("a".to_string()), Node::Ident("int".to_string()))],
+                    return_ty: Node::Ident("string".to_string())
+                },
+                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Ident("a".to_string())],
-                }))])),
-            )
+                }))])
+            }))
         ))
     );
 }
@@ -132,14 +134,16 @@ fn test_parse_decl_fn() {
         assert_eq!(name, Box::new(Node::Ident("f".to_string())));
         assert_eq!(
             f,
-            Box::new(Node::FnDef(
-                vec![],
-                Box::new(Node::Ident("void".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(Box::new(FnCall {
+            Box::new(Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![],
+                    return_ty: Node::Ident("void".to_string()),
+                },
+                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
                     name: Node::Ident("println".to_string()),
                     args: vec![Node::Str("Salam donya!".to_string())],
-                }))])),
-            ))
+                }))])
+            }))),
         );
     } else {
         assert!(false);
@@ -463,34 +467,38 @@ fn test_parse_expr() {
         expr("fn() void {\n\t print(\"salam\");\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnDef(
-                vec![],
-                Box::new(Node::Ident("void".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(Box::new(FnCall {
+            Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![],
+                    return_ty: Node::Ident("void".to_string()),
+                },
+                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Str("salam".to_string())],
-                }))])),
-            )
+                }))])
+            }))
         ))
     );
     assert_eq!(
         expr("fn(a: struct { b: string }) void {\n\t print(\"salam\");\n\t}".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnDef(
-                vec![(
-                    Node::Ident("a".to_string()),
-                    Node::StructTy(vec![(
-                        Node::Ident("b".to_string()),
-                        Node::Ident("string".to_string())
-                    )]),
-                )],
-                Box::new(Node::Ident("void".to_string())),
-                Box::new(Node::Block(vec![Node::FnCall(Box::new(FnCall {
+            Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![(
+                        Node::Ident("a".to_string()),
+                        Node::StructTy(vec![(
+                            Node::Ident("b".to_string()),
+                            Node::Ident("string".to_string())
+                        )]),
+                    )],
+                    return_ty: Node::Ident("void".to_string()),
+                },
+                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Str("salam".to_string())],
-                }))])),
-            )
+                }))])
+            }))
         ))
     );
 }
@@ -504,14 +512,16 @@ fn test_parse_module() {
             Node::List(vec![Node::Decl(
                 Box::new(Node::Ident("main".to_string())),
                 Box::new(None),
-                Box::new(Node::FnDef(
-                    vec![],
-                    Box::new(Node::Ident("void".to_string())),
-                    Box::new(Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                Box::new(Node::FnDef(Box::new(FnDef {
+                    ty: FnTy {
+                        args: vec![],
+                        return_ty: Node::Ident("void".to_string()),
+                    },
+                    block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
                         name: Node::Ident("println".to_string()),
                         args: vec![Node::Str("Hello World".to_string())]
-                    }))]))
-                ))
+                    }))])
+                })))
             )])
         ))
     );
