@@ -1,11 +1,6 @@
 #![allow(dead_code)]
 /*TODO
-    - for
-        - c syntax
-        - foreach
-        - while syntax
-    - interface
-    - operator expressions ?????????????????????
+    - operator expressions ????????????????????? for loops also need this to work
 */
 
 mod tests;
@@ -56,7 +51,8 @@ pub enum Node {
     Stmt(Box<Node>),
     Block(Vec<Node>),
     If(Box<If>),
-    ForC(Box<Node>, Box<Node>, Box<Node>, Box<Node>),
+    For(Box<For>),
+    While(Box<While>),
     Empty,
 }
 
@@ -84,9 +80,23 @@ pub struct IdentAndTy {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct For {
+    pub init: Node,
+    pub cond: Node,
+    pub cont: Node,
+    pub body: Node,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct FnDef {
     // FnTy
     pub ty: FnTy,
+    pub block: Node,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct While {
+    pub cond: Node,
     pub block: Node,
 }
 
@@ -411,7 +421,6 @@ fn uint(input: String) -> ParseResult {
     }
 }
 
-
 fn operator(input: String) -> ParseResult {
     let (remains, o) = parse_chars("-*+/%")(input)?;
     if let Node::Char(operator) = o {
@@ -421,7 +430,11 @@ fn operator(input: String) -> ParseResult {
             '/' => Ok((remains, Node::Operator(Operator::Div))),
             '+' => Ok((remains, Node::Operator(Operator::Plus))),
             '-' => Ok((remains, Node::Operator(Operator::Minus))),
-            _ => Err(ParseErr::Unexpected("an operator".to_string(), operator.to_string(), 0))
+            _ => Err(ParseErr::Unexpected(
+                "an operator".to_string(),
+                operator.to_string(),
+                0,
+            )),
         }
     } else {
         unreachable!();
@@ -430,14 +443,18 @@ fn operator(input: String) -> ParseResult {
 
 fn operation(input: String) -> ParseResult {
     println!("parse_operation: {}", input);
-    let first =input.chars().nth(0);
+    let first = input.chars().nth(0);
     if let Some(c) = first {
-        if c == ')' ||  c == '}' || c == ']' {
-            return Err(ParseErr::Unexpected("operation lhs".to_string(), c.to_string(), 0))
+        if c == ')' || c == '}' || c == ']' {
+            return Err(ParseErr::Unexpected(
+                "operation lhs".to_string(),
+                c.to_string(),
+                0,
+            ));
         }
     } else {
         ()
-    } 
+    }
     let (remains, lhs) = expr(input)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, op) = operator(remains)?;
@@ -446,17 +463,17 @@ fn operation(input: String) -> ParseResult {
         operator = Some(o)
     } else {
         unreachable!()
-    } 
+    }
     let (remains, _) = whitespace()(remains)?;
     let (remains, rhs) = expr(remains)?;
-    Ok((remains, Node::Operation(Box::new(
-        Operation {
+    Ok((
+        remains,
+        Node::Operation(Box::new(Operation {
             lhs,
             op: operator.unwrap(),
-            rhs
-        }
-    ))))
-
+            rhs,
+        })),
+    ))
 }
 fn int(mut input: String) -> ParseResult {
     // int = sign uint
@@ -610,10 +627,28 @@ fn _if(input: String) -> ParseResult {
         })),
     ));
 }
-
 fn _for(input: String) -> ParseResult {
     let (remains, _) = keyword("for".to_string())(input)?;
+    let parsers: Vec<fn(String) -> ParseResult> = vec![_for_c, _for_while];
+    return any_of(parsers)(remains);
+}
+fn _for_while(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input)?;
+    let (remains, cond) = expr(remains)?;
     let (remains, _) = whitespace()(remains)?;
+    let (remains, _) = parse_char('{')(remains)?;
+    let (remains, body) = block(remains)?;
+    let (remains, _) = parse_char('}')(remains)?;
+    return Ok((
+        remains,
+        Node::While(Box::new(While {
+            cond: cond,
+            block: body,
+        })),
+    ));
+}
+fn _for_c(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input)?;
     let (remains, init) = decl(remains)?;
     let (remains, _) = parse_char(';')(remains)?;
     let (remains, _) = whitespace()(remains)?;
@@ -627,12 +662,12 @@ fn _for(input: String) -> ParseResult {
     let (remains, _) = parse_char('}')(remains)?;
     return Ok((
         remains,
-        Node::ForC(
-            Box::new(init),
-            Box::new(cond),
-            Box::new(cont),
-            Box::new(body),
-        ),
+        Node::For(Box::new(For {
+            init,
+            cond,
+            cont,
+            body,
+        })),
     ));
 }
 fn fn_ty(input: String) -> ParseResult {
@@ -750,7 +785,7 @@ pub fn expr(input: String) -> ParseResult {
     // if
     // operation
     let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![
-        float, uint, int, _bool, string, _char, _if, fn_def, _struct, fn_call, ident, array 
+        float, uint, int, _bool, string, _char, _if, fn_def, _struct, fn_call, ident, array,
     ];
     return any_of(parsers)(input);
 }

@@ -382,13 +382,12 @@ fn test_parse_array_type() {
 // fn test_parse_for_c() {
 //     assert_eq!(
 //         _if("for i=0;i<10;i++ { print(i); }".to_string()),
-//         ParseResult::Ok((
-//             "".to_string(),
-//             ParseObj::ForC(
-//                 Box::new(ParseObj::Decl(ParseObj::Ident("i".to_string()), Box::new(None), Box::new(ParseObj::Uint(0)))),
-//                 )
-//             )
-//         ));
+//         Ok(("".to_string(), Node::For(Box::new(For {
+//             init: Node::Decl(Box::new(Node::Ident("i".to_string())), Box::new(None), Box::new(Node::Uint(0)))
+//             cont
+//         }))))
+        
+//         );
 // }
 #[test]
 fn test_parse_if() {
