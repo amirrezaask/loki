@@ -33,7 +33,7 @@ fn emit(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
     // println!("compiling {}", file_name);
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
-    // println!("{:?}", ast);
+    println!("{:?}", ast);
 
     let c_code_gen = C{arch: "".to_string(), os:"".to_string(), ast};
     let output = c_code_gen.generate()?;
@@ -59,15 +59,15 @@ fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    println!("{:?}", parser::fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()));
-    // let matches = parse_cli();
-    // let backend = matches.value_of("backend").expect("need a backend");
-    // // println!("generating code using {}", backend);
-    // match matches.subcommand() {
-    //     Some(("emit", arg_matches)) => emit(backend, arg_matches),
-    //     Some(("compile", arg_matches)) => compile(backend, arg_matches),
-    //     _ => unreachable!(),
-    // };
+    // println!("{:?}", parser::fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()));
+    let matches = parse_cli();
+    let backend = matches.value_of("backend").expect("need a backend");
+    // println!("generating code using {}", backend);
+    match matches.subcommand() {
+        Some(("emit", arg_matches)) => emit(backend, arg_matches)?,
+        Some(("compile", arg_matches)) => compile(backend, arg_matches)?,
+        _ => unreachable!(),
+    };
     // println!("{:?}", mod::_struct("struct {\n\tname: string,\n\tage: int\n}".to_string())?);
     Ok(())
 }

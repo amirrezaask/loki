@@ -1,6 +1,7 @@
 sum = fn() int {
    return 1; 
-}
+};
+
 main = fn() int {
     return sum();
 };

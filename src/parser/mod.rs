@@ -30,6 +30,7 @@ pub enum Node {
     CharTy,
     StringTy,
     BooleanTy,
+    VoidTy,
     Char(char),
     Operator(Operator),
     Operation(Box<Operation>),
@@ -66,6 +67,7 @@ impl Node {
                 "string" => Self::StringTy,
                 "char" => Self::CharTy,
                 "bool" => Self::BooleanTy,
+                "void" => Self::VoidTy,
                 _ => self,
             },
             _ => self,
@@ -785,7 +787,7 @@ pub fn expr(input: String) -> ParseResult {
     // if
     // operation
     let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![
-        float, uint, int, _bool, string, _char, _if, fn_def, _struct, fn_call, ident, array,
+        float, uint, int, _bool, string, _char, _if, fn_def, _struct, _return, fn_call, ident, array,
     ];
     return any_of(parsers)(input);
 }
@@ -818,8 +820,7 @@ fn decl(input: String) -> ParseResult {
     }
     let (remains, _) = parse_char('=')(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    let rhs_parsers: Vec<fn(String) -> ParseResult> = vec![expr, operation];
-    let (remains, e) = any_of(rhs_parsers)(remains)?;
+    let (remains, e) = expr(remains)?;
     return Ok((
         remains,
         Node::Decl(Box::new(Node::Ident(identifier)), Box::new(ty), Box::new(e)),
