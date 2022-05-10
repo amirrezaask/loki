@@ -22,7 +22,8 @@ impl CodeGen for C {
 
 impl Compiler for C {
     fn compile(name: &str, output: &str) {
-        Command::new("cc").args(vec![name, "-Wno-everything", "-o", output]).output().expect("compile error");
+        // "-Wno-everything"
+        Command::new("cc").args(vec![name, "-o", output]).output().expect("compile error");
     }
 }
 
@@ -53,20 +54,30 @@ impl Repr<C> for Node {
             Node::Float(i) => Ok(format!("{}", i)),
             Node::Str(i) => Ok(format!("\"{}\"", i)),
             Node::Bool(i) => Ok(format!("{}", i)),
+            // primitive types
+            Node::IntTy => Ok("int".to_string()),
+            Node::UintTy => Ok("unsigned int".to_string()),
+            Node::VoidTy => Ok("void".to_string()),
+            Node::FloatTy => Ok("double".to_string()),
+            Node::BooleanTy => Ok("bool".to_string()),
+            Node::CharTy => Ok("char".to_string()),
             // expr
             Node::StructTy(fields) => {
                 let field_ty: Result<Vec<String>> = fields.iter().map(|it| it.repr()).collect(); 
                 let field_ty = field_ty?;
                 let field_ty = field_ty.join("\n;");
 
-                Ok(format!("struct {{\n{}\n}}", field_ty))
+                Ok(format!("struct {{\n\t{}\n}}", field_ty))
+            },
+            Node::Return(e) => {
+                Ok(format!("return {}", e.repr()?))
             },
             Node::FnDef(def) => {
                 let args_tys: Result<Vec<String>> = def.ty.args.iter().map(|it| it.repr()).collect();
                 let args_tys = args_tys?; 
                 let args_tys = args_tys.join(", ");
 
-                Ok(format!("{} {{name}} ({}) {{\n\t{}\n\t}}", def.ty.return_ty.repr()?, args_tys, def.block.repr()?))
+                Ok(format!("{} {{name}} ({}) {{\n\t{}\n}}", def.ty.return_ty.repr()?, args_tys, def.block.repr()?))
             }
             Node::Decl(name, o_ty, expr) => {
                 if let Node::FnDef(def) = expr.deref() {
@@ -83,7 +94,7 @@ impl Repr<C> for Node {
                         .repr();
                     let ty_str = o_ty.repr()?;
                     let expr_str = expr.repr()?;
-                    Ok(format!("{} {} = {};", ty_str, n_str, expr_str))
+                    Ok(format!("{} {} = {}", ty_str, n_str, expr_str))
                 }
             }
             Node::List(stmts) => {
@@ -94,14 +105,15 @@ impl Repr<C> for Node {
             Node::Application(call) => {
                 let args: Result<Vec<String>> = call.args.iter().map(|n| n.repr()).collect();
                 let args = args?;
-                Ok(format!("{}({});", call.name.repr()?, args.join(", ")))
+                Ok(format!("{}({})", call.name.repr()?, args.join(", ")))
             }
 
             Node::Stmt(n) => n.repr(),
             Node::Block(nodes) => {
                 let all: Result<Vec<String>> = nodes.iter().map(|n| n.repr()).collect();
-                let all = all?;
-                Ok(all.join("\n"))
+                let mut all = all?;
+                all.last_mut().unwrap().push(';');
+                Ok(all.join(";\n\t"))
             },
             _ => panic!("unsupported: {:?}", self),
         }

@@ -33,8 +33,6 @@ fn emit(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
     // println!("compiling {}", file_name);
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
-    println!("{:?}", ast);
-
     let c_code_gen = C{arch: "".to_string(), os:"".to_string(), ast};
     let output = c_code_gen.generate()?;
 

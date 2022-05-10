@@ -3,5 +3,6 @@ sum = fn() int {
 };
 
 main = fn() int {
+    printf("Salam donya");
     return sum();
 };
