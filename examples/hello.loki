@@ -1,3 +1,6 @@
-main = fn() void {
-    printf("hello", 1);
+sum = fn() int {
+   return 1; 
+}
+main = fn() int {
+    return sum();
 };

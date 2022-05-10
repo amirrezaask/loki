@@ -25,6 +25,58 @@ fn test_parse_decl_int() {
         assert!(false);
     }
 }
+#[test]
+fn test_parse_operation_multiply() {
+    assert_eq!(operation("a*2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Multiply,
+            rhs: Node::Uint(2),
+        }))))
+    );
+}
+#[test]
+fn test_parse_operation_mod() {
+    assert_eq!(operation("a%2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Mod,
+            rhs: Node::Uint(2),
+        }))))
+    );
+}
+#[test]
+fn test_parse_operation_div() {
+    assert_eq!(operation("a/2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Div,
+            rhs: Node::Uint(2),
+        }))))
+    );
+}
+#[test]
+fn test_parse_operation_minus() {
+    assert_eq!(operation("a-2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Minus,
+            rhs: Node::Uint(2),
+        }))))
+    );
+}
+#[test]
+fn test_parse_operation_plus() {
+    assert_eq!(operation("a+2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Plus,
+            rhs: Node::Uint(2),
+        }))))
+    );
+    
+}
+
 
 #[test]
 fn test_parse_decl_str() {
@@ -66,6 +118,13 @@ fn test_parse_float() {
     assert_eq!(
         float("4.2AB".to_string()),
         ParseResult::Ok(("AB".to_string(), Node::Float(4.2)))
+    );
+}
+#[test]
+fn test_parse_char() {
+    assert_eq!(
+        _char("'c'".to_string()),
+        ParseResult::Ok(("".to_string(), Node::Char('c')))
     );
 }
 
@@ -136,7 +195,7 @@ fn test_parse_fn_def() {
                     }],
                     return_ty: Node::StringTy 
                 },
-                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Ident("a".to_string())],
                 }))])
@@ -159,7 +218,7 @@ fn test_parse_decl_fn() {
                     args: vec![],
                     return_ty: Node::Ident("void".to_string()),
                 },
-                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("println".to_string()),
                     args: vec![Node::Str("Salam donya!".to_string())],
                 }))])
@@ -196,7 +255,7 @@ fn test_parse_fn_call() {
         fn_call("name()".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnCall(Box::new(FnCall {
+            Node::Application(Box::new(Application {
                 name: Node::Ident("name".to_string()),
                 args: vec![],
             }))
@@ -206,7 +265,7 @@ fn test_parse_fn_call() {
         fn_call("name(1,2)".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnCall(Box::new(FnCall {
+            Node::Application(Box::new(Application {
                 name: Node::Ident("name".to_string()),
                 args: vec![Node::Uint(1), Node::Uint(2)],
             }))
@@ -216,11 +275,11 @@ fn test_parse_fn_call() {
         fn_call("name(1,fn(2))".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnCall(Box::new(FnCall {
+            Node::Application(Box::new(Application {
                 name: Node::Ident("name".to_string()),
                 args: vec![
                     Node::Uint(1),
-                    Node::FnCall(Box::new(FnCall {
+                    Node::Application(Box::new(Application {
                         name: Node::Ident("fn".to_string()),
                         args: vec![Node::Uint(2)],
                     })),
@@ -233,11 +292,11 @@ fn test_parse_fn_call() {
 #[test]
 fn test_parse_bool() {
     assert_eq!(
-        bool("truesomeshitaftertrue".to_string()),
+        _bool("truesomeshitaftertrue".to_string()),
         ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(true)))
     );
     assert_eq!(
-        bool("falsesomeshitaftertrue".to_string()),
+        _bool("falsesomeshitaftertrue".to_string()),
         ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false),))
     );
 }
@@ -340,11 +399,11 @@ fn test_parse_if() {
             Node::If(Box::new(If {
                 cond: Node::Bool(true),
                 block: Node::Block(vec![
-                    Node::FnCall(Box::new(FnCall {
+                    Node::Application(Box::new(Application {
                         name: Node::Ident("fn".to_string()),
                         args: vec![Node::Uint(1)],
                     })),
-                    Node::FnCall(Box::new(FnCall {
+                    Node::Application(Box::new(Application {
                         name: Node::Ident("fn".to_string()),
                         args: vec![Node::Uint(2)],
                     })),
@@ -354,6 +413,11 @@ fn test_parse_if() {
     );
 }
 
+#[test]
+fn test_parse_return() {
+    assert_eq!(_return("return 1".to_string()),
+        ParseResult::Ok(("".to_string(), Node::Return(Box::new(Node::Uint(1))))))
+}
 #[test]
 fn test_parse_expr() {
     assert_eq!(
@@ -383,6 +447,10 @@ fn test_parse_expr() {
     assert_eq!(
         expr("name".to_string()),
         ParseResult::Ok(("".to_string(), Node::Ident("name".to_string())))
+    );
+    assert_eq!(
+        expr("'c'".to_string()),
+        ParseResult::Ok(("".to_string(), Node::Char('c')))
     );
     assert_eq!(
         expr("\"name\"".to_string()),
@@ -428,7 +496,7 @@ fn test_parse_expr() {
         expr("fn_call(1,2)".to_string()),
         ParseResult::Ok((
             "".to_string(),
-            Node::FnCall(Box::new(FnCall {
+            Node::Application(Box::new(Application {
                 name: Node::Ident("fn_call".to_string()),
                 args: vec![Node::Uint(1), Node::Uint(2)],
             }))
@@ -465,7 +533,7 @@ fn test_parse_expr() {
         ParseResult::Ok((
             "".to_string(),
             Node::If(Box::new(If {
-                cond: Node::FnCall(Box::new(FnCall {
+                cond: Node::Application(Box::new(Application {
                     name: Node::Ident("cond".to_string()),
                     args: vec![Node::Bool(true)],
                 })),
@@ -475,7 +543,7 @@ fn test_parse_expr() {
                         Box::new(None),
                         Box::new(Node::Uint(1)),
                     ),
-                    Node::FnCall(Box::new(FnCall {
+                    Node::Application(Box::new(Application {
                         name: Node::Ident("fn".to_string()),
                         args: vec![Node::Ident("a".to_string())],
                     })),
@@ -492,7 +560,7 @@ fn test_parse_expr() {
                     args: vec![],
                     return_ty: Node::Ident("void".to_string()),
                 },
-                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Str("salam".to_string())],
                 }))])
@@ -514,13 +582,48 @@ fn test_parse_expr() {
                     }],
                     return_ty: Node::Ident("void".to_string()),
                 },
-                block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Str("salam".to_string())],
                 }))])
             }))
         ))
     );
+    // assert_eq!(expr("a*2".to_string()),
+    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
+    //         lhs: Node::Ident("a".to_string()),
+    //         op: Operator::Multiply,
+    //         rhs: Node::Uint(2),
+    //     }))))
+    // );
+    // assert_eq!(expr("a%2".to_string()),
+    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
+    //         lhs: Node::Ident("a".to_string()),
+    //         op: Operator::Mod,
+    //         rhs: Node::Uint(2),
+    //     }))))
+    // );
+    // assert_eq!(expr("a/2".to_string()),
+    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
+    //         lhs: Node::Ident("a".to_string()),
+    //         op: Operator::Div,
+    //         rhs: Node::Uint(2),
+    //     }))))
+    // );
+    // assert_eq!(expr("a-2".to_string()),
+    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
+    //         lhs: Node::Ident("a".to_string()),
+    //         op: Operator::Minus,
+    //         rhs: Node::Uint(2),
+    //     }))))
+    // );
+    // assert_eq!(expr("a+2".to_string()),
+    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
+    //         lhs: Node::Ident("a".to_string()),
+    //         op: Operator::Plus,
+    //         rhs: Node::Uint(2),
+    //     }))))
+    // );
 }
 
 #[test]
@@ -562,7 +665,7 @@ main = fn() void {
                             args: vec![],
                             return_ty: Node::Ident("void".to_string()),
                         },
-                        block: Node::Block(vec![Node::FnCall(Box::new(FnCall {
+                        block: Node::Block(vec![Node::Application(Box::new(Application {
                             name: Node::Ident("println".to_string()),
                             args: vec![Node::Str("Hello World".to_string())]
                         }))])

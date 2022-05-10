@@ -1,16 +1,31 @@
 #![allow(dead_code)]
 /*TODO
-    - return
-    - char literals
     - for
         - c syntax
         - foreach
         - while syntax
     - interface
-    - operator expressions
+    - operator expressions ?????????????????????
 */
 
 mod tests;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Operator {
+    Plus,
+    Minus,
+    Div,
+    Mod,
+    Multiply,
+    Equality,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Operation {
+    pub lhs: Node,
+    pub op: Operator,
+    pub rhs: Node,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -21,6 +36,8 @@ pub enum Node {
     StringTy,
     BooleanTy,
     Char(char),
+    Operator(Operator),
+    Operation(Box<Operation>),
     Uint(usize),
     Int(isize),
     Float(f64),
@@ -30,8 +47,9 @@ pub enum Node {
     Bool(bool),
     List(Vec<Node>),
     Decl(Box<Node>, Box<Option<Node>>, Box<Node>),
-    FnCall(Box<FnCall>),
+    Application(Box<Application>),
     StructTy(Vec<IdentAndTy>),
+    Return(Box<Node>),
     FnDef(Box<FnDef>),
     FnTy(Box<FnTy>),
     ArrayTy(Box<ArrayTy>),
@@ -79,7 +97,7 @@ pub struct FnTy {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct FnCall {
+pub struct Application {
     pub name: Node,
     pub args: Vec<Node>,
 }
@@ -214,6 +232,12 @@ fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
         ));
     };
 }
+fn _char(input: String) -> ParseResult {
+    let (remains, _) = parse_char('\'')(input)?;
+    let c = Node::Char(remains.chars().nth(0).unwrap());
+    let (remains, _) = parse_char('\'')(remains[1..].to_string())?;
+    Ok((remains, c))
+}
 
 fn string(input: String) -> ParseResult {
     let (remains, _) = parse_char('"')(input)?;
@@ -341,7 +365,7 @@ fn fn_call(input: String) -> ParseResult {
 
     return Ok((
         remains,
-        Node::FnCall(Box::new(FnCall {
+        Node::Application(Box::new(Application {
             name: Node::Ident(identifier),
             args: args,
         })),
@@ -387,6 +411,53 @@ fn uint(input: String) -> ParseResult {
     }
 }
 
+
+fn operator(input: String) -> ParseResult {
+    let (remains, o) = parse_chars("-*+/%")(input)?;
+    if let Node::Char(operator) = o {
+        match operator {
+            '%' => Ok((remains, Node::Operator(Operator::Mod))),
+            '*' => Ok((remains, Node::Operator(Operator::Multiply))),
+            '/' => Ok((remains, Node::Operator(Operator::Div))),
+            '+' => Ok((remains, Node::Operator(Operator::Plus))),
+            '-' => Ok((remains, Node::Operator(Operator::Minus))),
+            _ => Err(ParseErr::Unexpected("an operator".to_string(), operator.to_string(), 0))
+        }
+    } else {
+        unreachable!();
+    }
+}
+
+fn operation(input: String) -> ParseResult {
+    println!("parse_operation: {}", input);
+    let first =input.chars().nth(0);
+    if let Some(c) = first {
+        if c == ')' ||  c == '}' || c == ']' {
+            return Err(ParseErr::Unexpected("operation lhs".to_string(), c.to_string(), 0))
+        }
+    } else {
+        ()
+    } 
+    let (remains, lhs) = expr(input)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, op) = operator(remains)?;
+    let mut operator: Option<Operator> = None;
+    if let Node::Operator(o) = op {
+        operator = Some(o)
+    } else {
+        unreachable!()
+    } 
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, rhs) = expr(remains)?;
+    Ok((remains, Node::Operation(Box::new(
+        Operation {
+            lhs,
+            op: operator.unwrap(),
+            rhs
+        }
+    ))))
+
+}
 fn int(mut input: String) -> ParseResult {
     // int = sign uint
     let sign = zero_or_one(parse_char('-'));
@@ -408,7 +479,7 @@ fn int(mut input: String) -> ParseResult {
     }
 }
 
-fn bool(input: String) -> ParseResult {
+fn _bool(input: String) -> ParseResult {
     let _true = keyword("true".to_string());
     let _false = keyword("false".to_string());
     let (remains, bool_parsed) = any_of(vec![_true, _false])(input)?;
@@ -472,7 +543,10 @@ fn _struct(input: String) -> ParseResult {
 }
 
 fn _return(input: String) -> ParseResult {
-    return keyword("return".to_string())(input);
+    let (remains, _) = keyword("return".to_string())(input)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, e) = expr(remains)?;
+    Ok((remains, Node::Return(Box::new(e))))
 }
 
 fn array(input: String) -> ParseResult {
@@ -610,12 +684,18 @@ fn fn_ty(input: String) -> ParseResult {
     let (remains, _) = whitespace()(remains)?;
     let (remains, return_ty) = expr(remains)?;
     let return_ty = return_ty.primitive();
-    return Ok((remains, Node::FnTy(Box::new(FnTy { args: args_tys, return_ty: return_ty }))))
+    return Ok((
+        remains,
+        Node::FnTy(Box::new(FnTy {
+            args: args_tys,
+            return_ty: return_ty,
+        })),
+    ));
 }
 
-fn fn_def(input: String) -> ParseResult {
-    let (remains, _ty ) = fn_ty(input)?;
-    let mut ty: Option<FnTy> = None; 
+pub fn fn_def(input: String) -> ParseResult {
+    let (remains, _ty) = fn_ty(input)?;
+    let mut ty: Option<FnTy> = None;
     if let Node::FnTy(__ty) = _ty {
         ty = Some(*__ty);
     } else {
@@ -660,7 +740,7 @@ fn float(input: String) -> ParseResult {
     }
 }
 
-fn expr(input: String) -> ParseResult {
+pub fn expr(input: String) -> ParseResult {
     // bool
     // ident
     // String
@@ -668,8 +748,9 @@ fn expr(input: String) -> ParseResult {
     // fn_call
     // fn_def
     // if
+    // operation
     let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![
-        float, uint, int, bool, string, _if, fn_def, _struct, fn_call, ident, array,
+        float, uint, int, _bool, string, _char, _if, fn_def, _struct, fn_call, ident, array 
     ];
     return any_of(parsers)(input);
 }
@@ -702,7 +783,8 @@ fn decl(input: String) -> ParseResult {
     }
     let (remains, _) = parse_char('=')(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    let (remains, e) = expr(remains)?;
+    let rhs_parsers: Vec<fn(String) -> ParseResult> = vec![expr, operation];
+    let (remains, e) = any_of(rhs_parsers)(remains)?;
     return Ok((
         remains,
         Node::Decl(Box::new(Node::Ident(identifier)), Box::new(ty), Box::new(e)),

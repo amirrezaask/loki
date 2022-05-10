@@ -13,5 +13,5 @@ pub trait CodeGen {
 }
 
 pub trait Repr<T> where T: CodeGen {
-    fn repr(&self) -> String;
+    fn repr(&self) -> Result<String>;
 }
