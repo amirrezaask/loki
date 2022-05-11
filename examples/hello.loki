@@ -3,5 +3,5 @@ sum = fn(a: int, b: int) int {
 };
 
 main = fn() void {
-   printf("%d", 1+2); 
+   printf("%d", sum(1,3)); 
 };

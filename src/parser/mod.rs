@@ -1,7 +1,4 @@
 #![allow(dead_code)]
-/*TODO
-    - operator expressions ????????????????????? for loops also need this to work
-*/
 
 mod expr;
 #[cfg(test)]
@@ -16,16 +13,24 @@ pub enum Operator {
     Mod,
     Multiply,
     Equality,
+    Lesser,
+    Greater,
+    LesserEq,
+    GreaterEq,
 }
 
 impl Operator {
-    pub fn from_char(c: char) -> Self {
-        match c {
-            '+' => Self::Plus,
-            '-' => Self::Minus,
-            '/' => Self::Div,
-            '%' => Self::Mod,
-            '*' => Self::Multiply,
+    pub fn from_char(c: String) -> Self {
+        match c.as_ref() {
+            "+" => Self::Plus,
+            "-" => Self::Minus,
+            "/" => Self::Div,
+            "%" => Self::Mod,
+            "*" => Self::Multiply,
+            "<" => Self::Lesser,
+            ">" => Self::Greater,
+            ">=" => Self::GreaterEq,
+            "<=" => Self::LesserEq,
             _ => panic!(),
         } 
     }
@@ -62,6 +67,8 @@ pub enum Node {
     Application(Box<Application>),
     StructTy(Vec<IdentAndTy>),
     Return(Box<Node>),
+    Inc(Box<Node>),
+    Dec(Box<Node>),
     FnDef(Box<FnDef>),
     FnTy(Box<FnTy>),
     ArrayTy(Box<ArrayTy>),
@@ -446,26 +453,6 @@ fn uint(input: String) -> ParseResult {
     }
 }
 
-// fn operator(input: String) -> ParseResult {
-//     let (remains, o) = parse_chars("-*+/%")(input)?;
-//     if let Node::Char(operator) = o {
-//         match operator {
-//             '%' => Ok((remains, Node::Operator(Operator::Mod))),
-//             '*' => Ok((remains, Node::Operator(Operator::Multiply))),
-//             '/' => Ok((remains, Node::Operator(Operator::Div))),
-//             '+' => Ok((remains, Node::Operator(Operator::Plus))),
-//             '-' => Ok((remains, Node::Operator(Operator::Minus))),
-//             _ => Err(ParseErr::Unexpected(
-//                 "an operator".to_string(),
-//                 operator.to_string(),
-//                 0,
-//             )),
-//         }
-//     } else {
-//         unreachable!();
-//     }
-// }
-
 fn int(mut input: String) -> ParseResult {
     // int = sign uint
     let sign = zero_or_one(parse_char('-'));
@@ -549,7 +536,20 @@ fn _struct(input: String) -> ParseResult {
     let (mut remains, _) = parse_char('}')(remains)?;
     return Ok((remains, Node::StructTy(idents_tys)));
 }
-
+fn dec(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input)?;
+    let (remains, _) = keyword("dec".to_string())(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, e) = expr(remains)?;
+    Ok((remains, Node::Dec(Box::new(e))))
+}
+fn inc(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input)?;
+    let (remains, _) = keyword("inc".to_string())(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, e) = expr(remains)?;
+    Ok((remains, Node::Inc(Box::new(e))))
+}
 fn _return(input: String) -> ParseResult {
     let (remains, _) = whitespace()(input)?;
     let (remains, _) = keyword("return".to_string())(remains)?;
@@ -583,7 +583,7 @@ fn array(input: String) -> ParseResult {
 }
 
 fn statement(input: String) -> ParseResult {
-    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![decl, expr]; //TODO: add _for
+    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_for, decl, expr]; //TODO: add _for
     let (remains, _) = whitespace()(input.clone())?;
     let (remains, stmt) = any_of(parsers)(remains)?;
     let (remains, _) = parse_char(';')(remains.clone())?;
@@ -624,6 +624,7 @@ fn _for(input: String) -> ParseResult {
     let parsers: Vec<fn(String) -> ParseResult> = vec![_for_c, _for_while];
     return any_of(parsers)(remains);
 }
+
 fn _for_while(input: String) -> ParseResult {
     let (remains, _) = whitespace()(input)?;
     let (remains, cond) = expr(remains)?;
@@ -639,19 +640,27 @@ fn _for_while(input: String) -> ParseResult {
         })),
     ));
 }
+
 fn _for_c(input: String) -> ParseResult {
+    println!("input for_c: '{}'", input);
     let (remains, _) = whitespace()(input)?;
     let (remains, init) = decl(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    println!("init: {:?}", init);
     let (remains, _) = parse_char(';')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, cond) = expr(remains)?;
     let (remains, _) = whitespace()(remains)?;
+    println!("cond: {:?}", cond);
     let (remains, _) = parse_char(';')(remains)?;
+    let (remains, _) = whitespace()(remains)?;
     let (remains, cont) = expr(remains)?;
     let (remains, _) = whitespace()(remains)?;
+    println!("cont: {:?}", cont);
     let (remains, _) = parse_char('{')(remains)?;
     let (remains, body) = block(remains)?;
     let (remains, _) = parse_char('}')(remains)?;
+    println!("block: {:?}", body);
     return Ok((
         remains,
         Node::For(Box::new(For {
@@ -790,7 +799,7 @@ fn decl(input: String) -> ParseResult {
         Ok((r, Node::Char(':'))) => {
             let ty_res = expr(r)?;
             remains = ty_res.0;
-            ty = Some(ty_res.1);
+            ty = Some(ty_res.1.primitive());
         }
         _ => {}
     }

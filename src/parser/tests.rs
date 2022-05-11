@@ -277,6 +277,23 @@ fn test_parse_bool() {
 }
 
 #[test]
+fn test_parse_for() {
+    assert_eq!(
+        _for("for i:int = 0;i<=10;inc i { printf(\"salam %d\", i); }".to_string()),
+        ParseResult::Ok(("".to_string(), Node::For(Box::new(For { 
+            init: Node::Decl(Box::new(Node::Ident("i".to_string())), Box::new(Some(Node::IntTy)), Box::new(Node::Uint(0))), 
+            cond: Node::Operation(Box::new(Operation { lhs: Node::Ident("i".to_string()), op: Operator::Lesser,  rhs: Node::Uint(10) })), 
+            cont: Node::Inc(Box::new(Node::Ident("i".to_string()))), 
+            body: Node::Block(vec![
+                Node::Application(Box::new(Application {
+                    name: Node::Ident("printf".to_string()),
+                    args: vec![Node::Str("salam %d".to_string()), Node::Ident("i".to_string())]
+                }))
+            ]) }))))
+    );
+}
+
+#[test]
 fn test_parse_struct() {
     assert_eq!(
         _struct("struct {\n\tname: string,\n\tage:int\n}".to_string()),

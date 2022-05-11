@@ -53,6 +53,10 @@ impl Repr<C> for parser::Operator {
             parser::Operator::Div => "/".to_string(), 
             parser::Operator::Mod => "%".to_string(), 
             parser::Operator::Equality => "==".to_string(), 
+            parser::Operator::Lesser => "<".to_string(), 
+            parser::Operator::Greater => ">".to_string(), 
+            parser::Operator::LesserEq => "<=".to_string(), 
+            parser::Operator::GreaterEq => ">=".to_string(), 
         })
     }
 }
