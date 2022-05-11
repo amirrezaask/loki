@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 clap = "3.1.17"
 anyhow = "1.0.57"
+pretty_assertions = "1.2.1"
