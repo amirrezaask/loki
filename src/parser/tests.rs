@@ -1,5 +1,5 @@
 use super::*;
-use pretty_assertions::assert_eq;
+// use pretty_assertions::assert_eq;
 
 #[test]
 fn test_parse_decl_bool() {

@@ -7,6 +7,13 @@ use crate::parser::{self};
 use crate::parser::Node;
 use anyhow::Result;
 
+/// module support
+/// for module support we are going to change interface for compile trait so
+/// each file can include/import some other loki files, we parse them all then we pass all
+/// into loki backend and backend does best solution for it's language, in case of c we just smoosh them
+/// together to generate on output source file.
+
+
 pub struct C {
     pub arch: String,
     pub os: String,
@@ -168,5 +175,3 @@ fn test_return() {
     assert!(code.is_ok());
     assert_eq!(code.unwrap(), "return 1".to_string());
 }
-fn test_fn_def() {
-} 

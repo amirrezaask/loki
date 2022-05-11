@@ -1,7 +1,6 @@
 main = fn() void {
    i: int = 0;
    for i <= 10 {
-    printf("salam %d", i); 
-    inc i;
+    printf("I love you Yasaman \n", i); 
    };
 };
