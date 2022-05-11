@@ -363,7 +363,6 @@ fn ident(input: String) -> ParseResult {
 }
 
 fn fn_call(input: String) -> ParseResult {
-    println!("inputfncall: <{}>", input);
     let (remains, obj) = ident(input)?;
     let mut identifier = "".to_string();
     match obj {
@@ -593,7 +592,10 @@ fn statement(input: String) -> ParseResult {
 
 fn block(input: String) -> ParseResult {
     return match zero_or_more(statement)(input)? {
-        (remains, Node::List(items)) => Ok((remains, Node::Block(items))),
+        (remains, Node::List(items)) =>{
+            let (remains, _) = whitespace()(remains)?;
+            Ok((remains, Node::Block(items)))
+        },
         (_remains, obj) => Err(ParseErr::Unexpected(
             "ParseObj::List".to_string(),
             format!("{:?}", obj),

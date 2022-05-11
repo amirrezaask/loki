@@ -133,7 +133,7 @@ fn test_parse_fn_ty() {
 #[test]
 fn test_parse_fn_def() {
     assert_eq!(
-        fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()),
+        fn_def("fn(a: int) string {\n\tprint(a);\n\t }".to_string()),
         ParseResult::Ok((
             "".to_string(),
             Node::FnDef(Box::new(FnDef {
@@ -275,17 +275,42 @@ fn test_parse_bool() {
         ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false),))
     );
 }
+#[test]
+fn test_block() {
+    assert_eq!(
+        block(
+            "
 
+
+        printf(\"salam %d\", i);
+        
+        
+        
+        "
+            .to_string()
+        ),
+        Ok((
+            "".to_string(),
+            Node::Block(vec![Node::Application(Box::new(Application {
+                name: Node::Ident("printf".to_string()),
+                args: vec![
+                    Node::Str("salam %d".to_string()),
+                    Node::Ident("i".to_string())
+                ],
+            })),])
+        ))
+    )
+}
 #[test]
 fn test_parse_for_while() {
     assert_eq!(
-        _for("for i<=10 {\n\tprintf(\"salam %d\", i);\n}".to_string()),
+        _for("for i<=10 {\n\tprintf(\"salam %d\", i);\n   }".to_string()),
         ParseResult::Ok((
             "".to_string(),
             Node::While(Box::new(While {
                 cond: Node::Operation(Box::new(Operation {
                     lhs: Node::Ident("i".to_string()),
-                    op: Operator::Lesser,
+                    op: Operator::LesserEq,
                     rhs: Node::Uint(10)
                 })),
                 block: Node::Block(vec![Node::Application(Box::new(Application {
@@ -313,7 +338,7 @@ fn test_parse_for_c() {
                 ),
                 cond: Node::Operation(Box::new(Operation {
                     lhs: Node::Ident("i".to_string()),
-                    op: Operator::Lesser,
+                    op: Operator::LesserEq,
                     rhs: Node::Uint(10)
                 })),
                 cont: Node::Inc(Box::new(Node::Ident("i".to_string()))),
