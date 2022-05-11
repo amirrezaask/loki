@@ -3,7 +3,10 @@
     - operator expressions ????????????????????? for loops also need this to work
 */
 
+mod expr;
+#[cfg(test)]
 mod tests;
+pub use expr::expr;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Operator {
@@ -13,6 +16,19 @@ pub enum Operator {
     Mod,
     Multiply,
     Equality,
+}
+
+impl Operator {
+    pub fn from_char(c: char) -> Self {
+        match c {
+            '+' => Self::Plus,
+            '-' => Self::Minus,
+            '/' => Self::Div,
+            '%' => Self::Mod,
+            '*' => Self::Multiply,
+            _ => panic!(),
+        } 
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -423,60 +439,26 @@ fn uint(input: String) -> ParseResult {
     }
 }
 
-fn operator(input: String) -> ParseResult {
-    let (remains, o) = parse_chars("-*+/%")(input)?;
-    if let Node::Char(operator) = o {
-        match operator {
-            '%' => Ok((remains, Node::Operator(Operator::Mod))),
-            '*' => Ok((remains, Node::Operator(Operator::Multiply))),
-            '/' => Ok((remains, Node::Operator(Operator::Div))),
-            '+' => Ok((remains, Node::Operator(Operator::Plus))),
-            '-' => Ok((remains, Node::Operator(Operator::Minus))),
-            _ => Err(ParseErr::Unexpected(
-                "an operator".to_string(),
-                operator.to_string(),
-                0,
-            )),
-        }
-    } else {
-        unreachable!();
-    }
-}
+// fn operator(input: String) -> ParseResult {
+//     let (remains, o) = parse_chars("-*+/%")(input)?;
+//     if let Node::Char(operator) = o {
+//         match operator {
+//             '%' => Ok((remains, Node::Operator(Operator::Mod))),
+//             '*' => Ok((remains, Node::Operator(Operator::Multiply))),
+//             '/' => Ok((remains, Node::Operator(Operator::Div))),
+//             '+' => Ok((remains, Node::Operator(Operator::Plus))),
+//             '-' => Ok((remains, Node::Operator(Operator::Minus))),
+//             _ => Err(ParseErr::Unexpected(
+//                 "an operator".to_string(),
+//                 operator.to_string(),
+//                 0,
+//             )),
+//         }
+//     } else {
+//         unreachable!();
+//     }
+// }
 
-fn operation(input: String) -> ParseResult {
-    println!("parse_operation: {}", input);
-    let first = input.chars().nth(0);
-    if let Some(c) = first {
-        if c == ')' || c == '}' || c == ']' {
-            return Err(ParseErr::Unexpected(
-                "operation lhs".to_string(),
-                c.to_string(),
-                0,
-            ));
-        }
-    } else {
-        ()
-    }
-    let (remains, lhs) = expr(input)?;
-    let (remains, _) = whitespace()(remains)?;
-    let (remains, op) = operator(remains)?;
-    let mut operator: Option<Operator> = None;
-    if let Node::Operator(o) = op {
-        operator = Some(o)
-    } else {
-        unreachable!()
-    }
-    let (remains, _) = whitespace()(remains)?;
-    let (remains, rhs) = expr(remains)?;
-    Ok((
-        remains,
-        Node::Operation(Box::new(Operation {
-            lhs,
-            op: operator.unwrap(),
-            rhs,
-        })),
-    ))
-}
 fn int(mut input: String) -> ParseResult {
     // int = sign uint
     let sign = zero_or_one(parse_char('-'));
@@ -775,21 +757,6 @@ fn float(input: String) -> ParseResult {
     } else {
         return Err(ParseErr::Unknown("not a number at all".to_string()));
     }
-}
-
-pub fn expr(input: String) -> ParseResult {
-    // bool
-    // ident
-    // String
-    // int, uint, float
-    // fn_call
-    // fn_def
-    // if
-    // operation
-    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![
-        float, uint, int, _bool, string, _char, _if, fn_def, _struct, _return, fn_call, ident, array,
-    ];
-    return any_of(parsers)(input);
 }
 
 fn decl(input: String) -> ParseResult {

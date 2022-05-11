@@ -1,13 +1,10 @@
 mod parser;
 mod backend;
 
-use std::fs::remove_file;
-use std::time;
-
 use anyhow::Result;
 use backend::Compiler;
 use clap::{arg, Arg, ArgMatches, Command};
-use backend::c;
+
 use backend::CodeGen;
 
 use crate::backend::c::C;
@@ -57,7 +54,6 @@ fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    // println!("{:?}", parser::fn_def("fn(a: int) string {\n\tprint(a);\n\t}".to_string()));
     let matches = parse_cli();
     let backend = matches.value_of("backend").expect("need a backend");
     // println!("generating code using {}", backend);
@@ -66,6 +62,5 @@ fn main() -> Result<()> {
         Some(("compile", arg_matches)) => compile(backend, arg_matches)?,
         _ => unreachable!(),
     };
-    // println!("{:?}", mod::_struct("struct {\n\tname: string,\n\tage: int\n}".to_string())?);
     Ok(())
 }

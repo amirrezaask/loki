@@ -44,6 +44,19 @@ impl Repr<C> for Option<Node> {
     }
 }
 
+impl Repr<C> for parser::Operator {
+    fn repr(&self) -> Result<String> {
+        Ok(match self {
+            parser::Operator::Plus => "+".to_string(), 
+            parser::Operator::Minus => "-".to_string(), 
+            parser::Operator::Multiply => "*".to_string(), 
+            parser::Operator::Div => "/".to_string(), 
+            parser::Operator::Mod => "%".to_string(), 
+            parser::Operator::Equality => "==".to_string(), 
+        })
+    }
+}
+
 impl Repr<C> for Node {
     fn repr(&self) -> Result<String> {
         match self {
@@ -72,6 +85,12 @@ impl Repr<C> for Node {
             Node::Return(e) => {
                 Ok(format!("return {}", e.repr()?))
             },
+            Node::Operation(op) => {
+                let lhs = op.lhs.repr()?;
+                let operator = op.op.repr()?;
+                let rhs = op.rhs.repr()?;
+                Ok(format!("{} {} {}", lhs, operator, rhs))
+            }
             Node::FnDef(def) => {
                 let args_tys: Result<Vec<String>> = def.ty.args.iter().map(|it| it.repr()).collect();
                 let args_tys = args_tys?; 
@@ -119,19 +138,12 @@ impl Repr<C> for Node {
         }
     }
 }
+
 #[test]
-fn please() {
-    let code = "
-main = fn() void {
-    printf(\"Hello World\", 1);
-};";
-
-    let ast = parser::module(code.to_string());
-    assert!(ast.is_ok());
-
-    let (_, ast) = ast.unwrap();
-    let output = ast.repr();
-    assert!(output.is_ok());
-    let output = output.unwrap();
-    assert_eq!(output, "void main() {\n\tprintf(\"Hello World\");\n\t}");
+fn test_return() {
+    let code = Node::Return(Box::new(Node::Uint(1))).repr();
+    assert!(code.is_ok());
+    assert_eq!(code.unwrap(), "return 1".to_string());
 }
+fn test_fn_def() {
+} 

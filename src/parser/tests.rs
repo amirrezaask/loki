@@ -25,76 +25,76 @@ fn test_parse_decl_int() {
         assert!(false);
     }
 }
-#[test]
-fn test_parse_operation_multiply() {
-    assert_eq!(
-        operation("a*2".to_string()),
-        Ok((
-            "".to_string(),
-            Node::Operation(Box::new(Operation {
-                lhs: Node::Ident("a".to_string()),
-                op: Operator::Multiply,
-                rhs: Node::Uint(2),
-            }))
-        ))
-    );
-}
-#[test]
-fn test_parse_operation_mod() {
-    assert_eq!(
-        operation("a%2".to_string()),
-        Ok((
-            "".to_string(),
-            Node::Operation(Box::new(Operation {
-                lhs: Node::Ident("a".to_string()),
-                op: Operator::Mod,
-                rhs: Node::Uint(2),
-            }))
-        ))
-    );
-}
-#[test]
-fn test_parse_operation_div() {
-    assert_eq!(
-        operation("a/2".to_string()),
-        Ok((
-            "".to_string(),
-            Node::Operation(Box::new(Operation {
-                lhs: Node::Ident("a".to_string()),
-                op: Operator::Div,
-                rhs: Node::Uint(2),
-            }))
-        ))
-    );
-}
-#[test]
-fn test_parse_operation_minus() {
-    assert_eq!(
-        operation("a-2".to_string()),
-        Ok((
-            "".to_string(),
-            Node::Operation(Box::new(Operation {
-                lhs: Node::Ident("a".to_string()),
-                op: Operator::Minus,
-                rhs: Node::Uint(2),
-            }))
-        ))
-    );
-}
-#[test]
-fn test_parse_operation_plus() {
-    assert_eq!(
-        operation("a+2".to_string()),
-        Ok((
-            "".to_string(),
-            Node::Operation(Box::new(Operation {
-                lhs: Node::Ident("a".to_string()),
-                op: Operator::Plus,
-                rhs: Node::Uint(2),
-            }))
-        ))
-    );
-}
+// #[test]
+// fn test_parse_operation_multiply() {
+//     assert_eq!(
+//         operation("a*2".to_string()),
+//         Ok((
+//             "".to_string(),
+//             Node::Operation(Box::new(Operation {
+//                 lhs: Node::Ident("a".to_string()),
+//                 op: Operator::Multiply,
+//                 rhs: Node::Uint(2),
+//             }))
+//         ))
+//     );
+// }
+// #[test]
+// fn test_parse_operation_mod() {
+//     assert_eq!(
+//         operation("a%2".to_string()),
+//         Ok((
+//             "".to_string(),
+//             Node::Operation(Box::new(Operation {
+//                 lhs: Node::Ident("a".to_string()),
+//                 op: Operator::Mod,
+//                 rhs: Node::Uint(2),
+//             }))
+//         ))
+//     );
+// }
+// #[test]
+// fn test_parse_operation_div() {
+//     assert_eq!(
+//         operation("a/2".to_string()),
+//         Ok((
+//             "".to_string(),
+//             Node::Operation(Box::new(Operation {
+//                 lhs: Node::Ident("a".to_string()),
+//                 op: Operator::Div,
+//                 rhs: Node::Uint(2),
+//             }))
+//         ))
+//     );
+// }
+// #[test]
+// fn test_parse_operation_minus() {
+//     assert_eq!(
+//         operation("a-2".to_string()),
+//         Ok((
+//             "".to_string(),
+//             Node::Operation(Box::new(Operation {
+//                 lhs: Node::Ident("a".to_string()),
+//                 op: Operator::Minus,
+//                 rhs: Node::Uint(2),
+//             }))
+//         ))
+//     );
+// }
+// #[test]
+// fn test_parse_operation_plus() {
+//     assert_eq!(
+//         operation("a+2".to_string()),
+//         Ok((
+//             "".to_string(),
+//             Node::Operation(Box::new(Operation {
+//                 lhs: Node::Ident("a".to_string()),
+//                 op: Operator::Plus,
+//                 rhs: Node::Uint(2),
+//             }))
+//         ))
+//     );
+// }
 
 #[test]
 fn test_parse_decl_str() {
@@ -634,41 +634,48 @@ fn test_parse_expr() {
             }))
         ))
     );
-    // assert_eq!(expr("a*2".to_string()),
-    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
-    //         lhs: Node::Ident("a".to_string()),
-    //         op: Operator::Multiply,
-    //         rhs: Node::Uint(2),
-    //     }))))
-    // );
-    // assert_eq!(expr("a%2".to_string()),
-    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
-    //         lhs: Node::Ident("a".to_string()),
-    //         op: Operator::Mod,
-    //         rhs: Node::Uint(2),
-    //     }))))
-    // );
-    // assert_eq!(expr("a/2".to_string()),
-    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
-    //         lhs: Node::Ident("a".to_string()),
-    //         op: Operator::Div,
-    //         rhs: Node::Uint(2),
-    //     }))))
-    // );
-    // assert_eq!(expr("a-2".to_string()),
-    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
-    //         lhs: Node::Ident("a".to_string()),
-    //         op: Operator::Minus,
-    //         rhs: Node::Uint(2),
-    //     }))))
-    // );
-    // assert_eq!(expr("a+2".to_string()),
-    //     Ok(("".to_string(), Node::Operation(Box::new(Operation {
-    //         lhs: Node::Ident("a".to_string()),
-    //         op: Operator::Plus,
-    //         rhs: Node::Uint(2),
-    //     }))))
-    // );
+    assert_eq!(expr("a*2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Multiply,
+            rhs: Node::Uint(2),
+        }))))
+    );
+    assert_eq!(expr("a%2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Mod,
+            rhs: Node::Uint(2),
+        }))))
+    );
+    assert_eq!(expr("a/2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Div,
+            rhs: Node::Uint(2),
+        }))))
+    );
+    assert_eq!(expr("a-2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Minus,
+            rhs: Node::Uint(2),
+        }))))
+    );
+    assert_eq!(expr("sum(1,2)+mins(1,2,3,4)".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Application(Box::new(Application { name: Node::Ident("sum".to_string()), args: vec![Node::Uint(1), Node::Uint(2)] })),
+            op: Operator::Plus,
+            rhs: Node::Application(Box::new(Application { name: Node::Ident("mins".to_string()), args: vec![Node::Uint(1), Node::Uint(2), Node::Uint(3), Node::Uint(4)] })),
+        }))))
+    );
+    assert_eq!(expr("a+2".to_string()),
+        Ok(("".to_string(), Node::Operation(Box::new(Operation {
+            lhs: Node::Ident("a".to_string()),
+            op: Operator::Plus,
+            rhs: Node::Uint(2),
+        }))))
+    );
 }
 
 #[test]

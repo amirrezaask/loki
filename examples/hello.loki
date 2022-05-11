@@ -1,8 +1,7 @@
-sum = fn() int {
-   return 1; 
+sum = fn(a: int, b: int) int {
+   return a+b; 
 };
 
-main = fn() int {
-    printf("Salam donya");
-    return sum();
+main = fn() void {
+   printf("%d", 1+2); 
 };
