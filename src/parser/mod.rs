@@ -368,16 +368,22 @@ fn fn_call(input: String) -> ParseResult {
             ))
         }
     }
+    let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('(')(remains)?;
+    let (mut remains, _) = whitespace()(remains)?;
     // we know it's a function call
     let mut args: Vec<Node> = Vec::new();
     if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != ')' {
         loop {
             // fn(1,2,3,4)
+            let ws_res = whitespace()(remains)?;
+            remains = ws_res.0;
             let expr_res = expr(remains.clone())?;
             remains = expr_res.0;
             let obj = expr_res.1;
             args.push(obj);
+            let ws_res = whitespace()(remains)?;
+            remains = ws_res.0;
             //,2)
             let comma = parse_char(',')(remains.clone());
             if let Ok((r, _)) = comma {
@@ -387,7 +393,8 @@ fn fn_call(input: String) -> ParseResult {
             }
         }
     }
-
+    let ws_res = whitespace()(remains)?;
+    remains = ws_res.0;
     let close_paren_res = parse_char(')')(remains)?;
     remains = close_paren_res.0;
 
@@ -544,7 +551,8 @@ fn _struct(input: String) -> ParseResult {
 }
 
 fn _return(input: String) -> ParseResult {
-    let (remains, _) = keyword("return".to_string())(input)?;
+    let (remains, _) = whitespace()(input)?;
+    let (remains, _) = keyword("return".to_string())(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, e) = expr(remains)?;
     Ok((remains, Node::Return(Box::new(e))))
@@ -699,6 +707,7 @@ fn fn_ty(input: String) -> ParseResult {
             }
         }
     }
+    let (remains, _) = whitespace()(remains)?;
     let (remains, _) = parse_char(')')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, return_ty) = expr(remains)?;

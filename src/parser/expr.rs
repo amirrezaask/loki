@@ -33,6 +33,7 @@ pub fn expr(input: String) -> ParseResult {
 
 fn A(input: String) -> ParseResult {
     let (remains, lhs) = B(input)?;
+    let (remains, _) = whitespace()(remains)?;
     match add_minus(remains.clone()) {
         Ok((remains, Node::Char(c))) => {
             let operator = Operator::from_char(c);
@@ -51,7 +52,9 @@ fn A(input: String) -> ParseResult {
     }
 }
 fn B(input: String) -> ParseResult {
-    let (remains, lhs) = C(input)?;
+    let (remains, _) = whitespace()(input)?;
+    let (remains, lhs) = C(remains)?;
+    let (remains, _) = whitespace()(remains)?;
     match mul_div_mod(remains.clone()) {
         Ok((remains, Node::Char(c))) => {
             let operator = Operator::from_char(c);
