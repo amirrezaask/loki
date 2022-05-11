@@ -1,7 +1,7 @@
-sum = fn(a: int, b: int) int {
-   return a+b; 
-};
-
 main = fn() void {
-   printf("%d", sum(1,3)); 
+   i: int = 0;
+   for i <= 10 {
+    printf("salam %d", i); 
+    inc i;
+   };
 };

@@ -1,5 +1,5 @@
 use super::*;
-// use pretty_assertions::assert_eq;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn test_parse_decl_bool() {
@@ -801,4 +801,48 @@ main = fn() void {
             ])
         ))
     );
+}
+
+#[test]
+fn another_test() {
+    let code = "
+
+
+   i: int = 0;
+   for i <= 10 {
+     printf(\"salam %d\", i); 
+     inc i;
+   };
+
+";
+    assert_eq!(
+        block(code.to_string()),
+        Ok((
+            "".to_string(),
+            Node::Block(vec![
+                Node::Decl(
+                    Box::new(Node::Ident("i".to_string())),
+                    Box::new(Some(Node::IntTy)),
+                    Box::new(Node::Uint(0))
+                ),
+                Node::While(Box::new(While {
+                    cond: Node::Operation(Box::new(Operation {
+                        lhs: Node::Ident("i".to_string()),
+                        op: Operator::LesserEq,
+                        rhs: Node::Uint(10),
+                    })),
+                    block: Node::Block(vec![
+                        Node::Application(Box::new(Application {
+                            name: Node::Ident("printf".to_string()),
+                            args: vec![
+                                Node::Str("salam %d".to_string()),
+                                Node::Ident("i".to_string())
+                            ],
+                        })),
+                        Node::Inc(Box::new(Node::Ident("i".to_string())))
+                    ])
+                })),
+            ]),
+        ))
+    )
 }

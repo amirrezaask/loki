@@ -645,25 +645,20 @@ fn _for_while(input: String) -> ParseResult {
 }
 
 fn _for_c(input: String) -> ParseResult {
-    println!("input for_c: '{}'", input);
     let (remains, _) = whitespace()(input)?;
     let (remains, init) = decl(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    println!("init: {:?}", init);
     let (remains, _) = parse_char(';')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, cond) = expr(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    println!("cond: {:?}", cond);
     let (remains, _) = parse_char(';')(remains)?;
     let (remains, _) = whitespace()(remains)?;
     let (remains, cont) = expr(remains)?;
     let (remains, _) = whitespace()(remains)?;
-    println!("cont: {:?}", cont);
     let (remains, _) = parse_char('{')(remains)?;
     let (remains, body) = block(remains)?;
     let (remains, _) = parse_char('}')(remains)?;
-    println!("block: {:?}", body);
     return Ok((
         remains,
         Node::For(Box::new(For {

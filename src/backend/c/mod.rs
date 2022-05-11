@@ -102,6 +102,25 @@ impl Repr<C> for Node {
 
                 Ok(format!("{} {{name}} ({}) {{\n\t{}\n}}", def.ty.return_ty.repr()?, args_tys, def.block.repr()?))
             }
+            Node::Inc(i) => {
+                Ok(format!("{}++", i.repr()?))
+            },
+            Node::Dec(i) => {
+                Ok(format!("{}--", i.repr()?))
+            },
+            Node::While(w) => {
+                let cond = w.cond.repr()?;
+                let body = w.block.repr()?;
+                Ok(format!("while ({}) {{\n\t{}\n}}", cond, body))
+            },
+            Node::For(f) => {
+                let init = f.init.repr()?;
+                let cond = f.cond.repr()?;
+                let cont = f.cont.repr()?;
+                let body = f.body.repr()?;
+
+                Ok(format!("for ({};{};{}) {{\n\t{}\n}}", init,cond, cont, body))
+            },
             Node::Decl(name, o_ty, expr) => {
                 if let Node::FnDef(def) = expr.deref() {
                     let args_tys: Result<Vec<String>> = def.ty.args.iter().map(|it| it.repr()).collect();
