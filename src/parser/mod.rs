@@ -363,6 +363,7 @@ fn ident(input: String) -> ParseResult {
 }
 
 fn fn_call(input: String) -> ParseResult {
+    println!("inputfncall: <{}>", input);
     let (remains, obj) = ident(input)?;
     let mut identifier = "".to_string();
     match obj {
@@ -583,7 +584,7 @@ fn array(input: String) -> ParseResult {
 }
 
 fn statement(input: String) -> ParseResult {
-    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_for, decl, expr]; //TODO: add _for
+    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_for, decl, expr];
     let (remains, _) = whitespace()(input.clone())?;
     let (remains, stmt) = any_of(parsers)(remains)?;
     let (remains, _) = parse_char(';')(remains.clone())?;
