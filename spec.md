@@ -1,63 +1,38 @@
 # Loki Spec
-## Declarations
-Every thing in Loki is just value and values can bind to names using declarations. delarations by default are immutable unless explicitly
-annotated using `mut` keyword. functions, variables, types everything is *JUST* declaration.
+# Declarations
+In loki most of the syntax is around declarations, general syntax
+for decls is:
 ```
-  [mut] [name]: [type] = expression 
+name: type = expr;
+a: int = 2;
+b: float = 2.2;
+c: string = "hello";
+d: bool = true;
+sum = fn(a: int, b: int) int { // function decls now only can be top level
+    return a + b;
+}
 ```
-```
-  y = 3;
-  x = "name";
+*NOTE:* Type inference is going to be in loki eventualy.
+there is no other syntax for decls.
 
-  slice = [1,2,3,4];
-
-  // defining interface
-  i = interface{
-    eat(): void
-  }; 
-  
-  z = if (true) {
-    2
-  } else {
-    5
-  };
-
-  // defining a function
-  f = fn(x: int, y: int): int {
-    x + y
-  };
-
-  // defining struct
-  s = struct {
-    a: int,
-    b: int,
-  };
-```
+# Imports
+Since loki is designed to be hosted on different platforms so imports have important role in here loki has 2 behaviour in terms of imports: 
+- import "***.loki" => includes a loki source file in compilation,
+- import "" => uses host import system to import.
 
 
 ## Loops
 Loki has only one loop, *for*
 ```
-  // for has 3 syntaxes for different scenarios
   for (i=0;i<10;i++) {} // C-style for loop
-  
-  for (_, elem) in [array or slice] // for-each style syntax
-  
+
   for (condition) {} // while syntax
-  
 ```
 
 
 ## Conditionals
-If conditions *only* accept boolean value or option values nothing else. It will check option value for being null. conditionals also are expressions.
+If conditions *only* accept boolean value, nothing else. conditionals also are expressions.
 ```
-  a: int32? = null;
-  if a {
-    
-  } else {
-    
-  }
-    
   b = if true {
     2
   } else {
@@ -65,79 +40,55 @@ If conditions *only* accept boolean value or option values nothing else. It will
   };
 ```
 ## Types
-You can see all types available in Loki down here
+Loki has a simple type system, mainly because we need to map these into C type system and other hosts.
 ```
-  int8, int16, int32, int64, isize
-  float32, float64
-  [type;size]  // array type, if size is not there it would become a slice.
-```
-Loki also has complex data structures.
-```
-  struct {
-    field type,
-  }
-  
-  
-  interface {
-    method_name()
-  }
-  
-  union {
-    field type,
-  }
-  ?? can we make these two one type ?
-  enum {
-    
-  }
-```
+// Numerics
+int, uint, float
 
-## Module System
-Each file is a module, Each directory is also module, and modules are just a special struct :).
-```
-  // imagine you have a math.loki file
-  // or a struct called math
-  // or a file called math/module.loki 
-  // they are all same thing
+char, string
 
-  math = import("math");
-  math = import("math.loki");
-  math = struct {};
+bool
+
+struct {
+  field: ty,
+}
+
+enum {
+  var1,
+  var2
+}
+
+union {
+  field: ty
+}
+
 ```
+Loki types are just first class values in the eyes of parser so all type definitions are like other decls. 
 
 ## Interop
 Since Loki is designed to be a transpiler to other languages it should have clear simple way to interact with host ecosystem. For example 
 if you use Go backend:
 ```
-  if import("std/target").name == "go" {
-    http = import("go:net/http");
-    fmt = import("go:fmt");
-  
-    main = fn(): anyerror!void {
-      try http.HandleFunc("/", fn(w http.ResponseWriter, req *http.Request) void {
-        fmt.Fprintf(w, "Hello Guys"); 
-      });
-    
-      try http.ListenAndServe(":8080", NULL);
-    }
-  }
-```
-note that if conditions that have a constant compile time know condition can be reduced to the only live branch.
+import("std/target.loki");
+if std.host.name == "go" {
+  http = import("go:net/http");
+  fmt = import("go:fmt");
 
-Or C backend can use manual memory management instructions so:
-```
-  c = import("c:c");
-  main = fn () void {
-  // psuedo code
-    c.malloc();
-    c.free();
+  main = fn(): anyerror!void {
+    try http.HandleFunc("/", fn(w http.ResponseWriter, req *http.Request) void {
+      fmt.Fprintf(w, "Hello Guys"); 
+    });
+  
+    try http.ListenAndServe(":8080", NULL);
   }
+}
 ```
 
 ## Compile Time Code Execution
 Since types are first class, we need to evaluate constant values at compile time and since we are doing that let's do 
 it for everything, so if/for/fn calls that has no dependency to runtime should just be executed at compile time.
 ```
-target = import("std/target");
+target = import("std/target.loki");
 
 main = fn() void {
   // since target is known at compile time we can just simplify this block and remove dead branches
