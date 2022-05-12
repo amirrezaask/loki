@@ -42,6 +42,7 @@ deps:
 ```
 
 ## TODO
+- Error Reporting
 - Comptimes
 - Go backend
 - JS backend
