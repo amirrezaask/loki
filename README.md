@@ -42,8 +42,6 @@ deps:
 ```
 
 ## TODO
-- Enum
-- Union
 - Comptimes
 - Go backend
 - JS backend
