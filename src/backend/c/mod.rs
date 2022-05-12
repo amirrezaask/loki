@@ -33,6 +33,10 @@ impl Repr<C> for parser::IdentAndTy {
     }
 }
 
+fn type_def(kind: &str, name: &str, body: &str) -> String {
+    format!("typedef {} {{\n\t{}\n\t}} {}", kind, body, name)
+}
+
 
 impl Repr<C> for Option<Node> {
     fn repr(&self) -> Result<String> {
@@ -76,6 +80,7 @@ impl Repr<C> for Node {
             Node::UintTy => Ok("unsigned int".to_string()),
             Node::VoidTy => Ok("void".to_string()),
             Node::FloatTy => Ok("double".to_string()),
+            Node::StringTy => Ok("char *".to_string()),
             Node::BooleanTy => Ok("bool".to_string()),
             Node::CharTy => Ok("char".to_string()),
             // expr
@@ -128,15 +133,38 @@ impl Repr<C> for Node {
                     let args_tys = args_tys.join(", ");
 
                     Ok(format!("{} {}({}) {{\n\t{}\n\t}}", def.ty.return_ty.repr()?, name.repr()?, args_tys, def.block.repr()?))
-                } else {
+                } else if let Node::EnumTy(variants) = expr.deref() {
+                    let variants: Result<Vec<String>> = variants.iter().map(|v| v.repr()).collect();
+                    let variants = variants?;
+                    Ok(type_def("enum", name.repr()?.as_ref(), variants.join(",\n").as_ref()))
+                } else if let Node::UnionTy(fields) = expr.deref() {
+                    let field_ty: Result<Vec<String>> = fields.iter().map(|it| it.repr()).collect(); 
+                    let mut field_ty = field_ty?;
+                    for f in field_ty.iter_mut() {
+                        f.push_str(";");
+                    }
+                    Ok(type_def("union", name.repr()?.as_ref(), field_ty.join("\n").as_ref()))
+                } else if let Node::StructTy(fields) = expr.deref() {
+                    let field_ty: Result<Vec<String>> = fields.iter().map(|it| it.repr()).collect(); 
+                    let mut field_ty = field_ty?;
+                    for f in field_ty.iter_mut() {
+                        f.push_str(";");
+                    }
+                    Ok(type_def("struct", name.repr()?.as_ref(), field_ty.join("\n").as_ref()))
+                } 
+                else {
                     let n_str = name.repr()?;
                     let ty_str = o_ty
                         .clone()
                         .expect("C backend needs all types defined")
                         .repr();
-                    let ty_str = o_ty.repr()?;
-                    let expr_str = expr.repr()?;
-                    Ok(format!("{} {} = {}", ty_str, n_str, expr_str))
+                    if let Node::StringTy = o_ty.clone().unwrap() {
+                        let expr_str = expr.repr()?;
+                        Ok(format!("char {}[] = {}", n_str, expr_str))
+                    } else {
+                        let expr_str = expr.repr()?;
+                        Ok(format!("{} {} = {}", ty_str?, n_str, expr_str))
+                    }
                 }
             }
             Node::List(stmts) => {

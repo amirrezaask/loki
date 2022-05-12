@@ -1,5 +1,5 @@
-mod parser;
 mod backend;
+mod parser;
 
 use anyhow::{Error, Result};
 use backend::Compiler;
@@ -27,6 +27,7 @@ fn parse_cli() -> ArgMatches {
         .author("amirrezaask, raskarpour@gmail.com")
         .version("0.1.0")
         .about("Loki Compiler")
+        .arg(Arg::new("debug").long("debug"))
         .arg(
             Arg::new("backend")
                 .required(false)
@@ -35,13 +36,24 @@ fn parse_cli() -> ArgMatches {
                 .takes_value(true)
                 .help("Backend to use for codegen"),
         )
-        .subcommand(Command::new("emit").about("emits backend generated code").arg(arg!([NAME])))
-        .subcommand(Command::new("compile").about("compiles your code using selected backend").arg(arg!([NAME])))
+        .subcommand(
+            Command::new("emit")
+                .about("emits backend generated code")
+                .arg(arg!([NAME])),
+        )
+        .subcommand(
+            Command::new("compile")
+                .about("compiles your code using selected backend")
+                .arg(arg!([NAME])),
+        )
         .get_matches()
 }
-fn emit(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
+fn emit(backend: &str, arg_matches: &ArgMatches, debug: bool) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
+    if debug {
+        println!("{:?}", ast);
+    }
     let back = get_backend(backend, ast)?;
     let output = back.generate()?;
 
@@ -49,10 +61,13 @@ fn emit(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
 
     Ok(())
 }
-fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
+fn compile(backend: &str, arg_matches: &ArgMatches, debug: bool) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
-    let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
-
+    let debug = arg_matches.is_present("debug");
+    let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap()).unwrap();
+    if debug {
+        println!("{:?}", ast);
+    }
     let back = get_backend(backend, ast)?;
     let output = back.generate()?;
 
@@ -67,10 +82,14 @@ fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
 fn main() -> Result<()> {
     let matches = parse_cli();
     let backend = matches.value_of("backend").expect("need a backend");
+    let debug = matches.is_present("debug");
+    if debug {
+        println!("DEBUG MODE!");
+    }
     // println!("generating code using {}", backend);
     match matches.subcommand() {
-        Some(("emit", arg_matches)) => emit(backend, arg_matches)?,
-        Some(("compile", arg_matches)) => compile(backend, arg_matches)?,
+        Some(("emit", arg_matches)) => emit(backend, arg_matches, debug)?,
+        Some(("compile", arg_matches)) => compile(backend, arg_matches, debug)?,
         _ => unreachable!(),
     };
     Ok(())

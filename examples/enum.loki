@@ -1,0 +1,4 @@
+Livings = enum {
+    Animal,
+    Human,
+};

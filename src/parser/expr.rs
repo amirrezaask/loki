@@ -98,6 +98,8 @@ fn C(input: String) -> ParseResult {
         _char,
         _if,
         fn_def,
+        _enum,
+        union,
         _struct,
         inc,
         dec,
@@ -107,7 +109,7 @@ fn C(input: String) -> ParseResult {
         array,
         inside_paren,
     ];
-    return any_of(parsers)(input);
+    return any_of("expr".to_string(), parsers)(input);
 }
 
 fn inside_paren(input: String) -> ParseResult {
@@ -119,13 +121,13 @@ fn inside_paren(input: String) -> ParseResult {
 
 fn comparisons(input: String) -> ParseResult {
     let p2 = vec![keyword("<=".to_string()), keyword(">=".to_string())];
-    return any_of(p2)(input);
+    return any_of("<=>=".to_string(), p2)(input);
 }
 
 fn add_minus(input: String) -> ParseResult {
     match comparisons(input.clone()) {
         Ok((remains, p)) => Ok((remains, p)),
-        Err(_) => any_of(vec![
+        Err(_) => any_of("+-<>".to_string(), vec![
             parse_char('+'),
             parse_char('-'),
             parse_char('<'),
@@ -135,5 +137,5 @@ fn add_minus(input: String) -> ParseResult {
 }
 
 fn mul_div_mod(input: String) -> ParseResult {
-    return any_of(vec![parse_char('*'), parse_char('/'), parse_char('%')])(input);
+    return any_of("*/%".to_string(), vec![parse_char('*'), parse_char('/'), parse_char('%')])(input);
 }

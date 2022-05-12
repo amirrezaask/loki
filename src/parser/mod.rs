@@ -78,8 +78,8 @@ pub enum Node {
     For(Box<For>),
     While(Box<While>),
     Import(Box<Import>),
-    Enum(Vec<Node>),
-    Union(Vec<IdentAndTy>),
+    EnumTy(Vec<Node>),
+    UnionTy(Vec<IdentAndTy>),
     Empty,
 }
 
@@ -187,7 +187,7 @@ impl std::error::Error for ParseErr {}
 
 type ParseResult = Result<(String, Node), ParseErr>;
 
-fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
+fn any_of(context: String, parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         for parser in parsers.iter() {
             match parser(input.clone()) {
@@ -195,7 +195,7 @@ fn any_of(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> Pa
                 Err(err) => continue,
             }
         }
-        return Err(ParseErr::Unexpected("".to_string(), "".to_string(), 0));
+        return Err(ParseErr::Unknown(format!("no parser matched for {}", context)));
     };
 }
 
@@ -214,8 +214,9 @@ fn zero_or_one(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
     return move |mut input: String| {
         if let Ok((remains, parsed)) = parser(input.clone()) {
             return Ok((remains, Node::Char('-')));
+        } else {
+            return Ok((input, Node::Empty));
         }
-        return Ok((input, Node::Empty));
     };
 }
 
@@ -322,7 +323,7 @@ fn any_whitespace() -> impl Fn(String) -> ParseResult {
     let sp = parse_char(' ');
     let tab = parse_char('\t');
     let newline = parse_char('\n');
-    return any_of(vec![sp, tab, newline]);
+    return any_of(format!("any_whitespace"), vec![sp, tab, newline]);
 }
 
 fn whitespace() -> impl Fn(String) -> ParseResult {
@@ -331,7 +332,7 @@ fn whitespace() -> impl Fn(String) -> ParseResult {
 
 fn parse_chars(chars: &str) -> impl Fn(String) -> ParseResult {
     let parsers = chars.chars().map(|c| parse_char(c)).collect();
-    return any_of(parsers);
+    return any_of(format!("parse_char: {}", chars), parsers);
 }
 
 fn digit() -> impl Fn(String) -> ParseResult {
@@ -486,7 +487,7 @@ fn int(mut input: String) -> ParseResult {
 fn _bool(input: String) -> ParseResult {
     let _true = keyword("true".to_string());
     let _false = keyword("false".to_string());
-    let (remains, bool_parsed) = any_of(vec![_true, _false])(input)?;
+    let (remains, bool_parsed) = any_of(format!("boolean"), vec![_true, _false])(input)?;
     if let Node::Keyword(b) = bool_parsed {
         return Ok((remains, Node::Bool(b == "true")));
     } else {
@@ -507,7 +508,9 @@ fn _struct(input: String) -> ParseResult {
         loop {
             let whitespace_res = whitespace()(remains.clone())?;
             remains = whitespace_res.0;
-
+            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+                break
+            }
             let ident_res = ident(remains.clone())?;
             remains = ident_res.0;
 
@@ -594,7 +597,7 @@ fn array(input: String) -> ParseResult {
 fn statement(input: String) -> ParseResult {
     let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_import, _for, decl, expr];
     let (remains, _) = whitespace()(input.clone())?;
-    let (remains, stmt) = any_of(parsers)(remains)?;
+    let (remains, stmt) = any_of("statement".to_string(), parsers)(remains)?;
     let (remains, _) = parse_char(';')(remains.clone())?;
     return Ok((remains, stmt));
 }
@@ -646,7 +649,7 @@ fn _if(input: String) -> ParseResult {
 fn _for(input: String) -> ParseResult {
     let (remains, _) = keyword("for".to_string())(input)?;
     let parsers: Vec<fn(String) -> ParseResult> = vec![_for_c, _for_while];
-    return any_of(parsers)(remains);
+    return any_of("for".to_string(), parsers)(remains);
 }
 
 fn _for_while(input: String) -> ParseResult {
@@ -704,7 +707,9 @@ fn union(input: String) -> ParseResult {
         loop {
             let whitespace_res = whitespace()(remains.clone())?;
             remains = whitespace_res.0;
-
+            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+                break
+            }
             let ident_res = ident(remains.clone())?;
             remains = ident_res.0;
 
@@ -740,7 +745,7 @@ fn union(input: String) -> ParseResult {
         }
     }
     let (mut remains, _) = parse_char('}')(remains)?;
-    return Ok((remains, Node::Union(idents_tys)));
+    return Ok((remains, Node::UnionTy(idents_tys)));
 
 }
 
@@ -749,6 +754,7 @@ fn _enum(input: String) -> ParseResult {
     let (remains, _) = keyword("enum".to_string())(remains)?;
     let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('{')(remains)?;
+    let (mut remains, _) = whitespace()(remains)?;
 
     // we know it's a function call
     let mut variants: Vec<Node> = Vec::new();
@@ -757,6 +763,9 @@ fn _enum(input: String) -> ParseResult {
         loop {
             let whitespace_res = whitespace()(remains.clone())?;
             remains = whitespace_res.0;
+            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+                break
+            }
 
             let ident_res = ident(remains.clone())?;
             remains = ident_res.0;
@@ -768,9 +777,6 @@ fn _enum(input: String) -> ParseResult {
 
             variants.push(ident_obj);
 
-            let whitespace_res = whitespace()(remains)?;
-            remains = whitespace_res.0;
-
             let comma = parse_char(',')(remains.clone());
             if let Ok((r, _)) = comma {
                 remains = r;
@@ -780,7 +786,7 @@ fn _enum(input: String) -> ParseResult {
         }
     }
     let (remains, _) = parse_char('}')(remains)?;
-    return Ok((remains, Node::Enum(variants)));
+    return Ok((remains, Node::EnumTy(variants)));
 
 }
 fn fn_ty(input: String) -> ParseResult {
@@ -926,5 +932,5 @@ fn decl(input: String) -> ParseResult {
 }
 
 pub fn module(input: String) -> ParseResult {
-    return block(input);
+    block(input)
 }

@@ -2,7 +2,7 @@ use super::*;
 // use pretty_assertions::assert_eq;
 
 #[test]
-fn test_parse_decl_bool() {
+fn test_decl() {
     let decl_res = decl("a = false".to_string());
     assert!(decl_res.is_ok());
     let none: Box<Option<Node>> = Box::new(None);
@@ -12,10 +12,7 @@ fn test_parse_decl_bool() {
     } else {
         assert!(false);
     }
-}
 
-#[test]
-fn test_parse_decl_int() {
     let decl_res = decl("a = -2".to_string());
     assert!(decl_res.is_ok());
     let none: Box<Option<Node>> = Box::new(None);
@@ -25,10 +22,7 @@ fn test_parse_decl_int() {
     } else {
         assert!(false);
     }
-}
 
-#[test]
-fn test_parse_decl_str() {
     let decl_res = decl("a = \"amirreza\"".to_string());
     assert!(decl_res.is_ok());
 
@@ -39,10 +33,7 @@ fn test_parse_decl_str() {
     } else {
         assert!(false);
     }
-}
 
-#[test]
-fn test_parse_decl_uint() {
     let decl_res = decl("a = 2".to_string());
     assert!(decl_res.is_ok());
     let none: Box<Option<Node>> = Box::new(None);
@@ -52,13 +43,75 @@ fn test_parse_decl_uint() {
     } else {
         assert!(false);
     }
+    let decl_res = decl(
+        "sum = fn() void {
+    return 1;
+};"
+            .to_string(),
+    );
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("sum".to_string())));
+        assert_eq!(
+            f,
+            Box::new(Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![],
+                    return_ty: Node::VoidTy,
+                },
+                block: Node::Block(vec![Node::Return(Box::new(Node::Uint(1)))]),
+            }))),
+        );
+    } else {
+        assert!(false);
+    }
+
+    // enums
+    let decl_res = decl(" Human = enum { Man, Woman };".to_string());
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("Human".to_string())));
+        assert_eq!(
+            f,
+            Box::new(Node::EnumTy(vec![
+                Node::Ident("Man".to_string()),
+                Node::Ident("Woman".to_string()),
+            ])),
+        );
+    } else {
+        assert!(false);
+    }
+
+    let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string());
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("f".to_string())));
+        assert_eq!(
+            f,
+            Box::new(Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![],
+                    return_ty: Node::VoidTy,
+                },
+                block: Node::Block(vec![Node::Application(Box::new(Application {
+                    name: Node::Ident("println".to_string()),
+                    args: vec![Node::Str("Salam donya!".to_string())],
+                }))]),
+            }))),
+        );
+    } else {
+        assert!(false);
+    }
 }
 
 #[test]
 fn test_parse_single_digit() {
     assert_eq!(
         digit()("1AB".to_string()),
-        ParseResult::Ok(("AB".to_string(), Node::Char('1'),))
+        ParseResult::Ok(("AB".to_string(), Node::Char('1'), ))
     );
 }
 
@@ -69,6 +122,7 @@ fn test_parse_float() {
         ParseResult::Ok(("AB".to_string(), Node::Float(4.2)))
     );
 }
+
 #[test]
 fn test_parse_char() {
     assert_eq!(
@@ -122,7 +176,7 @@ fn test_parse_fn_ty() {
             Node::FnTy(Box::new(FnTy {
                 args: vec![IdentAndTy {
                     ident: Node::Ident("a".to_string()),
-                    ty: Node::IntTy
+                    ty: Node::IntTy,
                 }],
                 return_ty: Node::StringTy,
             }))
@@ -140,68 +194,17 @@ fn test_parse_fn_def() {
                 ty: FnTy {
                     args: vec![IdentAndTy {
                         ident: Node::Ident("a".to_string()),
-                        ty: Node::IntTy
+                        ty: Node::IntTy,
                     }],
-                    return_ty: Node::StringTy
+                    return_ty: Node::StringTy,
                 },
                 block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Ident("a".to_string())],
-                }))])
+                }))]),
             }))
         ))
     );
-}
-
-#[test]
-fn test_parse_decl_fn_2() {
-    let decl_res = decl(
-        "sum = fn() void {
-    return 1;
-};"
-        .to_string(),
-    );
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("sum".to_string())));
-        assert_eq!(
-            f,
-            Box::new(Node::FnDef(Box::new(FnDef {
-                ty: FnTy {
-                    args: vec![],
-                    return_ty: Node::VoidTy,
-                },
-                block: Node::Block(vec![Node::Return(Box::new(Node::Uint(1)))])
-            }))),
-        );
-    } else {
-        assert!(false);
-    }
-}
-#[test]
-fn test_parse_decl_fn() {
-    let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string());
-    assert!(decl_res.is_ok());
-    let none: Box<Option<Node>> = Box::new(None);
-    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
-        assert_eq!(name, Box::new(Node::Ident("f".to_string())));
-        assert_eq!(
-            f,
-            Box::new(Node::FnDef(Box::new(FnDef {
-                ty: FnTy {
-                    args: vec![],
-                    return_ty: Node::VoidTy,
-                },
-                block: Node::Block(vec![Node::Application(Box::new(Application {
-                    name: Node::Ident("println".to_string()),
-                    args: vec![Node::Str("Salam donya!".to_string())],
-                }))])
-            }))),
-        );
-    } else {
-        assert!(false);
-    }
 }
 
 #[test]
@@ -212,7 +215,7 @@ fn test_parse_ident() {
     );
     assert_eq!(
         ident("name_str".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Ident("name_str".to_string()),))
+        ParseResult::Ok(("".to_string(), Node::Ident("name_str".to_string()), ))
     );
 }
 
@@ -272,9 +275,10 @@ fn test_parse_bool() {
     );
     assert_eq!(
         _bool("falsesomeshitaftertrue".to_string()),
-        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false),))
+        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false), ))
     );
 }
+
 #[test]
 fn test_block() {
     assert_eq!(
@@ -287,7 +291,7 @@ fn test_block() {
         
         
         "
-            .to_string()
+                .to_string()
         ),
         Ok((
             "".to_string(),
@@ -295,12 +299,13 @@ fn test_block() {
                 name: Node::Ident("printf".to_string()),
                 args: vec![
                     Node::Str("salam %d".to_string()),
-                    Node::Ident("i".to_string())
+                    Node::Ident("i".to_string()),
                 ],
-            })),])
+            })), ])
         ))
     )
 }
+
 #[test]
 fn test_parse_for_while() {
     assert_eq!(
@@ -311,19 +316,20 @@ fn test_parse_for_while() {
                 cond: Node::Operation(Box::new(Operation {
                     lhs: Node::Ident("i".to_string()),
                     op: Operator::LesserEq,
-                    rhs: Node::Uint(10)
+                    rhs: Node::Uint(10),
                 })),
                 block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("printf".to_string()),
                     args: vec![
                         Node::Str("salam %d".to_string()),
-                        Node::Ident("i".to_string())
-                    ]
-                }))])
+                        Node::Ident("i".to_string()),
+                    ],
+                }))]),
             }))
         ))
     );
 }
+
 #[test]
 fn test_parse_for_c() {
     assert_eq!(
@@ -334,21 +340,21 @@ fn test_parse_for_c() {
                 init: Node::Decl(
                     Box::new(Node::Ident("i".to_string())),
                     Box::new(Some(Node::IntTy)),
-                    Box::new(Node::Uint(0))
+                    Box::new(Node::Uint(0)),
                 ),
                 cond: Node::Operation(Box::new(Operation {
                     lhs: Node::Ident("i".to_string()),
                     op: Operator::LesserEq,
-                    rhs: Node::Uint(10)
+                    rhs: Node::Uint(10),
                 })),
                 cont: Node::Inc(Box::new(Node::Ident("i".to_string()))),
                 body: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("printf".to_string()),
                     args: vec![
                         Node::Str("salam %d".to_string()),
-                        Node::Ident("i".to_string())
-                    ]
-                }))])
+                        Node::Ident("i".to_string()),
+                    ],
+                }))]),
             }))
         ))
     );
@@ -377,6 +383,7 @@ fn test_parse_import() {
         ))
     )
 }
+
 #[test]
 fn test_parse_struct() {
     assert_eq!(
@@ -386,11 +393,11 @@ fn test_parse_struct() {
             Node::StructTy(vec![
                 IdentAndTy {
                     ident: Node::Ident("name".to_string()),
-                    ty: Node::StringTy
+                    ty: Node::StringTy,
                 },
                 IdentAndTy {
                     ident: Node::Ident("age".to_string()),
-                    ty: Node::IntTy
+                    ty: Node::IntTy,
                 },
             ])
         ))
@@ -414,14 +421,14 @@ fn test_parse_decl_struct() {
                 },
                 IdentAndTy {
                     ident: Node::Ident("age".to_string()),
-                    ty: Node::IntTy
+                    ty: Node::IntTy,
                 },
                 IdentAndTy {
                     ident: Node::Ident("meta".to_string()),
                     ty: Node::StructTy(vec![IdentAndTy {
                         ident: Node::Ident("mature".to_string()),
-                        ty: Node::BooleanTy
-                    }])
+                        ty: Node::BooleanTy,
+                    }]),
                 },
             ]))
         );
@@ -484,6 +491,7 @@ fn test_parse_return() {
         ParseResult::Ok(("".to_string(), Node::Return(Box::new(Node::Uint(1)))))
     )
 }
+
 #[test]
 fn test_parse_expr() {
     assert_eq!(
@@ -529,11 +537,11 @@ fn test_parse_expr() {
             Node::StructTy(vec![
                 IdentAndTy {
                     ident: Node::Ident("name".to_string()),
-                    ty: Node::StringTy
+                    ty: Node::StringTy,
                 },
                 IdentAndTy {
                     ident: Node::Ident("updated_at".to_string()),
-                    ty: Node::Ident("date".to_string())
+                    ty: Node::Ident("date".to_string()),
                 },
             ])
         ))
@@ -546,14 +554,14 @@ fn test_parse_expr() {
             Node::StructTy(vec![
                 IdentAndTy {
                     ident: Node::Ident("name".to_string()),
-                    ty: Node::StringTy
+                    ty: Node::StringTy,
                 },
                 IdentAndTy {
                     ident: Node::Ident("payload".to_string()),
                     ty: Node::StructTy(vec![IdentAndTy {
                         ident: Node::Ident("created_at".to_string()),
-                        ty: Node::Ident("date".to_string())
-                    }])
+                        ty: Node::Ident("date".to_string()),
+                    }]),
                 },
             ])
         ))
@@ -576,7 +584,7 @@ fn test_parse_expr() {
                 size: None,
                 inner_ty: Node::StructTy(vec![IdentAndTy {
                     ident: Node::Ident("name".to_string()),
-                    ty: Node::StringTy
+                    ty: Node::StringTy,
                 }]),
             }))
         ))
@@ -589,7 +597,7 @@ fn test_parse_expr() {
                 size: Some(Node::Uint(2)),
                 inner_ty: Node::StructTy(vec![IdentAndTy {
                     ident: Node::Ident("name".to_string()),
-                    ty: Node::StringTy
+                    ty: Node::StringTy,
                 }]),
             }))
         ))
@@ -629,7 +637,7 @@ fn test_parse_expr() {
                 block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Str("salam".to_string())],
-                }))])
+                }))]),
             }))
         ))
     );
@@ -643,7 +651,7 @@ fn test_parse_expr() {
                         ident: Node::Ident("a".to_string()),
                         ty: Node::StructTy(vec![IdentAndTy {
                             ident: Node::Ident("b".to_string()),
-                            ty: Node::StringTy
+                            ty: Node::StringTy,
                         }]),
                     }],
                     return_ty: Node::VoidTy,
@@ -651,7 +659,7 @@ fn test_parse_expr() {
                 block: Node::Block(vec![Node::Application(Box::new(Application {
                     name: Node::Ident("print".to_string()),
                     args: vec![Node::Str("salam".to_string())],
-                }))])
+                }))]),
             }))
         ))
     );
@@ -706,16 +714,17 @@ fn test_parse_expr() {
             Node::Operation(Box::new(Operation {
                 lhs: Node::Application(Box::new(Application {
                     name: Node::Ident("sum".to_string()),
-                    args: vec![Node::Uint(1), Node::Uint(2)]
+                    args: vec![Node::Uint(1), Node::Uint(2)],
                 })),
                 op: Operator::Plus,
                 rhs: Node::Application(Box::new(Application {
                     name: Node::Ident("mins".to_string()),
-                    args: vec![Node::Uint(1), Node::Uint(2), Node::Uint(3), Node::Uint(4)]
+                    args: vec![Node::Uint(1), Node::Uint(2), Node::Uint(3), Node::Uint(4)],
                 })),
             }))
         ))
     );
+
     assert_eq!(
         expr("a+2".to_string()),
         Ok((
@@ -725,6 +734,32 @@ fn test_parse_expr() {
                 op: Operator::Plus,
                 rhs: Node::Uint(2),
             }))
+        ))
+    );
+    assert_eq!(
+        expr("union { i:int, f:float }".to_string()),
+        Ok((
+            "".to_string(),
+            Node::UnionTy(vec![
+                IdentAndTy {
+                    ident: Node::Ident("i".to_string()),
+                    ty: Node::IntTy,
+                },
+                IdentAndTy {
+                    ident: Node::Ident("f".to_string()),
+                    ty: Node::FloatTy,
+                },
+            ])
+        ))
+    );
+    assert_eq!(
+        expr("enum { first, second }".to_string()),
+        Ok((
+            "".to_string(),
+            Node::EnumTy(vec![
+                Node::Ident("first".to_string()),
+                Node::Ident("second".to_string()),
+            ])
         ))
     );
 }
@@ -751,7 +786,7 @@ fn test_parse_import_in_module() {
 main = fn() void {
     printf(\"Hello world\");
 };"
-            .to_string()
+                .to_string()
         ),
         ParseResult::Ok((
             "".to_string(),
@@ -768,32 +803,49 @@ main = fn() void {
                             args: vec![],
                             return_ty: Node::VoidTy,
                         },
-                        block: Node::Block(vec![
-                            Node::Application(Box::new(Application {
-                                name: Node::Ident("printf".to_string()),
-                                args: vec![Node::Str("Hello world".to_string())]
-                            }))
-                        ])
-                    })))
-                )
+                        block: Node::Block(vec![Node::Application(Box::new(Application {
+                            name: Node::Ident("printf".to_string()),
+                            args: vec![Node::Str("Hello world".to_string())],
+                        }))]),
+                    }))),
+                ),
             ])
         ))
     );
 }
+
 #[test]
 fn test_union() {
-    assert_eq!(union(" union {\n\ti: int , f: float\n}".to_string()), Ok(("".to_string(), Node::Union(vec![
-        IdentAndTy {ident: Node::Ident("i".to_string()), ty: Node::IntTy},
-        IdentAndTy {ident: Node::Ident("f".to_string()), ty: Node::FloatTy},
-    ]))))
+    assert_eq!(
+        union(" union {\n\ti: int , f: float\n}".to_string()),
+        Ok((
+            "".to_string(),
+            Node::UnionTy(vec![
+                IdentAndTy {
+                    ident: Node::Ident("i".to_string()),
+                    ty: Node::IntTy,
+                },
+                IdentAndTy {
+                    ident: Node::Ident("f".to_string()),
+                    ty: Node::FloatTy,
+                },
+            ])
+        ))
+    )
 }
 
 #[test]
 fn test_enum() {
-    assert_eq!(_enum(" enum {\n\tShanbe , YekShanbe\n}".to_string()), Ok(("".to_string(), Node::Enum(vec![
-        Node::Ident("Shanbe".to_string()),
-        Node::Ident("YekShanbe".to_string()),
-    ]))))
+    assert_eq!(
+        _enum(" enum {\n\tShanbe , YekShanbe\n}".to_string()),
+        Ok((
+            "".to_string(),
+            Node::EnumTy(vec![
+                Node::Ident("Shanbe".to_string()),
+                Node::Ident("YekShanbe".to_string()),
+            ])
+        ))
+    )
 }
 
 #[test]
@@ -816,7 +868,7 @@ fn another_test() {
                 Node::Decl(
                     Box::new(Node::Ident("i".to_string())),
                     Box::new(Some(Node::IntTy)),
-                    Box::new(Node::Uint(0))
+                    Box::new(Node::Uint(0)),
                 ),
                 Node::While(Box::new(While {
                     cond: Node::Operation(Box::new(Operation {
@@ -829,11 +881,11 @@ fn another_test() {
                             name: Node::Ident("printf".to_string()),
                             args: vec![
                                 Node::Str("salam %d".to_string()),
-                                Node::Ident("i".to_string())
+                                Node::Ident("i".to_string()),
                             ],
                         })),
-                        Node::Inc(Box::new(Node::Ident("i".to_string())))
-                    ])
+                        Node::Inc(Box::new(Node::Ident("i".to_string()))),
+                    ]),
                 })),
             ]),
         ))
@@ -855,7 +907,7 @@ main = fn() void {
      println ( \"Hello World\");
      return sum (1, 2);
 };"
-            .to_string()
+                .to_string()
         ),
         Ok((
             "".to_string(),
@@ -887,12 +939,12 @@ main = fn() void {
                             args: vec![
                                 IdentAndTy {
                                     ident: Node::Ident("a".to_string()),
-                                    ty: Node::IntTy
+                                    ty: Node::IntTy,
                                 },
                                 IdentAndTy {
                                     ident: Node::Ident("b".to_string()),
-                                    ty: Node::IntTy
-                                }
+                                    ty: Node::IntTy,
+                                },
                             ],
                             return_ty: Node::IntTy,
                         },
@@ -900,10 +952,10 @@ main = fn() void {
                             Box::new(Operation {
                                 lhs: Node::Ident("a".to_string()),
                                 op: Operator::Plus,
-                                rhs: Node::Ident("b".to_string())
+                                rhs: Node::Ident("b".to_string()),
                             })
-                        )))])
-                    })))
+                        )))]),
+                    }))),
                 ),
                 Node::Decl(
                     Box::new(Node::Ident("main".to_string())),
@@ -916,16 +968,68 @@ main = fn() void {
                         block: Node::Block(vec![
                             Node::Application(Box::new(Application {
                                 name: Node::Ident("println".to_string()),
-                                args: vec![Node::Str("Hello World".to_string())]
+                                args: vec![Node::Str("Hello World".to_string())],
                             })),
                             Node::Return(Box::new(Node::Application(Box::new(Application {
                                 name: Node::Ident("sum".to_string()),
-                                args: vec![Node::Uint(1), Node::Uint(2)]
-                            }))))
-                        ])
-                    })))
-                )
+                                args: vec![Node::Uint(1), Node::Uint(2)],
+                            })))),
+                        ]),
+                    }))),
+                ),
             ])
         ))
     );
+}
+
+
+#[test]
+fn test_parse_module_with_struct_enum_union() {
+    assert_eq!(
+        module(
+            "import \"stdio.h\";
+Human = struct {
+    name: string,
+    age: int
+};
+
+Kind = enum {
+    Animal,
+    Human
+};
+
+U = union {
+    i: int,
+    s: string,
+};
+".to_string()
+        ),
+        Ok((
+            "".to_string(),
+            Node::Block(vec![
+                Node::Import(Box::new(Import {
+                    path: Node::Str("stdio.h".to_string()),
+                    _as: None,
+                })),
+                Node::Decl(
+                    Box::new(Node::Ident("Human".to_string())),
+                    Box::new(None),
+                    Box::new(Node::StructTy(vec![
+                        IdentAndTy { ident: Node::Ident("name".to_string()), ty: Node::StringTy },
+                        IdentAndTy { ident: Node::Ident("age".to_string()), ty: Node::IntTy },
+                    ]))),
+                Node::Decl(
+                    Box::new(Node::Ident("Kind".to_string())),
+                    Box::new(None),
+                    Box::new(Node::EnumTy(vec![
+                        Node::Ident("Animal".to_string()),
+                        Node::Ident("Human".to_string()),
+                    ]))),
+                Node::Decl(
+                    Box::new(Node::Ident("U".to_string())),
+                    Box::new(None),
+                    Box::new(Node::UnionTy(vec![
+                        IdentAndTy { ident: Node::Ident("i".to_string()), ty: Node::IntTy },
+                        IdentAndTy { ident: Node::Ident("s".to_string()), ty: Node::StringTy },
+                    ])))]))))
 }
