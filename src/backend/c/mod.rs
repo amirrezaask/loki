@@ -22,7 +22,7 @@ pub struct C {
 
 impl CodeGen for C {
     fn generate(&self) -> Result<String> {
-        let codes = vec!["#include<stdio.h>".to_string(), self.ast.repr()?];
+        let codes = vec![self.ast.repr()?];
         return Ok(codes.join("\n"));
     }
 }
@@ -155,14 +155,17 @@ impl Repr<C> for Node {
                 let args: Result<Vec<String>> = call.args.iter().map(|n| n.repr()).collect();
                 let args = args?;
                 Ok(format!("{}({})", call.name.repr()?, args.join(", ")))
-            }
+            },
 
+            Node::Import(i) => {
+                Ok(format!("#include <{}>", i.path.repr()?))
+            },
             Node::Stmt(n) => n.repr(),
             Node::Block(nodes) => {
                 let all: Result<Vec<String>> = nodes.iter().map(|n| n.repr()).collect();
                 let mut all = all?;
                 all.last_mut().unwrap().push(';');
-                Ok(all.join(";\n\t"))
+                Ok(all.join(";\n"))
             },
             _ => panic!("unsupported: {:?}", self),
         }

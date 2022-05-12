@@ -77,6 +77,7 @@ pub enum Node {
     If(Box<If>),
     For(Box<For>),
     While(Box<While>),
+    Import(Box<Import>),
     Empty,
 }
 
@@ -98,6 +99,11 @@ impl Node {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Import {
+    pub path: Node,
+    pub _as: Option<Node> 
+}
 #[derive(Clone, Debug, PartialEq)]
 pub struct IdentAndTy {
     pub ident: Node,
@@ -282,6 +288,7 @@ fn string(input: String) -> ParseResult {
             if remains.chars().nth(idx - 1).is_some() {
                 if remains.chars().nth(idx - 1).unwrap() != '\\' {
                     end = idx;
+                    break;
                 }
             }
         }
@@ -583,11 +590,23 @@ fn array(input: String) -> ParseResult {
 }
 
 fn statement(input: String) -> ParseResult {
-    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_for, decl, expr];
+    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_import, _for, decl, expr];
     let (remains, _) = whitespace()(input.clone())?;
     let (remains, stmt) = any_of(parsers)(remains)?;
     let (remains, _) = parse_char(';')(remains.clone())?;
     return Ok((remains, stmt));
+}
+
+fn _import(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input)?;
+    let (remains, _) = keyword("import".to_string())(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    let (remains, name) = string(remains)?;
+    let (remains, _) = whitespace()(remains)?;
+    Ok((remains, Node::Import(Box::new(Import {
+        path: name,
+        _as: None,
+    }))))
 }
 
 fn block(input: String) -> ParseResult {
@@ -811,5 +830,5 @@ fn decl(input: String) -> ParseResult {
 }
 
 pub fn module(input: String) -> ParseResult {
-    return zero_or_more(statement)(input);
+    return block(input);
 }

@@ -80,8 +80,8 @@ fn test_parse_char() {
 #[test]
 fn test_parse_string() {
     assert_eq!(
-        string("\"amirreza\"".to_string()),
-        ParseResult::Ok(("".to_string(), Node::Str("amirreza".to_string())))
+        string("\"amirreza\" abc".to_string()),
+        ParseResult::Ok((" abc".to_string(), Node::Str("amirreza".to_string())))
     );
 }
 
@@ -355,6 +355,29 @@ fn test_parse_for_c() {
 }
 
 #[test]
+fn test_parse_import() {
+    assert_eq!(
+        _import("import \"c:stdio.h\" abc".to_string()),
+        ParseResult::Ok((
+            "abc".to_string(),
+            Node::Import(Box::new(Import {
+                path: Node::Str("c:stdio.h".to_string()),
+                _as: None,
+            }))
+        ))
+    );
+    assert_eq!(
+        _import("    import         \"c:stdio.h\"".to_string()),
+        ParseResult::Ok((
+            "".to_string(),
+            Node::Import(Box::new(Import {
+                path: Node::Str("c:stdio.h".to_string()),
+                _as: None,
+            }))
+        ))
+    )
+}
+#[test]
 fn test_parse_struct() {
     assert_eq!(
         _struct("struct {\n\tname: string,\n\tage:int\n}".to_string()),
@@ -431,17 +454,6 @@ fn test_parse_array_type() {
     );
 }
 
-// #[test]
-// fn test_parse_for_c() {
-//     assert_eq!(
-//         _if("for i=0;i<10;i++ { print(i); }".to_string()),
-//         Ok(("".to_string(), Node::For(Box::new(For {
-//             init: Node::Decl(Box::new(Node::Ident("i".to_string())), Box::new(None), Box::new(Node::Uint(0)))
-//             cont
-//         }))))
-
-//         );
-// }
 #[test]
 fn test_parse_if() {
     assert_eq!(
@@ -718,10 +730,106 @@ fn test_parse_expr() {
 }
 
 #[test]
+fn test_stmt_import() {
+    assert_eq!(
+        statement("import \"c:stdio.h\";".to_string()),
+        Ok((
+            "".to_string(),
+            Node::Import(Box::new(Import {
+                path: Node::Str("c:stdio.h".to_string()),
+                _as: None,
+            }))
+        ))
+    );
+}
+
+#[test]
+fn test_parse_import_in_module() {
+    assert_eq!(
+        module(
+            "import \"stdio.h\";
+main = fn() void {
+    printf(\"Hello world\");
+};"
+            .to_string()
+        ),
+        ParseResult::Ok((
+            "".to_string(),
+            Node::Block(vec![
+                Node::Import(Box::new(Import {
+                    path: Node::Str("stdio.h".to_string()),
+                    _as: None,
+                })),
+                Node::Decl(
+                    Box::new(Node::Ident("main".to_string())),
+                    Box::new(None),
+                    Box::new(Node::FnDef(Box::new(FnDef {
+                        ty: FnTy {
+                            args: vec![],
+                            return_ty: Node::VoidTy,
+                        },
+                        block: Node::Block(vec![
+                            Node::Application(Box::new(Application {
+                                name: Node::Ident("printf".to_string()),
+                                args: vec![Node::Str("Hello world".to_string())]
+                            }))
+                        ])
+                    })))
+                )
+            ])
+        ))
+    );
+}
+
+#[test]
+fn another_test() {
+    let code = "
+
+
+   i: int = 0;
+   for i <= 10 {
+     printf(\"salam %d\", i); 
+     inc i;
+   };
+
+";
+    assert_eq!(
+        block(code.to_string()),
+        Ok((
+            "".to_string(),
+            Node::Block(vec![
+                Node::Decl(
+                    Box::new(Node::Ident("i".to_string())),
+                    Box::new(Some(Node::IntTy)),
+                    Box::new(Node::Uint(0))
+                ),
+                Node::While(Box::new(While {
+                    cond: Node::Operation(Box::new(Operation {
+                        lhs: Node::Ident("i".to_string()),
+                        op: Operator::LesserEq,
+                        rhs: Node::Uint(10),
+                    })),
+                    block: Node::Block(vec![
+                        Node::Application(Box::new(Application {
+                            name: Node::Ident("printf".to_string()),
+                            args: vec![
+                                Node::Str("salam %d".to_string()),
+                                Node::Ident("i".to_string())
+                            ],
+                        })),
+                        Node::Inc(Box::new(Node::Ident("i".to_string())))
+                    ])
+                })),
+            ]),
+        ))
+    )
+}
+
+#[test]
 fn test_parse_module() {
     assert_eq!(
         module(
-            "
+            "import \"stdio.h\";
 a =2;
 b =    32.2;
 c   = false;
@@ -734,9 +842,13 @@ main = fn() void {
 };"
             .to_string()
         ),
-        ParseResult::Ok((
+        Ok((
             "".to_string(),
-            Node::List(vec![
+            Node::Block(vec![
+                Node::Import(Box::new(Import {
+                    path: Node::Str("stdio.h".to_string()),
+                    _as: None,
+                })),
                 Node::Decl(
                     Box::new(Node::Ident("a".to_string())),
                     Box::new(None),
@@ -801,48 +913,4 @@ main = fn() void {
             ])
         ))
     );
-}
-
-#[test]
-fn another_test() {
-    let code = "
-
-
-   i: int = 0;
-   for i <= 10 {
-     printf(\"salam %d\", i); 
-     inc i;
-   };
-
-";
-    assert_eq!(
-        block(code.to_string()),
-        Ok((
-            "".to_string(),
-            Node::Block(vec![
-                Node::Decl(
-                    Box::new(Node::Ident("i".to_string())),
-                    Box::new(Some(Node::IntTy)),
-                    Box::new(Node::Uint(0))
-                ),
-                Node::While(Box::new(While {
-                    cond: Node::Operation(Box::new(Operation {
-                        lhs: Node::Ident("i".to_string()),
-                        op: Operator::LesserEq,
-                        rhs: Node::Uint(10),
-                    })),
-                    block: Node::Block(vec![
-                        Node::Application(Box::new(Application {
-                            name: Node::Ident("printf".to_string()),
-                            args: vec![
-                                Node::Str("salam %d".to_string()),
-                                Node::Ident("i".to_string())
-                            ],
-                        })),
-                        Node::Inc(Box::new(Node::Ident("i".to_string())))
-                    ])
-                })),
-            ]),
-        ))
-    )
 }
