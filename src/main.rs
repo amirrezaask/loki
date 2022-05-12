@@ -11,6 +11,7 @@ use crate::backend::c::C;
 
 fn parse_cli() -> ArgMatches {
     Command::new("loki")
+        .arg_required_else_help(true)
         .author("amirrezaask, raskarpour@gmail.com")
         .version("0.1.0")
         .about("Loki Compiler")
