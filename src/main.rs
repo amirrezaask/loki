@@ -8,7 +8,6 @@ use clap::{arg, Arg, ArgMatches, Command};
 use backend::CodeGen;
 
 use crate::backend::c::C;
-use crate::parser::ParseErr;
 
 fn get_backend(backend: &str, node: parser::Node) -> Result<impl CodeGen> {
     if backend.to_lowercase() == "c" {

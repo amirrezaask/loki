@@ -78,6 +78,8 @@ pub enum Node {
     For(Box<For>),
     While(Box<While>),
     Import(Box<Import>),
+    Enum(Vec<Node>),
+    Union(Vec<IdentAndTy>),
     Empty,
 }
 
@@ -688,8 +690,102 @@ fn _for_c(input: String) -> ParseResult {
         })),
     ));
 }
+
+fn union(input: String) -> ParseResult {
+    let (mut remains, _) = whitespace()(input)?;
+    let (mut remains, _) = keyword("union".to_string())(remains)?;
+    let (mut remains, _) = whitespace()(remains)?;
+    let (mut remains, _) = parse_char('{')(remains)?;
+
+    // we know it's a function call
+    let mut idents_tys: Vec<IdentAndTy> = Vec::new();
+
+    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+        loop {
+            let whitespace_res = whitespace()(remains.clone())?;
+            remains = whitespace_res.0;
+
+            let ident_res = ident(remains.clone())?;
+            remains = ident_res.0;
+
+            let ident_obj = ident_res.1;
+
+            let whitespace_res = whitespace()(remains)?;
+            remains = whitespace_res.0;
+
+            let colon_res = parse_char(':')(remains.clone())?;
+            remains = colon_res.0;
+
+            let whitespace_res = whitespace()(remains)?;
+            remains = whitespace_res.0;
+
+            let type_res = expr(remains.clone())?;
+            remains = type_res.0;
+
+            let type_obj = type_res.1;
+            idents_tys.push(IdentAndTy {
+                ident: ident_obj.clone(),
+                ty: type_obj.primitive().clone(),
+            });
+
+            let whitespace_res = whitespace()(remains)?;
+            remains = whitespace_res.0;
+
+            let comma = parse_char(',')(remains.clone());
+            if let Ok((r, _)) = comma {
+                remains = r;
+            } else {
+                break;
+            }
+        }
+    }
+    let (mut remains, _) = parse_char('}')(remains)?;
+    return Ok((remains, Node::Union(idents_tys)));
+
+}
+
+fn _enum(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input)?;
+    let (remains, _) = keyword("enum".to_string())(remains)?;
+    let (mut remains, _) = whitespace()(remains)?;
+    let (mut remains, _) = parse_char('{')(remains)?;
+
+    // we know it's a function call
+    let mut variants: Vec<Node> = Vec::new();
+
+    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+        loop {
+            let whitespace_res = whitespace()(remains.clone())?;
+            remains = whitespace_res.0;
+
+            let ident_res = ident(remains.clone())?;
+            remains = ident_res.0;
+
+            let ident_obj = ident_res.1;
+
+            let whitespace_res = whitespace()(remains)?;
+            remains = whitespace_res.0;
+
+            variants.push(ident_obj);
+
+            let whitespace_res = whitespace()(remains)?;
+            remains = whitespace_res.0;
+
+            let comma = parse_char(',')(remains.clone());
+            if let Ok((r, _)) = comma {
+                remains = r;
+            } else {
+                break;
+            }
+        }
+    }
+    let (remains, _) = parse_char('}')(remains)?;
+    return Ok((remains, Node::Enum(variants)));
+
+}
 fn fn_ty(input: String) -> ParseResult {
-    let (mut remains, _) = keyword("fn".to_string())(input)?;
+    let (remains, _) = whitespace()(input)?;
+    let (mut remains, _) = keyword("fn".to_string())(remains)?;
     let (mut remains, _) = whitespace()(remains)?;
     let (mut remains, _) = parse_char('(')(remains)?;
     let mut args_tys: Vec<IdentAndTy> = Vec::new();

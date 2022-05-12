@@ -13,7 +13,7 @@ graph TD
 
 [Language Spec](https://github.com/amirrezaask/loki/tree/master/spec.md)
 ## Ideas
-- Loki code is *ALWAYS* just set of expressions that evaluate to a value and *ALL* expressions output must be captured.
+- Loki code is *ALWAYS* just set of expressions that evaluate to a value and expressions output must be captured.
 - Error handling is done through sum types, each failable function should return a union type of the output type and error type.
 - Compile time code execution is a must, both types and also values that can be evaluated at compile time.
 - Types are first class values, basically compile time constants, so types are treated just like other values.
@@ -40,3 +40,12 @@ deps:
   go:
     - github.com/lib/pq
 ```
+
+## TODO
+- Enum
+- Union
+- Comptimes
+- Go backend
+- JS backend
+- better cli
+

@@ -780,6 +780,21 @@ main = fn() void {
         ))
     );
 }
+#[test]
+fn test_union() {
+    assert_eq!(union(" union {\n\ti: int , f: float\n}".to_string()), Ok(("".to_string(), Node::Union(vec![
+        IdentAndTy {ident: Node::Ident("i".to_string()), ty: Node::IntTy},
+        IdentAndTy {ident: Node::Ident("f".to_string()), ty: Node::FloatTy},
+    ]))))
+}
+
+#[test]
+fn test_enum() {
+    assert_eq!(_enum(" enum {\n\tShanbe , YekShanbe\n}".to_string()), Ok(("".to_string(), Node::Enum(vec![
+        Node::Ident("Shanbe".to_string()),
+        Node::Ident("YekShanbe".to_string()),
+    ]))))
+}
 
 #[test]
 fn another_test() {
