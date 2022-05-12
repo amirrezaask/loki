@@ -1,13 +1,26 @@
 mod parser;
 mod backend;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use backend::Compiler;
 use clap::{arg, Arg, ArgMatches, Command};
 
 use backend::CodeGen;
 
 use crate::backend::c::C;
+use crate::parser::ParseErr;
+
+fn get_backend(backend: &str, node: parser::Node) -> Result<impl CodeGen> {
+    if backend.to_lowercase() == "c" {
+        Ok(C {
+            arch: "".to_string(),
+            os: "".to_string(),
+            ast: node,
+        })
+    } else {
+        Err(Error::msg(format!("no backend with {} found", backend)))
+    }
+}
 
 fn parse_cli() -> ArgMatches {
     Command::new("loki")
@@ -29,10 +42,9 @@ fn parse_cli() -> ArgMatches {
 }
 fn emit(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
-    // println!("compiling {}", file_name);
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
-    let c_code_gen = C{arch: "".to_string(), os:"".to_string(), ast};
-    let output = c_code_gen.generate()?;
+    let back = get_backend(backend, ast)?;
+    let output = back.generate()?;
 
     println!("{}", output);
 
@@ -40,12 +52,11 @@ fn emit(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
 }
 fn compile(backend: &str, arg_matches: &ArgMatches) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
-    // println!("compiling {}", file_name);
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
-    // println!("{:?}", ast);
 
-    let c_code_gen = C{arch: "".to_string(), os:"".to_string(), ast};
-    let output = c_code_gen.generate()?;
+    let back = get_backend(backend, ast)?;
+    let output = back.generate()?;
+
     let bin = file_name.split(".").nth(0).unwrap();
     let generated_file_name = format!("./{}.c", bin);
     std::fs::write(generated_file_name.clone(), output)?;
