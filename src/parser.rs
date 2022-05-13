@@ -172,7 +172,7 @@ pub enum ParseErr {
 impl std::fmt::Display for ParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unexpected(_, _, _) => f.write_fmt(format_args!("{:?}", self)),
+            Self::Unexpected(exp, fou, _) => f.write_fmt(format_args!("expected '{}' found '{}'", exp, fou)),
             Self::Unknown(msg) => f.write_fmt(format_args!("{}", msg)),
             _ => unreachable!(),
         }
@@ -215,7 +215,7 @@ fn zero_or_one(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
     };
 }
 
-fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
+fn one_or_more(parser: impl Fn(String) -> ParseResult, report_errs: bool) -> impl Fn(String) -> ParseResult {
     return move |mut input: String| {
         let mut result = Vec::new();
 
@@ -229,10 +229,19 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
                 return Err(err);
             }
         }
-        while let Ok((remains, parsed)) = parser(input.clone()) {
-            input = remains;
-            result.push(parsed);
-        }
+        loop {
+            let resp = parser(input.clone());
+            if let Ok((remains, parsed)) = resp {
+                input = remains;
+                result.push(parsed);
+            } else if let Err(e) = resp {
+                if report_errs {
+                    println!("error: {}", e);
+                }
+                break;
+            }
+
+        } 
         return Ok((input.clone(), Node::List(result)));
     };
 }
@@ -337,7 +346,7 @@ fn digit() -> impl Fn(String) -> ParseResult {
 fn ident(input: String) -> ParseResult {
     match one_or_more(parse_chars(
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_",
-    ))(input)
+    ), false)(input)
     {
         Ok((remains, Node::List(chars_parse_objects))) => {
             let mut name = String::new();
@@ -439,7 +448,7 @@ fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> 
 }
 
 fn uint(input: String) -> ParseResult {
-    match one_or_more(digit())(input) {
+    match one_or_more(digit(), false)(input) {
         Ok((remains, Node::List(_digits))) => {
             let mut number = String::new();
             for d in _digits {
@@ -610,7 +619,7 @@ fn _import(input: String) -> ParseResult {
 }
 
 fn block(input: String) -> ParseResult {
-    return match zero_or_more(statement)(input)? {
+    return match one_or_more(statement, true)(input)? {
         (remains, Node::List(items)) =>{
             let (remains, _) = whitespace()(remains)?;
             Ok((remains, Node::Block(items)))
