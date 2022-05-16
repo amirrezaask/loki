@@ -199,3 +199,34 @@ fn test_return() {
     assert!(code.is_ok());
     assert_eq!(code.unwrap(), "return 1".to_string());
 }
+
+#[test]
+fn test_ccodegen_module_with_struct_enum_union() {
+    let out = parser::module(
+        "import \"stdio.h\"
+Human = struct {
+    name: string,
+    age: int
+};
+
+Kind = enum {
+    Animal,
+    Human
+};
+
+U = union {
+    i: int,
+    s: string,
+};
+".to_string()
+    );
+    let (_, out) = out.unwrap();
+    let code_gen = C {
+        arch: "".to_string(),
+        os: "".to_string(),
+        ast: out,
+    };
+
+
+
+}

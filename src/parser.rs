@@ -164,12 +164,12 @@ impl Decl {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseErr {
+pub enum Error {
     // unexpected (expected, found, location)
     Unexpected(String, String, u64),
     Unknown(String),
 }
-impl std::fmt::Display for ParseErr {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unexpected(exp, fou, _) => f.write_fmt(format_args!("expected '{}' found '{}'", exp, fou)),
@@ -178,19 +178,20 @@ impl std::fmt::Display for ParseErr {
         }
     }
 }
-impl std::error::Error for ParseErr {}
+impl std::error::Error for Error {}
 
-type ParseResult = Result<(String, Node), ParseErr>;
+type ParseResult = Result<(String, Node), Error>;
 
 fn any_of(context: String, parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
+        let mut errs: Vec<String> = vec![];
         for parser in parsers.iter() {
             match parser(input.clone()) {
                 Ok((remaining, parsed)) => return Ok((remaining, parsed)),
-                Err(err) => continue,
+                Err(err) => errs.push(err.to_string()),
             }
         }
-        return Err(ParseErr::Unknown(format!("no parser matched for {}", context)));
+        return Err(Error::Unknown(format!("{} no parser matched: errs => {:?}", context, errs)));
     };
 }
 
@@ -248,7 +249,7 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult, report_errs: bool) -> imp
 fn any() -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         if input.len() < 1 {
-            return ParseResult::Err(ParseErr::Unexpected(
+            return ParseResult::Err(Error::Unexpected(
                 "any".to_string(),
                 "nothing".to_string(),
                 0,
@@ -264,7 +265,7 @@ fn any() -> impl Fn(String) -> ParseResult {
 fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         if input.len() < 1 {
-            return ParseResult::Err(ParseErr::Unexpected(
+            return ParseResult::Err(Error::Unexpected(
                 c.to_string(),
                 "nothing".to_string(),
                 0,
@@ -273,7 +274,7 @@ fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
         if input.chars().nth(0).unwrap() == c.clone() {
             return ParseResult::Ok((input[1..].to_string(), Node::Char(c)));
         }
-        return ParseResult::Err(ParseErr::Unexpected(
+        return ParseResult::Err(Error::Unexpected(
             c.to_string(),
             input.chars().nth(0).unwrap().to_string(),
             0,
@@ -306,7 +307,7 @@ fn string(input: String) -> ParseResult {
             Node::Str(remains[..end].to_string()),
         ));
     } else {
-        return Err(ParseErr::Unknown("cannot find end of string".to_string()));
+        return Err(Error::Unknown("cannot find end of string".to_string()));
     }
 }
 
@@ -355,7 +356,7 @@ fn ident(input: String) -> ParseResult {
                 match po {
                     Node::Char(c) => name.push(c),
                     _ => {
-                        return Err(ParseErr::Unexpected(
+                        return Err(Error::Unexpected(
                             "a char".to_string(),
                             format!("{:?}", po),
                             0,
@@ -366,7 +367,7 @@ fn ident(input: String) -> ParseResult {
             return Ok((remains, Node::Ident(name)));
         }
         Ok((_, obj)) => {
-            return Err(ParseErr::Unexpected(
+            return Err(Error::Unexpected(
                 "list of chars".to_string(),
                 format!("{:?}", obj),
                 0,
@@ -382,7 +383,7 @@ fn fn_call(input: String) -> ParseResult {
     match obj {
         Node::Ident(i) => identifier = i,
         _ => {
-            return Err(ParseErr::Unexpected(
+            return Err(Error::Unexpected(
                 "ident".to_string(),
                 format!("{:?}", obj),
                 0,
@@ -481,7 +482,7 @@ fn int(mut input: String) -> ParseResult {
     let (input, obj) = uint(input)?;
     match obj {
         Node::Uint(num) => return Ok((input, Node::Int(with_sign as isize * num as isize))),
-        _ => Err(ParseErr::Unknown(format!(
+        _ => Err(Error::Unknown(format!(
             "expected a uint found {:?}",
             obj
         ))),
@@ -599,7 +600,7 @@ fn array(input: String) -> ParseResult {
 }
 
 fn statement(input: String) -> ParseResult {
-    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![_import, _for, decl, expr];
+    let parsers: Vec<fn(String) -> Result<(String, Node), Error>> = vec![_import, _for, decl, expr];
     let (remains, _) = whitespace()(input.clone())?;
     let (remains, stmt) = any_of("statement".to_string(), parsers)(remains)?;
     let (remains, _) = parse_char(';')(remains.clone())?;
@@ -624,7 +625,7 @@ fn block(input: String) -> ParseResult {
             let (remains, _) = whitespace()(remains)?;
             Ok((remains, Node::Block(items)))
         },
-        (_remains, obj) => Err(ParseErr::Unexpected(
+        (_remains, obj) => Err(Error::Unexpected(
             "ParseObj::List".to_string(),
             format!("{:?}", obj),
             0,
@@ -886,17 +887,17 @@ fn float(input: String) -> ParseResult {
                 let float: f64 = float_str.parse().unwrap();
                 Ok((remains, Node::Float(float)))
             } else {
-                return Err(ParseErr::Unexpected(
+                return Err(Error::Unexpected(
                     "uint".to_string(),
                     format!("{:?}", parsed),
                     0,
                 ));
             }
         } else {
-            return Err(ParseErr::Unknown("not a float without a .".to_string()));
+            return Err(Error::Unknown("not a float without a .".to_string()));
         }
     } else {
-        return Err(ParseErr::Unknown("not a number at all".to_string()));
+        return Err(Error::Unknown("not a number at all".to_string()));
     }
 }
 
@@ -908,7 +909,7 @@ fn decl(input: String) -> ParseResult {
     match obj {
         Node::Ident(i) => identifier = i,
         _ => {
-            return Err(ParseErr::Unexpected(
+            return Err(Error::Unexpected(
                 "ident".to_string(),
                 format!("{:?}", obj),
                 0,
@@ -997,7 +998,7 @@ fn B(input: String) -> ParseResult {
     }
 }
 fn C(input: String) -> ParseResult {
-    let parsers: Vec<fn(String) -> Result<(String, Node), ParseErr>> = vec![
+    let parsers: Vec<fn(String) -> Result<(String, Node), Error>> = vec![
         float,
         uint,
         int,
@@ -2040,9 +2041,8 @@ main = fn() void {
 
 #[test]
 fn test_parse_module_with_struct_enum_union() {
-    assert_eq!(
-        module(
-            "import \"stdio.h\";
+    let out = module(
+        "import \"stdio.h\"
 Human = struct {
     name: string,
     age: int
@@ -2058,7 +2058,10 @@ U = union {
     s: string,
 };
 ".to_string()
-        ),
+    );
+
+    assert_eq!(
+    out    ,
         Ok((
             "".to_string(),
             Node::Block(vec![

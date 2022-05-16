@@ -64,7 +64,7 @@ fn emit(backend: &str, arg_matches: &ArgMatches, debug: bool) -> Result<()> {
 fn compile(backend: &str, arg_matches: &ArgMatches, debug: bool) -> Result<()> {
     let file_name = arg_matches.value_of("NAME").expect("filename needed");
     let debug = arg_matches.is_present("debug");
-    let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap()).unwrap();
+    let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
     if debug {
         println!("{:?}", ast);
     }
