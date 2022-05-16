@@ -162,19 +162,44 @@ impl Decl {
         return Self { name, ty, value };
     }
 }
-
 #[derive(Debug, PartialEq, Eq)]
-pub enum Error {
-    // unexpected (expected, found, location)
-    Unexpected(String, String, u64),
-    Unknown(String),
+pub struct Error {
+    msg: String,
+    loc: Option<(i32, i32)>,
+    severity: i8,
 }
+
+impl Error {
+    pub fn unknown(msg: String) -> Self {
+        Self {
+            msg,
+            loc: None,
+            severity: 1,
+        }
+    }
+    pub fn unexpected(exp: String, found: String, loc: i32) -> Self {
+        Self {
+            msg: format!("expected {} found {}", exp, found),
+            loc: None,
+            severity: 1,
+        }
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unexpected(exp, fou, _) => f.write_fmt(format_args!("expected '{}' found '{}'", exp, fou)),
-            Self::Unknown(msg) => f.write_fmt(format_args!("{}", msg)),
-            _ => unreachable!(),
+        if let Some((line, col)) = self.loc {
+            if self.severity == 0 {
+                f.write_fmt(format_args!("Warning: {} at {}:{}", self.msg, line, col))
+            } else {
+                f.write_fmt(format_args!("Error: {} at {}:{}", self.msg, line, col))
+            }
+        } else {
+            if self.severity == 0 {
+                f.write_fmt(format_args!("Warning: {}", self.msg))
+            } else {
+                f.write_fmt(format_args!("Error: {}", self.msg))
+            }
         }
     }
 }
@@ -191,7 +216,7 @@ fn any_of(context: String, parsers: Vec<impl Fn(String) -> ParseResult>) -> impl
                 Err(err) => errs.push(err.to_string()),
             }
         }
-        return Err(Error::Unknown(format!("{} no parser matched: errs => {}", context, errs.join("\n"))));
+        return Err(Error::unknown(format!("{} no parser matched: errs => {}", context, errs.join("\n"))));
     };
 }
 
@@ -216,7 +241,7 @@ fn zero_or_one(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> Par
     };
 }
 
-fn one_or_more(parser: impl Fn(String) -> ParseResult, report_errs: bool) -> impl Fn(String) -> ParseResult {
+fn one_or_more(parser: impl Fn(String) -> ParseResult) -> impl Fn(String) -> ParseResult {
     return move |mut input: String| {
         let mut result = Vec::new();
 
@@ -236,9 +261,6 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult, report_errs: bool) -> imp
                 input = remains;
                 result.push(parsed);
             } else if let Err(e) = resp {
-                if report_errs {
-                    println!("error: {}", e);
-                }
                 break;
             }
 
@@ -249,7 +271,7 @@ fn one_or_more(parser: impl Fn(String) -> ParseResult, report_errs: bool) -> imp
 fn any() -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         if input.len() < 1 {
-            return ParseResult::Err(Error::Unexpected(
+            return ParseResult::Err(Error::unexpected(
                 "any".to_string(),
                 "nothing".to_string(),
                 0,
@@ -265,7 +287,7 @@ fn any() -> impl Fn(String) -> ParseResult {
 fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
     return move |input: String| {
         if input.len() < 1 {
-            return ParseResult::Err(Error::Unexpected(
+            return ParseResult::Err(Error::unexpected(
                 c.to_string(),
                 "nothing".to_string(),
                 0,
@@ -274,7 +296,7 @@ fn parse_char(c: char) -> impl Fn(String) -> ParseResult {
         if input.chars().nth(0).unwrap() == c.clone() {
             return ParseResult::Ok((input[1..].to_string(), Node::Char(c)));
         }
-        return ParseResult::Err(Error::Unexpected(
+        return ParseResult::Err(Error::unexpected(
             c.to_string(),
             input.chars().nth(0).unwrap().to_string(),
             0,
@@ -307,7 +329,7 @@ fn string(input: String) -> ParseResult {
             Node::Str(remains[..end].to_string()),
         ));
     } else {
-        return Err(Error::Unknown("cannot find end of string".to_string()));
+        return Err(Error::unknown("cannot find end of string".to_string()));
     }
 }
 
@@ -347,7 +369,7 @@ fn digit() -> impl Fn(String) -> ParseResult {
 fn ident(input: String) -> ParseResult {
     match one_or_more(parse_chars(
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_",
-    ), false)(input)
+    ))(input)
     {
         Ok((remains, Node::List(chars_parse_objects))) => {
             let mut name = String::new();
@@ -356,7 +378,7 @@ fn ident(input: String) -> ParseResult {
                 match po {
                     Node::Char(c) => name.push(c),
                     _ => {
-                        return Err(Error::Unexpected(
+                        return Err(Error::unexpected(
                             "a char".to_string(),
                             format!("{:?}", po),
                             0,
@@ -367,7 +389,7 @@ fn ident(input: String) -> ParseResult {
             return Ok((remains, Node::Ident(name)));
         }
         Ok((_, obj)) => {
-            return Err(Error::Unexpected(
+            return Err(Error::unexpected(
                 "list of chars".to_string(),
                 format!("{:?}", obj),
                 0,
@@ -383,7 +405,7 @@ fn fn_call(input: String) -> ParseResult {
     match obj {
         Node::Ident(i) => identifier = i,
         _ => {
-            return Err(Error::Unexpected(
+            return Err(Error::unexpected(
                 "ident".to_string(),
                 format!("{:?}", obj),
                 0,
@@ -449,7 +471,7 @@ fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> 
 }
 
 fn uint(input: String) -> ParseResult {
-    match one_or_more(digit(), false)(input) {
+    match one_or_more(digit())(input) {
         Ok((remains, Node::List(_digits))) => {
             let mut number = String::new();
             for d in _digits {
@@ -482,7 +504,7 @@ fn int(mut input: String) -> ParseResult {
     let (input, obj) = uint(input)?;
     match obj {
         Node::Uint(num) => return Ok((input, Node::Int(with_sign as isize * num as isize))),
-        _ => Err(Error::Unknown(format!(
+        _ => Err(Error::unknown(format!(
             "expected a uint found {:?}",
             obj
         ))),
@@ -620,12 +642,12 @@ fn _import(input: String) -> ParseResult {
 }
 
 fn block(input: String) -> ParseResult {
-    return match one_or_more(statement, true)(input)? {
+    return match one_or_more(statement)(input)? {
         (remains, Node::List(items)) =>{
             let (remains, _) = whitespace()(remains)?;
             Ok((remains, Node::Block(items)))
         },
-        (_remains, obj) => Err(Error::Unexpected(
+        (_remains, obj) => Err(Error::unexpected(
             "ParseObj::List".to_string(),
             format!("{:?}", obj),
             0,
@@ -887,17 +909,17 @@ fn float(input: String) -> ParseResult {
                 let float: f64 = float_str.parse().unwrap();
                 Ok((remains, Node::Float(float)))
             } else {
-                return Err(Error::Unexpected(
+                return Err(Error::unexpected(
                     "uint".to_string(),
                     format!("{:?}", parsed),
                     0,
                 ));
             }
         } else {
-            return Err(Error::Unknown("not a float without a .".to_string()));
+            return Err(Error::unknown("not a float without a .".to_string()));
         }
     } else {
-        return Err(Error::Unknown("not a number at all".to_string()));
+        return Err(Error::unknown("not a number at all".to_string()));
     }
 }
 
@@ -909,7 +931,7 @@ fn decl(input: String) -> ParseResult {
     match obj {
         Node::Ident(i) => identifier = i,
         _ => {
-            return Err(Error::Unexpected(
+            return Err(Error::unexpected(
                 "ident".to_string(),
                 format!("{:?}", obj),
                 0,
@@ -1050,7 +1072,13 @@ fn mul_div_mod(input: String) -> ParseResult {
 }
 
 pub fn module(input: String) -> ParseResult {
-    block(input)
+    let (remains, node) = block(input)?;
+
+    if remains.is_empty() {
+        Ok((remains, node))
+    } else {
+        Err(Error::unknown("parser did not finish whole file".to_string()))
+    }
 }
 
 
