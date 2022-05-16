@@ -191,7 +191,7 @@ fn any_of(context: String, parsers: Vec<impl Fn(String) -> ParseResult>) -> impl
                 Err(err) => errs.push(err.to_string()),
             }
         }
-        return Err(Error::Unknown(format!("{} no parser matched: errs => {:?}", context, errs)));
+        return Err(Error::Unknown(format!("{} no parser matched: errs => {}", context, errs.join("\n"))));
     };
 }
 
