@@ -146,6 +146,11 @@ impl Repr<C> for Node {
 
                 Ok(format!("for ({};{};{}) {{\n\t{}\n}}", init,cond, cont, body))
             },
+            Node::Dot(d) => {
+                let lhs = d.lhs.repr()?;
+                let rhs = d.rhs.repr()?;
+                Ok(format!("{}.{}", lhs, rhs))
+            },
             Node::Decl(name, o_ty, expr) => {
                 if let Node::FnDef(def) = expr.deref() {
                     let args_tys: Result<Vec<String>> = def.ty.args.iter().map(|it| it.repr()).collect();

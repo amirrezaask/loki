@@ -10,5 +10,5 @@ main = fn() void {
         name: "amirreza"
     };
 
-    printf("%d", me);
+    printf("%s", me.name);
 };
