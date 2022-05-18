@@ -5,7 +5,7 @@ use anyhow::Result;
 pub mod c;
 
 pub trait Compiler {
-    fn compile(input: &str, output: &str);
+    fn compile(input: &str, output: &str) -> Result<()>;
 }
 
 pub trait CodeGen {

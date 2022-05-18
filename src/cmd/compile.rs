@@ -1,4 +1,4 @@
-use crate::backend::{c::C, CodeGen, Compiler};
+use crate::backend::{c::C, Compiler};
 use crate::parser;
 use clap::{ArgMatches};
 use anyhow::Result;

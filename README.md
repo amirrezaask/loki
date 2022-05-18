@@ -34,6 +34,9 @@ in your target compiler will emit an error.
 Loki has a direct interface to it's host programming languages so you can call directly to their libraries and apis. Both standard library and third party ones
 
 ## TODO
+
+- Struct initialization syntax
+- naive type inference, for basic exprs (numbers, strings, bools)
 - Import Loki source files
 - Comptimes
 - Go backend

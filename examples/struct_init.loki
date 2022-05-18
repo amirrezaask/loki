@@ -1,0 +1,14 @@
+import "stdio.h";
+
+Human = struct {
+    name: string
+};
+
+
+main = fn() void {
+    me: Human = Human{
+        name: "amirreza"
+    };
+
+    printf("%d", me);
+};

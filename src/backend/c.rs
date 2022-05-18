@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use std::process::Command;
+use std::process::{Command};
 
 use super::{Repr, Compiler};
 use crate::backend::CodeGen;
@@ -21,9 +21,15 @@ impl CodeGen for C {
 }
 
 impl Compiler for C {
-    fn compile(name: &str, output: &str) {
+    fn compile(name: &str, output: &str) -> Result<()> {
         // "-Wno-everything"
-        Command::new("cc").args(vec![name, "-o", output]).output().expect("compile error");
+        let mut cmd = Command::new("cc");
+        let cmd = cmd.args(vec![name, "-o", output]);
+        let res = cmd.output().unwrap();
+        if !res.status.success() {
+            crate::errors::panic(String::from_utf8(res.stderr).unwrap());
+        }
+        Ok(())
     }
 }
 
@@ -65,6 +71,12 @@ impl Repr<C> for parser::Operator {
     }
 }
 
+impl Repr<C> for (Node, Node) {
+    fn repr(&self) -> Result<String> {
+        Ok(format!(".{}={}", self.0.repr()?, self.1.repr()?))
+    }
+}
+
 impl Repr<C> for Node {
     fn repr(&self) -> Result<String> {
         match self {
@@ -90,6 +102,14 @@ impl Repr<C> for Node {
                 let field_ty = field_ty.join("\n;");
 
                 Ok(format!("struct {{\n\t{}\n}}", field_ty))
+            },
+            Node::TypeInit(ty_init) => {
+                let mut fvs: Vec<String> = vec![];
+                
+                for fv in ty_init.fields_values.iter() {
+                    fvs.push(fv.repr()?);
+                }
+                Ok(format!("{{{}}}", fvs.join(",\n")))
             },
             Node::Return(e) => {
                 Ok(format!("return {}", e.repr()?))
@@ -151,7 +171,7 @@ impl Repr<C> for Node {
                         f.push_str(";");
                     }
                     Ok(type_def("struct", name.repr()?.as_ref(), field_ty.join("\n").as_ref()))
-                } 
+                }
                 else {
                     let n_str = name.repr()?;
                     let ty_str = o_ty

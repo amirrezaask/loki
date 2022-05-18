@@ -75,6 +75,7 @@ pub enum Node {
     Import(Box<Import>),
     EnumTy(Vec<Node>),
     UnionTy(Vec<IdentAndTy>),
+    TypeInit(TypeInit),
     Empty,
 }
 
@@ -94,6 +95,11 @@ impl Node {
             _ => self,
         }
     }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypeInit {
+    pub ty: Box<Node>,
+    pub fields_values: Vec<(Node, Node)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -282,17 +288,17 @@ fn string(input: String, should_panic: bool) -> ParseResult {
         }
     }
     if end != 0 {
-        return Ok((
+        Ok((
             remains[end + 1..].to_string(),
             Node::Str(remains[..end].to_string()),
-        ));
+        ))
     } else {
         return Err(Error::unknown("cannot find end of string".to_string()));
     }
 }
 
 fn keyword(word: String) -> impl Fn(String, bool) -> ParseResult {
-    return move |mut input: String, _should_panic: bool| {
+    move |mut input: String, _should_panic: bool| {
         let word_chars = word.chars();
         for c in word_chars {
             match parse_char(c)(input, false) {
@@ -301,7 +307,7 @@ fn keyword(word: String) -> impl Fn(String, bool) -> ParseResult {
             }
         }
         return Ok((input, Node::Keyword(word.clone())));
-    };
+    }
 }
 
 fn any_whitespace() -> impl Fn(String, bool) -> ParseResult {
@@ -994,6 +1000,7 @@ fn C(input: String) -> ParseResult {
         inc,
         dec,
         _return,
+        struct_init,
         fn_call,
         ident,
         array,
@@ -1007,6 +1014,62 @@ fn inside_paren(input: String, _should_panic: bool) -> ParseResult {
     let (remains, e) = expr(remains, false)?;
     let (remains, _) = parse_char(')')(remains, true)?;
     Ok((remains, e))
+}
+
+fn struct_init(input: String, _should_panic: bool) -> ParseResult {
+    let (remains, _) = whitespace()(input, false)?;
+    let (remains, ty) = ident(remains, false)?;
+    let (remains, _) = parse_char('{')(remains, false)?;
+    let (mut remains, _) = whitespace()(remains, false)?;
+
+    let mut fields_values: Vec<(Node, Node)> = Vec::new();
+
+    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+        loop {
+            let whitespace_res = whitespace()(remains.clone(), false)?;
+            remains = whitespace_res.0;
+            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+                break
+            }
+            let ident_res = ident(remains.clone(), false)?;
+            remains = ident_res.0;
+
+            let ident_obj = ident_res.1;
+
+            let whitespace_res = whitespace()(remains, false)?;
+            remains = whitespace_res.0;
+
+            let colon_res = parse_char(':')(remains.clone(), true)?;
+            remains = colon_res.0;
+
+            let whitespace_res = whitespace()(remains, false)?;
+            remains = whitespace_res.0;
+
+            let value_res = expr(remains.clone(), true)?;
+            remains = value_res.0;
+
+            let value_obj = value_res.1;
+            fields_values.push((
+                ident_obj.clone(),
+                value_obj.primitive().clone(),
+            ));
+
+            let whitespace_res = whitespace()(remains, false)?;
+            remains = whitespace_res.0;
+
+            let comma = parse_char(',')(remains.clone(), false);
+            if let Ok((r, _)) = comma {
+                remains = r;
+            } else {
+                break;
+            }
+        }
+    }
+    let (remains, _) = parse_char('}')(remains, true)?;
+    return Ok((remains, Node::TypeInit(TypeInit {
+        ty: Box::new(ty), fields_values
+    })));
+    
 }
 
 fn comparisons(input: String) -> ParseResult {
@@ -1803,6 +1866,18 @@ fn test_parse_expr() {
                 Node::Ident("first".to_string()),
                 Node::Ident("second".to_string()),
             ])
+        ))
+    );
+    assert_eq!(
+        expr("s{ name: \"amirreza\" }".to_string(), false),
+        Ok((
+            "".to_string(),
+            Node::TypeInit(TypeInit {
+                ty: Box::new(Node::Ident("s".to_string())),
+                fields_values: vec![
+                    (Node::Ident("name".to_string()), Node::Str("amirreza".to_string())),
+                ]
+            })
         ))
     );
 }
