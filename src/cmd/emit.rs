@@ -1,6 +1,6 @@
-use crate::backend::{c::C, CodeGen, Compiler};
+use crate::backend::{CodeGen};
 use crate::parser;
-use clap::{ArgMatches, Arg, Command, arg};
+use clap::{ArgMatches};
 use anyhow::Result;
 use super::core::get_backend;
 

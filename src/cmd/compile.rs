@@ -1,6 +1,6 @@
 use crate::backend::{c::C, CodeGen, Compiler};
 use crate::parser;
-use clap::{ArgMatches, Arg, Command, arg};
+use clap::{ArgMatches};
 use anyhow::Result;
 
 pub fn compile(backend: &str, arg_matches: &ArgMatches, _debug: bool) -> Result<()> {

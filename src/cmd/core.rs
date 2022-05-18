@@ -1,6 +1,6 @@
-use crate::backend::{c::C, CodeGen, Compiler};
+use crate::backend::{c::C, CodeGen};
 use crate::parser;
-use clap::{ArgMatches, Arg, Command, arg};
+
 use anyhow::Result;
 
 pub fn get_backend(backend: &str, node: parser::Node) -> Result<impl CodeGen> {
