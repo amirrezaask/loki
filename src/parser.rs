@@ -76,6 +76,7 @@ pub enum Node {
     EnumTy(Vec<Node>),
     UnionTy(Vec<IdentAndTy>),
     TypeInit(TypeInit),
+    Dot(Box<Dot>),
     Empty,
 }
 
@@ -95,6 +96,11 @@ impl Node {
             _ => self,
         }
     }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct Dot {
+    pub lhs: Node,
+    pub rhs: Node,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeInit {
@@ -912,7 +918,17 @@ fn decl(input: String, _should_panic: bool) -> ParseResult {
         Node::Decl(Box::new(Node::Ident(identifier)), Box::new(ty), Box::new(e)),
     ))
 }
+/*
+    expr :: value | expr + value | expr - value
+    value :: term | value * term | value / term
+    term :: number | string | bool | ident(expr*) | expr.expr | ident | '('expr')'
 
+    expr -> A
+    A -> B (addminus B)*
+    B -> C (muldivmod C)*
+    C -> D (.D)*
+    D -> number | string | bool | ident(expr*) | ident | '(' expr ')'
+*/
 pub fn expr(input: String, should_panic: bool) -> ParseResult {
     match A(input) {
         Ok((remains, n)) => Ok((remains, n)),
@@ -970,7 +986,7 @@ fn B(input: String) -> ParseResult {
     match mul_div_mod(remains.clone()) {
         Ok((remains, Node::Char(c))) => {
             let operator = Operator::from_char(c.to_string());
-            let (remains, rhs) = C(remains)?;
+            let (remains, rhs) = D(remains)?;
             Ok((
                 remains,
                 Node::Operation(Box::new(Operation {
@@ -984,7 +1000,26 @@ fn B(input: String) -> ParseResult {
         _ => unreachable!(),
     }
 }
+
 fn C(input: String) -> ParseResult {
+    let (remains, _) = whitespace()(input, false)?;
+    let (remains, lhs) = D(remains)?;
+    match parse_char('.')(remains.clone(), false) {
+        Ok((remains, _)) => {
+            let (remains, rhs) = D(remains)?;
+            Ok((remains, Node::Dot(Box::new(Dot {
+                lhs,
+                rhs,
+            }))))
+        }, 
+        Err(e) => {
+            Ok((remains, lhs))
+        }
+    }
+
+}
+
+fn D(input: String) -> ParseResult {
     let parsers: Vec<ParserFn> = vec![
         float,
         uint,
@@ -1880,8 +1915,23 @@ fn test_parse_expr() {
             })
         ))
     );
+    assert_eq!(
+        expr("f(1).g(2)".to_string(), false),
+        Ok((
+            "".to_string(),
+            Node::Dot(Box::new(Dot {
+                lhs: Node::Application(Box::new(Application {
+                    name: Node::Ident("f".to_string()),
+                    args: vec![Node::Uint(1)],
+                })),
+                rhs: Node::Application(Box::new(Application {
+                    name: Node::Ident("g".to_string()),
+                    args: vec![Node::Uint(2)],
+                }))
+            }))
+        ))
+    );
 }
-
 #[test]
 fn test_stmt_import() {
     assert_eq!(
