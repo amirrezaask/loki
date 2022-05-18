@@ -13,7 +13,7 @@ impl Error {
             severity: 1,
         }
     }
-    pub fn unexpected(exp: String, found: String, loc: i32) -> Self {
+    pub fn unexpected(exp: String, found: String, _loc: i32) -> Self {
         Self {
             msg: format!("expected {} found {}", exp, found),
             loc: None,
