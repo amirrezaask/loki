@@ -35,7 +35,6 @@ Loki has a direct interface to it's host programming languages so you can call d
 
 ## TODO
 - Import Loki source files
-- Error Reporting
 - Comptimes
 - Go backend
 - JS backend
