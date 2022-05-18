@@ -3,20 +3,17 @@ use crate::parser;
 use clap::{ArgMatches};
 use anyhow::Result;
 
-pub fn compile(backend: &str, arg_matches: &ArgMatches, _debug: bool) -> Result<()> {
-    let file_name = arg_matches.value_of("NAME").expect("filename needed");
-    let debug = arg_matches.is_present("debug");
-    let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
-    if debug {
-        println!("{:?}", ast);
-    }
-    let back = super::core::get_backend(backend, ast)?;
-    let output = back.generate()?;
+use super::core::{get_input_file_name, if_debug_print_ast, generate_target_code, save_target_code, get_output_binary_name};
 
-    let bin = file_name.split(".").nth(0).unwrap();
-    let generated_file_name = format!("./{}.c", bin);
-    std::fs::write(generated_file_name.clone(), output)?;
-    C::compile(&generated_file_name, bin);
-    std::fs::remove_file(generated_file_name)?;
+pub fn compile(arg_matches: &ArgMatches) -> Result<()> {
+    let file_name = get_input_file_name(arg_matches);
+    let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
+    if_debug_print_ast(arg_matches, &ast);
+
+    let target_code = generate_target_code(arg_matches, &ast)?;
+    let target_code_file = save_target_code(arg_matches, target_code)?;
+    let binary_name = get_output_binary_name(arg_matches);
+    C::compile(&target_code_file, binary_name);
+    std::fs::remove_file(target_code_file)?;
     Ok(())
 }

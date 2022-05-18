@@ -20,6 +20,7 @@ pub fn parse_cli() -> ArgMatches {
                 .short('b')
                 .long("backend")
                 .takes_value(true)
+                .default_value("c")
                 .help("Backend to use for codegen"),
         )
         .subcommand(
@@ -32,20 +33,20 @@ pub fn parse_cli() -> ArgMatches {
                 .about("compiles your code using selected backend")
                 .arg(arg!([NAME])),
         )
+        .subcommand(
+            Command::new("run")
+                .about("compiles and then runs your code")
+                .arg(arg!([NAME])),
+        )
         .get_matches()
 }
 
 pub fn main() -> Result<()> {
     let matches = parse_cli();
-    let backend = matches.value_of("backend").expect("need a backend");
-    let debug = matches.is_present("debug");
-    if debug {
-        println!("DEBUG MODE!");
-    }
-    // println!("generating code using {}", backend);
     match matches.subcommand() {
-        Some(("emit", arg_matches)) => cmd::emit(backend, arg_matches, debug)?,
-        Some(("compile", arg_matches)) => cmd::compile(backend, arg_matches, debug)?,
+        Some(("emit", arg_matches)) => cmd::emit(arg_matches)?,
+        Some(("run", arg_matches)) => cmd::run(arg_matches)?,
+        Some(("compile", arg_matches)) => cmd::compile(arg_matches)?,
         _ => unreachable!(),
     };
     Ok(())
