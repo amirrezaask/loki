@@ -159,50 +159,12 @@ struct Decl {
 
 impl Decl {
     fn new(name: Node, ty: Option<Node>, value: Node) -> Self {
-        return Self { name, ty, value };
-    }
-}
-#[derive(Debug, PartialEq, Eq)]
-pub struct Error {
-    msg: String,
-    loc: Option<(i32, i32)>,
-    severity: i8,
-}
-
-impl Error {
-    pub fn unknown(msg: String) -> Self {
-        Self {
-            msg,
-            loc: None,
-            severity: 1,
-        }
-    }
-    pub fn unexpected(exp: String, found: String, loc: i32) -> Self {
-        Self {
-            msg: format!("expected {} found {}", exp, found),
-            loc: None,
-            severity: 1,
-        }
+        Self { name, ty, value }
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some((line, col)) = self.loc {
-            if self.severity == 0 {
-                f.write_fmt(format_args!("Warning: {} at {}:{}", self.msg, line, col))
-            } else {
-                f.write_fmt(format_args!("Error: {} at {}:{}", self.msg, line, col))
-            }
-        } else if self.severity == 0 {
-            f.write_fmt(format_args!("Warning: {}", self.msg))
-        } else {
-            f.write_fmt(format_args!("Error: {}", self.msg))
-        }
-    }
-}
-impl std::error::Error for Error {}
-
+use crate::errors::Error;
+use crate::errors::panic;
 type ParseResult = Result<(String, Node), Error>;
 type ParserFn = fn(String, bool) -> Result<(String, Node), Error>;
 
@@ -215,10 +177,7 @@ fn any_of(context: String, parsers: Vec<impl Fn(String, bool) -> ParseResult>) -
                 Err(err) => errs.push(err.to_string()),
             }
         }
-        let e = Error::unknown(format!("expected a {} here:\n{}", context, input));
-        // if should_panic {
-        //     panic!("{}", e)
-        // }
+        let e = Error::unknown(format!("expected a {} here:\n>> \"{}\"", context, input));
         Err(e)
     }
 }
@@ -953,7 +912,8 @@ pub fn expr(input: String, should_panic: bool) -> ParseResult {
         Ok((remains, n)) => Ok((remains, n)),
         Err(e) => {
             if should_panic {
-                panic!("{}", e);
+                panic(format!("{}", e));
+                unreachable!();
             } else {
                 Err(e)
             }
@@ -1086,46 +1046,46 @@ use super::*;
 
 #[test]
 fn test_decl() {
-    // let decl_res = decl("a = false".to_string(), false);
-    // assert!(decl_res.is_ok());
-    // let none: Box<Option<Node>> = Box::new(None);
-    // if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-    //     assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-    //     assert_eq!(be, Box::new(Node::Bool(false)));
-    // } else {
-    //     assert!(false);
-    // }
+    let decl_res = decl("a = false".to_string(), false);
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Bool(false)));
+    } else {
+        assert!(false);
+    }
 
-    // let decl_res = decl("a = -2".to_string(), false);
-    // assert!(decl_res.is_ok());
-    // let none: Box<Option<Node>> = Box::new(None);
-    // if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-    //     assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-    //     assert_eq!(be, Box::new(Node::Int(-2)));
-    // } else {
-    //     assert!(false);
-    // }
+    let decl_res = decl("a = -2".to_string(), false);
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Int(-2)));
+    } else {
+        assert!(false);
+    }
 
-    // let decl_res = decl("a = \"amirreza\"".to_string(), false);
-    // assert!(decl_res.is_ok());
+    let decl_res = decl("a = \"amirreza\"".to_string(), false);
+    assert!(decl_res.is_ok());
 
-    // let none: Box<Option<Node>> = Box::new(None);
-    // if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-    //     assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-    //     assert_eq!(be, Box::new(Node::Str("amirreza".to_string())));
-    // } else {
-    //     assert!(false);
-    // }
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Str("amirreza".to_string())));
+    } else {
+        assert!(false);
+    }
 
-    // let decl_res = decl("a = 2".to_string(), false);
-    // assert!(decl_res.is_ok());
-    // let none: Box<Option<Node>> = Box::new(None);
-    // if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
-    //     assert_eq!(name, Box::new(Node::Ident("a".to_string())));
-    //     assert_eq!(be, Box::new(Node::Uint(2)));
-    // } else {
-    //     assert!(false);
-    // }
+    let decl_res = decl("a = 2".to_string(), false);
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, be)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("a".to_string())));
+        assert_eq!(be, Box::new(Node::Uint(2)));
+    } else {
+        assert!(false);
+    }
     let decl_res = decl(
         "sum = fn() void {
     return 1;
@@ -1150,44 +1110,44 @@ fn test_decl() {
         assert!(false);
     }
 
-//     // enums
-//     let decl_res = decl(" Human = enum { Man, Woman };".to_string(), false);
-//     assert!(decl_res.is_ok());
-//     let none: Box<Option<Node>> = Box::new(None);
-//     if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
-//         assert_eq!(name, Box::new(Node::Ident("Human".to_string())));
-//         assert_eq!(
-//             f,
-//             Box::new(Node::EnumTy(vec![
-//                 Node::Ident("Man".to_string()),
-//                 Node::Ident("Woman".to_string()),
-//             ])),
-//         );
-//     } else {
-//         assert!(false);
-//     }
+    // enums
+    let decl_res = decl(" Human = enum { Man, Woman };".to_string(), false);
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("Human".to_string())));
+        assert_eq!(
+            f,
+            Box::new(Node::EnumTy(vec![
+                Node::Ident("Man".to_string()),
+                Node::Ident("Woman".to_string()),
+            ])),
+        );
+    } else {
+        assert!(false);
+    }
 
-//     let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string(), false);
-//     assert!(decl_res.is_ok());
-//     let none: Box<Option<Node>> = Box::new(None);
-//     if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
-//         assert_eq!(name, Box::new(Node::Ident("f".to_string())));
-//         assert_eq!(
-//             f,
-//             Box::new(Node::FnDef(Box::new(FnDef {
-//                 ty: FnTy {
-//                     args: vec![],
-//                     return_ty: Node::VoidTy,
-//                 },
-//                 block: Node::Block(vec![Node::Application(Box::new(Application {
-//                     name: Node::Ident("println".to_string()),
-//                     args: vec![Node::Str("Salam donya!".to_string())],
-//                 }))]),
-//             }))),
-//         );
-//     } else {
-//         assert!(false);
-//     }
+    let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string(), false);
+    assert!(decl_res.is_ok());
+    let none: Box<Option<Node>> = Box::new(None);
+    if let (_, Node::Decl(name, none, f)) = decl_res.unwrap() {
+        assert_eq!(name, Box::new(Node::Ident("f".to_string())));
+        assert_eq!(
+            f,
+            Box::new(Node::FnDef(Box::new(FnDef {
+                ty: FnTy {
+                    args: vec![],
+                    return_ty: Node::VoidTy,
+                },
+                block: Node::Block(vec![Node::Application(Box::new(Application {
+                    name: Node::Ident("println".to_string()),
+                    args: vec![Node::Str("Salam donya!".to_string())],
+                }))]),
+            }))),
+        );
+    } else {
+        assert!(false);
+    }
 }
 
 #[test]

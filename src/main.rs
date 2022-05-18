@@ -1,5 +1,6 @@
 mod backend;
 mod parser;
+mod errors;
 
 use anyhow::{Error, Result};
 use backend::Compiler;
