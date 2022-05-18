@@ -3,6 +3,6 @@ import "stdio.h";
 main = fn() void {
    i: int = 0;
    for i <= 10 {
-    printf("I love you Yasaman \n", i); 
+      printf("While loop %d \n", i); 
    };
 };
