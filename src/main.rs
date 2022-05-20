@@ -2,7 +2,6 @@ mod backend;
 mod parser;
 mod errors;
 mod passes;
-mod pipeline;
 mod cmd;
 use anyhow::{Result};
 
