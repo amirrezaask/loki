@@ -243,7 +243,7 @@ fn one_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, 
     }
 }
 fn any() -> impl Fn(String) -> ParseResult {
-    return move |input: String| {
+    move |input: String| {
         if input.len() < 1 {
             return ParseResult::Err(Error::unexpected(
                 "any".to_string(),
@@ -256,10 +256,10 @@ fn any() -> impl Fn(String) -> ParseResult {
             input[1..].to_string(),
             Node::Char(input.chars().nth(0).unwrap()),
         ));
-    };
+    }
 }
 fn parse_char(c: char) -> impl Fn(String, bool) -> ParseResult {
-    return move |input: String, _should_panic: bool| {
+    move |input: String, _should_panic: bool| {
         if input.len() < 1 {
             return ParseResult::Err(Error::unexpected(
                 c.to_string(),
@@ -275,7 +275,7 @@ fn parse_char(c: char) -> impl Fn(String, bool) -> ParseResult {
             input.chars().nth(0).unwrap().to_string(),
             0,
         ));
-    };
+    }
 }
 fn _char(input: String, should_panic: bool) -> ParseResult {
     let (remains, _) = parse_char('\'')(input, should_panic)?;

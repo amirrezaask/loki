@@ -16,15 +16,15 @@ pub struct C {
 impl CodeGen for C {
     fn generate(&self) -> Result<String> {
         let codes = vec![self.ast.repr()?];
-        return Ok(codes.join("\n"));
+        Ok(codes.join("\n"))
     }
 }
 
 impl Compiler for C {
     fn compile(name: &str, output: &str) -> Result<()> {
         // "-Wno-everything"
-        let mut cmd = Command::new("cc");
-        let cmd = cmd.args(vec![name, "-o", output]);
+        let mut cmd = Command::new("zig");
+        let cmd = cmd.args(vec!["cc", name, "-o", output]);
         let res = cmd.output().unwrap();
         if !res.status.success() {
             crate::errors::panic(String::from_utf8(res.stderr).unwrap());
@@ -166,14 +166,14 @@ impl Repr<C> for Node {
                     let field_ty: Result<Vec<String>> = fields.iter().map(|it| it.repr()).collect(); 
                     let mut field_ty = field_ty?;
                     for f in field_ty.iter_mut() {
-                        f.push_str(";");
+                        f.push(';');
                     }
                     Ok(type_def("union", name.repr()?.as_ref(), field_ty.join("\n").as_ref()))
                 } else if let Node::StructTy(fields) = expr.deref() {
                     let field_ty: Result<Vec<String>> = fields.iter().map(|it| it.repr()).collect(); 
                     let mut field_ty = field_ty?;
                     for f in field_ty.iter_mut() {
-                        f.push_str(";");
+                        f.push(';');
                     }
                     Ok(type_def("struct", name.repr()?.as_ref(), field_ty.join("\n").as_ref()))
                 }
@@ -204,6 +204,7 @@ impl Repr<C> for Node {
             },
 
             Node::Import(i) => {
+                
                 Ok(format!("#include {}", i.path.repr()?))
             },
             Node::Stmt(n) => n.repr(),
