@@ -1,4 +1,4 @@
-import "./std.loki";
+import "std.loki";
 
 main = fn() void {
     printf("H3ll0 W0r1d");

@@ -1,1 +1,1 @@
-import "c:stdio.h";
+import "@stdio.h";

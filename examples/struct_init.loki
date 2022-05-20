@@ -1,4 +1,4 @@
-import "c:stdio.h";
+import "@stdio.h";
 
 Human = struct {
     name: string
