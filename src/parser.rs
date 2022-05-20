@@ -201,7 +201,7 @@ fn zero_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String,
             input = remains;
             result.push(parsed);
         }
-        Ok((input.clone(), Node::List(result)))
+        Ok((input, Node::List(result)))
     }
 }
 
@@ -239,12 +239,12 @@ fn one_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, 
             }
 
         } 
-        return Ok((input.clone(), Node::List(result)));
+        Ok((input, Node::List(result)))
     }
 }
 fn any() -> impl Fn(String) -> ParseResult {
     move |input: String| {
-        if input.len() < 1 {
+        if input.is_empty() {
             return ParseResult::Err(Error::unexpected(
                 "any".to_string(),
                 "nothing".to_string(),
@@ -254,32 +254,32 @@ fn any() -> impl Fn(String) -> ParseResult {
 
         return ParseResult::Ok((
             input[1..].to_string(),
-            Node::Char(input.chars().nth(0).unwrap()),
+            Node::Char(input.chars().next().unwrap()),
         ));
     }
 }
 fn parse_char(c: char) -> impl Fn(String, bool) -> ParseResult {
     move |input: String, _should_panic: bool| {
-        if input.len() < 1 {
+        if input.is_empty() {
             return ParseResult::Err(Error::unexpected(
                 c.to_string(),
                 "nothing".to_string(),
                 0,
             ));
         }
-        if input.chars().nth(0).unwrap() == c.clone() {
+        if input.chars().next().unwrap() == c {
             return ParseResult::Ok((input[1..].to_string(), Node::Char(c)));
         }
         return ParseResult::Err(Error::unexpected(
             c.to_string(),
-            input.chars().nth(0).unwrap().to_string(),
+            input.chars().next().unwrap().to_string(),
             0,
         ));
     }
 }
 fn _char(input: String, should_panic: bool) -> ParseResult {
     let (remains, _) = parse_char('\'')(input, should_panic)?;
-    let c = Node::Char(remains.chars().nth(0).unwrap());
+    let c = Node::Char(remains.chars().next().unwrap());
     let (remains, _) = parse_char('\'')(remains[1..].to_string(), should_panic)?;
     Ok((remains, c))
 }
@@ -299,7 +299,7 @@ fn string(input: String, should_panic: bool) -> ParseResult {
             Node::Str(remains[..end].to_string()),
         ))
     } else {
-        return Err(Error::unknown("cannot find end of string".to_string()));
+        Err(Error::unknown("cannot find end of string".to_string()))
     }
 }
 
@@ -312,7 +312,7 @@ fn keyword(word: String) -> impl Fn(String, bool) -> ParseResult {
                 Err(err) => return Err(err),
             }
         }
-        return Ok((input, Node::Keyword(word.clone())));
+        Ok((input, Node::Keyword(word.clone())))
     }
 }
 
@@ -320,20 +320,20 @@ fn any_whitespace() -> impl Fn(String, bool) -> ParseResult {
     let sp = parse_char(' ');
     let tab = parse_char('\t');
     let newline = parse_char('\n');
-    return any_of(format!("any_whitespace"), vec![sp, tab, newline]);
+    any_of("any_whitespace".to_string(), vec![sp, tab, newline])
 }
 
 fn whitespace() -> impl Fn(String, bool) -> ParseResult {
-    return zero_or_more(any_whitespace());
+    zero_or_more(any_whitespace())
 }
 
 fn parse_chars(chars: &str) -> impl Fn(String, bool) -> ParseResult {
-    let parsers = chars.chars().map(|c| parse_char(c)).collect();
+    let parsers = chars.chars().map(parse_char).collect();
     return any_of(format!("parse_char: {}", chars), parsers);
 }
 
 fn digit() -> impl Fn(String, bool) -> ParseResult {
-    return parse_chars("0123456789");
+    parse_chars("0123456789")
 }
 
 fn ident(input: String, _should_panic: bool) -> ParseResult {
@@ -356,7 +356,7 @@ fn ident(input: String, _should_panic: bool) -> ParseResult {
                     }
                 }
             }
-            return Ok((remains, Node::Ident(name)));
+            Ok((remains, Node::Ident(name)))
         }
         Ok((_, obj)) => {
             return Err(Error::unexpected(
@@ -387,7 +387,7 @@ fn fn_call(input: String, _should_panic: bool) -> ParseResult {
     let (mut remains, _) = whitespace()(remains, false)?;
     // we know it's a function call
     let mut args: Vec<Node> = Vec::new();
-    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != ')' {
+    if remains.chars().next().is_some() && !remains.starts_with(')') {
         loop {
             // fn(1,2,3,4)
             let ws_res = whitespace()(remains, false)?;
@@ -412,21 +412,21 @@ fn fn_call(input: String, _should_panic: bool) -> ParseResult {
     let close_paren_res = parse_char(')')(remains, true)?;
     remains = close_paren_res.0;
 
-    return Ok((
+    Ok((
         remains,
         Node::Application(Box::new(Application {
             name: Node::Ident(identifier),
-            args: args,
+            args,
         })),
-    ));
+    ))
 }
 
 fn semicolon(input: String, should_panic: bool) -> ParseResult {
-    return parse_char(';')(input, should_panic);
+    parse_char(';')(input, should_panic)
 }
 
 fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> ParseResult {
-    return move |input: String| {
+    move |input: String| {
         let mut parsed = Vec::new();
         for p in parsers.iter() {
             let res = p(input.clone());
@@ -436,8 +436,8 @@ fn sequence(parsers: Vec<impl Fn(String) -> ParseResult>) -> impl Fn(String) -> 
             }
         }
 
-        return Ok((input, Node::List(parsed)));
-    };
+        Ok((input, Node::List(parsed)))
+    }
 }
 
 fn uint(input: String, _: bool) -> ParseResult {
@@ -455,7 +455,7 @@ fn uint(input: String, _: bool) -> ParseResult {
             let number: usize = number.parse().unwrap();
             Ok((remains, Node::Uint(number)))
         }
-        Err(err) => return Err(err),
+        Err(err) => Err(err),
         _ => unreachable!(),
     }
 }
@@ -473,7 +473,7 @@ fn int(mut input: String, _should_panic: bool) -> ParseResult {
 
     let (input, obj) = uint(input, false)?;
     match obj {
-        Node::Uint(num) => return Ok((input, Node::Int(with_sign as isize * num as isize))),
+        Node::Uint(num) => Ok((input, Node::Int(with_sign as isize * num as isize))),
         _ => Err(Error::unknown(format!(
             "expected a uint found {:?}",
             obj
@@ -484,9 +484,9 @@ fn int(mut input: String, _should_panic: bool) -> ParseResult {
 fn _bool(input: String, should_panic: bool) -> ParseResult {
     let _true = keyword("true".to_string());
     let _false = keyword("false".to_string());
-    let (remains, bool_parsed) = any_of(format!("boolean"), vec![_true, _false])(input, should_panic)?;
+    let (remains, bool_parsed) = any_of("boolean".to_string(), vec![_true, _false])(input, should_panic)?;
     if let Node::Keyword(b) = bool_parsed {
-        return Ok((remains, Node::Bool(b == "true")));
+        Ok((remains, Node::Bool(b == "true")))
     } else {
         unreachable!()
     }
@@ -501,11 +501,11 @@ fn _struct(input: String, _should_panic: bool) -> ParseResult {
     // we know it's a function call
     let mut idents_tys: Vec<IdentAndTy> = Vec::new();
 
-    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+    if remains.chars().next().is_some() && !remains.starts_with('}') {
         loop {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
-            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+            if remains.chars().next().is_some() && remains.starts_with('}') {
                 break
             }
             let ident_res = ident(remains.clone(), false)?;
@@ -543,7 +543,7 @@ fn _struct(input: String, _should_panic: bool) -> ParseResult {
         }
     }
     let (remains, _) = parse_char('}')(remains, true)?;
-    return Ok((remains, Node::StructTy(idents_tys)));
+    Ok((remains, Node::StructTy(idents_tys)))
 }
 fn dec(input: String, _should_panic: bool) -> ParseResult {
     let (remains, _) = whitespace()(input, false)?;
@@ -629,18 +629,18 @@ fn _if(input: String, _: bool) -> ParseResult {
     let (remains, _block) = block(remains, false)?;
     let (remains, _) = whitespace()(remains, false)?;
     let (remains, _) = parse_char('}')(remains, true)?;
-    return Ok((
+    Ok((
         remains,
         Node::If(Box::new(If {
-            cond: cond,
+            cond,
             block: _block,
         })),
-    ));
+    ))
 }
 fn _for(input: String, should_panic: bool) -> ParseResult {
     let (remains, _) = keyword("for".to_string())(input, false)?;
     let parsers: Vec<fn(String, bool) -> ParseResult> = vec![_for_c, _for_while];
-    return any_of("for".to_string(), parsers)(remains, should_panic);
+    any_of("for".to_string(), parsers)(remains, should_panic)
 }
 
 fn _for_while(input: String, _should_panic: bool) -> ParseResult {
@@ -653,7 +653,7 @@ fn _for_while(input: String, _should_panic: bool) -> ParseResult {
     Ok((
         remains,
         Node::While(Box::new(While {
-            cond: cond,
+            cond,
             block: body,
         })),
     ))
@@ -694,11 +694,11 @@ fn union(input: String, _should_panic: bool) -> ParseResult {
     // we know it's a function call
     let mut idents_tys: Vec<IdentAndTy> = Vec::new();
 
-    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+    if remains.chars().next().is_some() && !remains.starts_with('}') {
         loop {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
-            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+            if remains.chars().next().is_some() && remains.starts_with('}') {
                 break
             }
             let ident_res = ident(remains.clone(), false)?;
@@ -736,7 +736,7 @@ fn union(input: String, _should_panic: bool) -> ParseResult {
         }
     }
     let (remains, _) = parse_char('}')(remains, true)?;
-    return Ok((remains, Node::UnionTy(idents_tys)));
+    Ok((remains, Node::UnionTy(idents_tys)))
 
 }
 
@@ -750,11 +750,11 @@ fn _enum(input: String, _should_panic: bool) -> ParseResult {
     // we know it's a function call
     let mut variants: Vec<Node> = Vec::new();
 
-    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+    if remains.chars().next().is_some() && !remains.starts_with('}') {
         loop {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
-            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+            if remains.chars().next().is_some() && remains.starts_with('}') {
                 break
             }
 
@@ -777,7 +777,7 @@ fn _enum(input: String, _should_panic: bool) -> ParseResult {
         }
     }
     let (remains, _) = parse_char('}')(remains, true)?;
-    return Ok((remains, Node::EnumTy(variants)));
+    Ok((remains, Node::EnumTy(variants)))
 
 }
 fn fn_ty(input: String) -> ParseResult {
@@ -786,7 +786,7 @@ fn fn_ty(input: String) -> ParseResult {
     let (remains, _) = whitespace()(remains, false)?;
     let (mut remains, _) = parse_char('(')(remains, true)?;
     let mut args_tys: Vec<IdentAndTy> = Vec::new();
-    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != ')' {
+    if remains.chars().next().is_some() && !remains.starts_with(')') {
         loop {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
@@ -835,7 +835,7 @@ fn fn_ty(input: String) -> ParseResult {
         remains,
         Node::FnTy(Box::new(FnTy {
             args: args_tys,
-            return_ty: return_ty,
+            return_ty,
         })),
     ))
 }
@@ -880,16 +880,16 @@ fn float(input: String, _: bool) -> ParseResult {
                 ));
             }
         } else {
-            return Err(Error::unknown("not a float without a .".to_string()));
+            Err(Error::unknown("not a float without a .".to_string()))
         }
     } else {
-        return Err(Error::unknown("not a number at all".to_string()));
+        Err(Error::unknown("not a number at all".to_string()))
     }
 }
 
 fn decl(input: String, _should_panic: bool) -> ParseResult {
     // ident: expr = expr;
-    let (remains, _) = whitespace()(input.clone(), false)?;
+    let (remains, _) = whitespace()(input, false)?;
     let (remains, obj) = ident(remains, false)?;
     let mut identifier = "".to_string();
     match obj {
@@ -990,9 +990,9 @@ fn B(input: String) -> ParseResult {
             Ok((
                 remains,
                 Node::Operation(Box::new(Operation {
-                    lhs: lhs,
+                    lhs,
                     op: operator,
-                    rhs: rhs,
+                    rhs,
                 })),
             ))
         }
@@ -1012,7 +1012,7 @@ fn C(input: String) -> ParseResult {
                 rhs,
             }))))
         }, 
-        Err(e) => {
+        Err(_e) => {
             Ok((remains, lhs))
         }
     }
@@ -1059,11 +1059,11 @@ fn struct_init(input: String, _should_panic: bool) -> ParseResult {
 
     let mut fields_values: Vec<(Node, Node)> = Vec::new();
 
-    if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() != '}' {
+    if remains.chars().next().is_some() && !remains.starts_with('}') {
         loop {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
-            if remains.chars().nth(0).is_some() && remains.chars().nth(0).unwrap() == '}' {
+            if remains.chars().next().is_some() && remains.starts_with('}') {
                 break
             }
             let ident_res = ident(remains.clone(), false)?;
@@ -1101,15 +1101,15 @@ fn struct_init(input: String, _should_panic: bool) -> ParseResult {
         }
     }
     let (remains, _) = parse_char('}')(remains, true)?;
-    return Ok((remains, Node::TypeInit(TypeInit {
+    Ok((remains, Node::TypeInit(TypeInit {
         ty: Box::new(ty), fields_values
-    })));
+    })))
     
 }
 
 fn comparisons(input: String) -> ParseResult {
     let p2 = vec![keyword("<=".to_string()), keyword(">=".to_string())];
-    return any_of("<=>=".to_string(), p2)(input, false);
+    any_of("<=>=".to_string(), p2)(input, false)
 }
 
 fn add_minus(input: String) -> ParseResult {
@@ -1120,12 +1120,12 @@ fn add_minus(input: String) -> ParseResult {
             parse_char('-'),
             parse_char('<'),
             parse_char('>'),
-        ])(input.clone(), false),
+        ])(input, false),
     }
 }
 
 fn mul_div_mod(input: String) -> ParseResult {
-    return any_of("*/%".to_string(), vec![parse_char('*'), parse_char('/'), parse_char('%')])(input, false);
+    any_of("*/%".to_string(), vec![parse_char('*'), parse_char('/'), parse_char('%')])(input, false)
 }
 
 pub fn module(input: String) -> ParseResult {
@@ -1134,7 +1134,7 @@ pub fn module(input: String) -> ParseResult {
     if remains.is_empty() {
         Ok((remains, node))
     } else {
-        Err(Error::unknown(format!("parser did not finish whole file")))
+        Err(Error::unknown("parser did not finish whole file".to_string()))
     }
 }
 
