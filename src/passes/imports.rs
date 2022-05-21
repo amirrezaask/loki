@@ -1,9 +1,10 @@
-use crate::parser::{module, Node, Import};
+use crate::{parser::{module, Node, Import}, src_discovery::SourceDiscovery};
 use anyhow::Result;
 
 impl super::Passes {
     fn parse_module(&self, path: &str) -> Result<Node> {
-        let (_, parsed_module) = module(std::fs::read_to_string(path)?)?;
+        let discovery = SourceDiscovery::new(self.include_paths.clone());
+        let (_, parsed_module) = module(discovery.read_file_to_string(path)?)?;
         let parsed_module = self.run(parsed_module)?;
         Ok(parsed_module)
     }
