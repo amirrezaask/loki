@@ -9,7 +9,6 @@ pub fn compile(arg_matches: &ArgMatches) -> Result<()> {
     let file_name = get_input_file_name(arg_matches);
     let (_, ast) = parser::module(std::fs::read_to_string(file_name).unwrap())?;
     let includes = get_include_paths();
-    println!("{:?}", includes);
     let p = Passes::new(includes);
     let ast = p.run(ast)?;
     if_debug_print_ast(&ast);

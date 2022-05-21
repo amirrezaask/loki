@@ -45,7 +45,6 @@ Loki has a direct interface to it's host programming languages so you can call d
 
 ### before self host
 
-- Import Loki source files
 - naive type inference, for basic exprs (numbers, strings, bools)
 - behaviour tests using make ?
 
