@@ -10,6 +10,8 @@ cd loki
 cargo install --path .
 # if you have added cargo bins inside your path you can use loki command.
 ```
+## FYI
+I am working on a new version of this compiler with a more simple, straight forward approach to parser using a top-down, recursive decend parsing and also using zig for simplicity.
 
 ## Compiler Flow
 
@@ -40,18 +42,3 @@ in your target compiler will emit an error.
 ## Interopability
 
 Loki has a direct interface to it's host programming languages so you can call directly to their libraries and apis. Both standard library and third party ones
-
-## TODO
-
-### before self host
-
-- naive type inference, for basic exprs (numbers, strings, bools)
-- behaviour tests using make ?
-
-### after self host
-
-- bundle zig compiler here.
-- Cross-platform compilation flags
-- Comptimes
-- Go backend
-- JS backend
