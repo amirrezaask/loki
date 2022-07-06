@@ -1,3 +1,4 @@
+pub const Self = @This();
 pub const State = enum {
     start,
 };
@@ -37,3 +38,11 @@ pub const Token = union(enum) {
     decimal: u64,
     float: f64,
 };
+
+src: []const u8,
+
+pub fn init(input: []const u8) Self {
+    return .{ .src = input };
+}
+
+pub fn next() !Token {}
