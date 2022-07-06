@@ -1,0 +1,11 @@
+INPUT -> (VAR_DECL | CONST_DECL)*
+VAR_DECL -> IDENT = EXPR
+CONST_DECL -> IDENT :: EXPR
+EXPR -> A
+A -> B (addminus B)*
+B -> C (muldivmod C)*
+C -> D (.D)*
+D -> NUMBER | STRING | BOOLEAN | FN_CALL | IDENT | '(' expr ')' | TYPE_DEF
+FN_CALL -> IDENT(EXPR,*)
+TYPE_DEF -> STRUCT | UNION | ENUM
+
