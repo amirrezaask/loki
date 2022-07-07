@@ -2,7 +2,10 @@ const std = @import("std");
 const testing = std.testing;
 
 pub const Self = @This();
-pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn" };
+pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn", @"true", @"false" };
+fn strEql(a: []const u8, b: []const u8) bool {
+    return std.mem.eql(u8, a, b);
+}
 
 pub const Token = struct {
     pub const Type = enum {
@@ -53,16 +56,16 @@ pub const Token = struct {
     pub const Val = union(enum) {
         nothing: void,
         int: i64,
+        keyword: Keyword,
+        identifier: []const u8,
     };
     pub const Loc = struct {
         start: u64,
         end: u64,
     };
-    ty: Type, 
+    ty: Type,
     val: Val,
-
     loc: Loc,
-
 };
 
 pub const State = enum {
@@ -79,6 +82,8 @@ pub const State = enum {
     saw_percent,
     saw_colon,
     saw_hat,
+    saw_left_angle_bracket,
+    saw_right_angle_bracket,
 };
 
 src: []const u8,
@@ -92,16 +97,16 @@ pub fn next(self: *Self) !Token {
     var start_of_token = self.cur;
     var state: State = .start;
     var result: Token = .{
-       .val = Token.Val.nothing,
-       .loc = .{
+        .val = Token.Val.nothing,
+        .loc = .{
             .start = start_of_token,
             .end = start_of_token,
-       }, 
-       .ty = .EOF,
+        },
+        .ty = .EOF,
     };
     while (true) {
         if (self.src.len <= self.cur) {
-            switch(state) {
+            switch (state) {
                 .int_decimal => {
                     const parsed_int = try std.fmt.parseInt(i64, self.src[start_of_token..self.cur], 0);
                     result.ty = .int;
@@ -113,43 +118,62 @@ pub fn next(self: *Self) !Token {
                     return result;
                 },
                 else => {
-                   @panic("not implemented"); 
-                }
+                    @panic("not implemented");
+                },
             }
         }
 
-        const c = self.src[self.cur]; 
+        const c = self.src[self.cur];
         switch (state) {
             .start => switch (c) {
                 '1'...'9' => {
+                    self.cur += 1;
                     state = .int_decimal;
+                },
+                '<' => {
+                    state = .saw_left_angle_bracket;
+                },
+                '>' => {
+                    state = .saw_right_angle_bracket;
                 },
                 '{' => {
                     result.ty = .lcbrace;
+
+                    self.cur += 1;
                     return result;
                 },
                 '}' => {
                     result.ty = .rcbrace;
+
+                    self.cur += 1;
                     return result;
                 },
                 '[' => {
                     result.ty = .lbrace;
+
+                    self.cur += 1;
                     return result;
                 },
                 ']' => {
                     result.ty = .rbrace;
+                    self.cur += 1;
                     return result;
                 },
                 '(' => {
                     result.ty = .open_paren;
+                    self.cur += 1;
                     return result;
                 },
                 ')' => {
                     result.ty = .close_paren;
+
+                    self.cur += 1;
                     return result;
                 },
                 ',' => {
                     result.ty = .comma;
+
+                    self.cur += 1;
                     return result;
                 },
                 '!' => {
@@ -157,6 +181,8 @@ pub fn next(self: *Self) !Token {
                 },
                 '#' => {
                     result.ty = .sharp;
+
+                    self.cur += 1;
                     return result;
                 },
                 '*' => {
@@ -180,10 +206,14 @@ pub fn next(self: *Self) !Token {
                 },
                 ';' => {
                     result.ty = .semi_colon;
+
+                    self.cur += 1;
                     return result;
                 },
                 '$' => {
                     result.ty = .dollor;
+
+                    self.cur += 1;
                     return result;
                 },
                 '&' => {
@@ -195,10 +225,14 @@ pub fn next(self: *Self) !Token {
                 },
                 '@' => {
                     result.ty = .atsign;
+
+                    self.cur += 1;
                     return result;
                 },
                 '.' => {
                     result.ty = .dot;
+
+                    self.cur += 1;
                     return result;
                 },
                 '\'' => {
@@ -212,11 +246,41 @@ pub fn next(self: *Self) !Token {
                 },
                 '\\' => {
                     result.ty = .back_slash;
+
+                    self.cur += 1;
                     return result;
                 },
                 '|' => {
                     result.ty = .pipe;
+
+                    self.cur += 1;
                     return result;
+                },
+                ' ' => {
+                    const thing = self.src[start_of_token..self.cur];
+                    if (strEql("if", thing)) {
+                        result.ty = .keyword;
+                        result.val = .{ .keyword = Keyword.@"if" };
+                        result.loc.end = self.cur - 1;
+                        self.cur += 1;
+                        return result;
+                    } else if (strEql("for", thing)) {
+                        result.ty = .keyword;
+                        result.val = .{ .keyword = Keyword.@"for" };
+                        result.loc.end = self.cur - 1;
+                        self.cur += 1;
+                        return result;
+                    } else if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
+                        self.cur += 1;
+                        continue;
+                    } else {
+                        // probably an identifier
+                        self.cur += 1;
+                        result.ty = .identifier;
+                        result.val = .{ .identifier = self.src[start_of_token .. self.cur - thing.len] };
+                        result.loc.end = self.cur - thing.len - 1;
+                        return result;
+                    }
                 },
                 else => {},
             },
@@ -292,10 +356,7 @@ pub fn next(self: *Self) !Token {
                     '"' => {
                         // ending string
                         result.ty = .string_literal;
-                        result.loc = .{
-                            .start = start_of_token+1,
-                            .end = self.cur-1
-                        };
+                        result.loc = .{ .start = start_of_token + 1, .end = self.cur - 1 };
                         return result;
                     },
                     else => {},
@@ -307,10 +368,7 @@ pub fn next(self: *Self) !Token {
                     '0' => {},
                     else => {
                         result.ty = .int;
-                        result.loc = .{
-                            .start = start_of_token,
-                            .end = self.cur+1
-                        };
+                        result.loc = .{ .start = start_of_token, .end = self.cur + 1 };
                         return result;
                     },
                 }
@@ -346,6 +404,8 @@ pub fn next(self: *Self) !Token {
             },
             .saw_bang => {},
             .saw_hat => {},
+            .saw_left_angle_bracket => {},
+            .saw_right_angle_bracket => {},
         }
         self.cur += 1;
     }
@@ -355,9 +415,7 @@ test "int" {
     var t = Self.init("123");
     var tok = try t.next();
 
-    try testing.expectEqual(Self.Token{ .ty = .int, .val = .{ .int = 123 }, .loc = .{
-        .start = 0, .end = 3
-    }}, tok);
+    try testing.expectEqual(Self.Token{ .ty = .int, .val = .{ .int = 123 }, .loc = .{ .start = 0, .end = 3 } }, tok);
 }
 
 test "string" {
@@ -369,5 +427,54 @@ test "string" {
         .start = 1,
         .end = 3,
     }, tok.loc);
+}
+test "keywords" {
+    var t = Self.init("if ");
+    var tok = try t.next();
 
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"if" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 1,
+    }, tok.loc);
+
+    t = Self.init("for ");
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"for" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 2,
+    }, tok.loc);
+}
+
+test "complex" {
+    var t = Self.init("if (x < 2 ) {} ");
+    var tok = try t.next();
+
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"if" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 1,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.open_paren, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 3,
+        .end = 3,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("x", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 4,
+        .end = 4,
+    }, tok.loc);
 }
