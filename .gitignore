@@ -3,3 +3,4 @@ loki
 main.c
 hello
 .idea
+zig-cache

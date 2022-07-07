@@ -1,7 +1,11 @@
+const std = @import("std");
+const testing = std.testing;
+
 pub const Self = @This();
 pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn" };
 
 pub const Token = union(enum) {
+    EOF: void,
     lcbrace: void,
     rcbrace: void,
     lbrace: void,
@@ -28,6 +32,7 @@ pub const Token = union(enum) {
     equal: void,
     colon: void,
     double_colon: void,
+    double_equal: void,
     semi_colon: void,
     ampersand: void,
     hat: void,
@@ -40,14 +45,16 @@ pub const Token = union(enum) {
     identifier: []const u8,
     keyword: Keyword,
     char: u8,
-    decimal: u64,
-    float: f64,
+    int: []const u8,
+    float: []const u8,
+    string_literal: []const u8,
 };
 
 pub const State = enum {
     start,
-    in_string,
+    string,
     in_char_literal,
+    int_decimal,
     saw_equal,
     saw_bang,
     saw_plus,
@@ -63,15 +70,27 @@ src: []const u8,
 cur: u64,
 
 pub fn init(input: []const u8) Self {
-    return .{ .src = input };
+    return .{ .cur = 0, .src = input };
 }
 
-pub fn next(self: Self) !Token {
+pub fn next(self: *Self) !Token {
+    var start_of_token = self.cur;
     var state: State = .start;
     while (true) {
-        const c = self.src[self.cur];
+        if (self.src.len <= self.cur) {
+            switch(state) {
+                .int_decimal => {
+                    return Token { .int = self.src[start_of_token..self.cur]};
+                },
+                else => {}
+            }
+        }
+        const c = self.src[self.cur]; 
         switch (state) {
             .start => switch (c) {
+                '1'...'9' => {
+                    state = .int_decimal;
+                },
                 '{' => {
                     return .lcbrace;
                 },
@@ -140,7 +159,7 @@ pub fn next(self: Self) !Token {
                     state = .in_char_literal;
                 },
                 '"' => {
-                    state = .in_string;
+                    state = .string;
                 },
                 '/' => {
                     state = .saw_slash;
@@ -219,18 +238,61 @@ pub fn next(self: Self) !Token {
                     },
                 }
             },
-            .in_string => {
+            .string => {
                 switch (c) {
                     '"' => {
-                        break;
+                        // ending string
+                        return Token{ .string_literal = self.src[start_of_token+1..self.cur] };
                     },
-                    '\\' => {},
+                    else => {},
+                }
+            },
+            .int_decimal => {
+                switch (c) {
+                    '1'...'9' => {},
+                    '0' => {},
                     else => {
-                        state = .in_string;
+                        return Token{ .int = self.src[start_of_token..self.cur] };
                     },
                 }
             },
+            .saw_equal => {
+                switch (c) {
+                    '=' => {
+                        self.cur += 1;
+                        return .double_equal;
+                    },
+                    else => {
+                        return Token.equal;
+                    },
+                }
+            },
+            .in_char_literal => {
+                switch (c) {
+                    else => {
+                        self.cur += 2;
+                        return Token{ .char = self.src[self.cur]};
+                    },
+                }
+            },
+            .saw_bang => {},
+            .saw_hat => {},
         }
         self.cur += 1;
     }
+}
+
+test "int" {
+    var t = Self.init("123");
+    var tok = try t.next();
+
+    try testing.expectEqual(Self.Token{ .int = "123" }, tok);
+}
+
+test "string" {
+    var t = Self.init("\"123\"");
+    var tok = try t.next();
+
+    try testing.expectEqualStrings(tok.string_literal, "123");
+
 }
