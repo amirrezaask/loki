@@ -4,50 +4,65 @@ const testing = std.testing;
 pub const Self = @This();
 pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn" };
 
-pub const Token = union(enum) {
-    EOF: void,
-    lcbrace: void,
-    rcbrace: void,
-    lbrace: void,
-    rbrace: void,
-    open_paren: void,
-    close_paren: void,
-    comma: void,
-    bang: void,
-    sharp: void,
-    dollor: void,
+pub const Token = struct {
+    pub const Type = enum {
+        EOF,
+        lcbrace,
+        rcbrace,
+        lbrace,
+        rbrace,
+        open_paren,
+        close_paren,
+        comma,
+        bang,
+        sharp,
+        dollor,
 
-    minus: void,
-    plus: void,
-    asterix: void,
-    forward_slash: void,
-    percent: void,
+        minus,
+        plus,
+        asterix,
+        forward_slash,
+        percent,
 
-    plus_equal: void,
-    minus_equal: void,
-    div_equal: void,
-    mod_equal: void,
-    mul_equal: void,
+        plus_equal,
+        minus_equal,
+        div_equal,
+        mod_equal,
+        mul_equal,
 
-    equal: void,
-    colon: void,
-    double_colon: void,
-    double_equal: void,
-    semi_colon: void,
-    ampersand: void,
-    hat: void,
-    atsign: void,
-    dot: void,
-    single_quote: void,
-    double_quote: void,
-    back_slash: void,
-    pipe: void,
-    identifier: []const u8,
-    keyword: Keyword,
-    char: u8,
-    int: []const u8,
-    float: []const u8,
-    string_literal: []const u8,
+        equal,
+        colon,
+        double_colon,
+        double_equal,
+        semi_colon,
+        ampersand,
+        hat,
+        atsign,
+        dot,
+        single_quote,
+        double_quote,
+        back_slash,
+        pipe,
+        identifier,
+        keyword,
+        char,
+        int,
+        float,
+        string_literal,
+    };
+    pub const Val = union(enum) {
+        nothing: void,
+        int: i64,
+    };
+    pub const Loc = struct {
+        start: u64,
+        end: u64,
+    };
+    ty: Type, 
+    val: Val,
+
+    loc: Loc,
+
 };
 
 pub const State = enum {
@@ -76,15 +91,33 @@ pub fn init(input: []const u8) Self {
 pub fn next(self: *Self) !Token {
     var start_of_token = self.cur;
     var state: State = .start;
+    var result: Token = .{
+       .val = Token.Val.nothing,
+       .loc = .{
+            .start = start_of_token,
+            .end = start_of_token,
+       }, 
+       .ty = .EOF,
+    };
     while (true) {
         if (self.src.len <= self.cur) {
             switch(state) {
                 .int_decimal => {
-                    return Token { .int = self.src[start_of_token..self.cur]};
+                    const parsed_int = try std.fmt.parseInt(i64, self.src[start_of_token..self.cur], 0);
+                    result.ty = .int;
+                    result.loc = .{
+                        .start = start_of_token,
+                        .end = self.cur,
+                    };
+                    result.val = .{ .int = parsed_int };
+                    return result;
                 },
-                else => {}
+                else => {
+                   @panic("not implemented"); 
+                }
             }
         }
+
         const c = self.src[self.cur]; 
         switch (state) {
             .start => switch (c) {
@@ -92,31 +125,39 @@ pub fn next(self: *Self) !Token {
                     state = .int_decimal;
                 },
                 '{' => {
-                    return .lcbrace;
+                    result.ty = .lcbrace;
+                    return result;
                 },
                 '}' => {
-                    return .rcbrace;
+                    result.ty = .rcbrace;
+                    return result;
                 },
                 '[' => {
-                    return .lbrace;
+                    result.ty = .lbrace;
+                    return result;
                 },
                 ']' => {
-                    return .rbrace;
+                    result.ty = .rbrace;
+                    return result;
                 },
                 '(' => {
-                    return .open_paren;
+                    result.ty = .open_paren;
+                    return result;
                 },
                 ')' => {
-                    return .close_paren;
+                    result.ty = .close_paren;
+                    return result;
                 },
                 ',' => {
-                    return .comma;
+                    result.ty = .comma;
+                    return result;
                 },
                 '!' => {
                     state = .saw_bang;
                 },
                 '#' => {
-                    return .sharp;
+                    result.ty = .sharp;
+                    return result;
                 },
                 '*' => {
                     state = .saw_asterix;
@@ -138,22 +179,27 @@ pub fn next(self: *Self) !Token {
                     state = .saw_colon;
                 },
                 ';' => {
-                    return .semi_colon;
+                    result.ty = .semi_colon;
+                    return result;
                 },
                 '$' => {
-                    return .dollor;
+                    result.ty = .dollor;
+                    return result;
                 },
                 '&' => {
-                    return .ampersand;
+                    result.ty = .ampersand;
+                    return result;
                 },
                 '^' => {
                     state = .saw_hat;
                 },
                 '@' => {
-                    return .atsign;
+                    result.ty = .atsign;
+                    return result;
                 },
                 '.' => {
-                    return .dot;
+                    result.ty = .dot;
+                    return result;
                 },
                 '\'' => {
                     state = .in_char_literal;
@@ -165,10 +211,12 @@ pub fn next(self: *Self) !Token {
                     state = .saw_slash;
                 },
                 '\\' => {
-                    return .back_slash;
+                    result.ty = .back_slash;
+                    return result;
                 },
                 '|' => {
-                    return .pipe;
+                    result.ty = .pipe;
+                    return result;
                 },
                 else => {},
             },
@@ -176,10 +224,11 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     ':' => {
                         self.cur += 1;
-                        return .double_colon;
+                        result.ty = .double_colon;
+                        return result;
                     },
                     else => {
-                        return .colon;
+                        return result;
                     },
                 }
             },
@@ -187,10 +236,10 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '=' => {
                         self.cur += 1;
-                        return .plus_equal;
+                        return result;
                     },
                     else => {
-                        return .plus;
+                        return result;
                     },
                 }
             },
@@ -198,10 +247,10 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '=' => {
                         self.cur += 1;
-                        return .minus_equal;
+                        return result;
                     },
                     else => {
-                        return .minus;
+                        return result;
                     },
                 }
             },
@@ -209,10 +258,10 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '=' => {
                         self.cur += 1;
-                        return .div_equal;
+                        return result;
                     },
                     else => {
-                        return .forward_slash;
+                        return result;
                     },
                 }
             },
@@ -220,10 +269,10 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '=' => {
                         self.cur += 1;
-                        return .mul_equal;
+                        return result;
                     },
                     else => {
-                        return .asterix;
+                        return result;
                     },
                 }
             },
@@ -231,10 +280,10 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '=' => {
                         self.cur += 1;
-                        return .mod_equal;
+                        return result;
                     },
                     else => {
-                        return .percent;
+                        return result;
                     },
                 }
             },
@@ -242,7 +291,12 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '"' => {
                         // ending string
-                        return Token{ .string_literal = self.src[start_of_token+1..self.cur] };
+                        result.ty = .string_literal;
+                        result.loc = .{
+                            .start = start_of_token+1,
+                            .end = self.cur-1
+                        };
+                        return result;
                     },
                     else => {},
                 }
@@ -252,7 +306,12 @@ pub fn next(self: *Self) !Token {
                     '1'...'9' => {},
                     '0' => {},
                     else => {
-                        return Token{ .int = self.src[start_of_token..self.cur] };
+                        result.ty = .int;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur+1
+                        };
+                        return result;
                     },
                 }
             },
@@ -260,10 +319,15 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '=' => {
                         self.cur += 1;
-                        return .double_equal;
+                        result.ty = .double_equal;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur,
+                        };
+                        return result;
                     },
                     else => {
-                        return Token.equal;
+                        return result;
                     },
                 }
             },
@@ -271,7 +335,12 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     else => {
                         self.cur += 2;
-                        return Token{ .char = self.src[self.cur]};
+                        result.ty = .char;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur,
+                        };
+                        return result;
                     },
                 }
             },
@@ -286,13 +355,19 @@ test "int" {
     var t = Self.init("123");
     var tok = try t.next();
 
-    try testing.expectEqual(Self.Token{ .int = "123" }, tok);
+    try testing.expectEqual(Self.Token{ .ty = .int, .val = .{ .int = 123 }, .loc = .{
+        .start = 0, .end = 3
+    }}, tok);
 }
 
 test "string" {
     var t = Self.init("\"123\"");
     var tok = try t.next();
 
-    try testing.expectEqualStrings(tok.string_literal, "123");
+    try testing.expectEqual(Token.Type.string_literal, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 1,
+        .end = 3,
+    }, tok.loc);
 
 }
