@@ -148,13 +148,19 @@ pub fn next(self: *Self) !Token {
                 },
                 '{' => {
                     result.ty = .lcbrace;
-
+                    result.loc = .{
+                        .start = self.cur,
+                        .end = self.cur,
+                    };
                     self.cur += 1;
                     return result;
                 },
                 '}' => {
                     result.ty = .rcbrace;
-
+                    result.loc = .{
+                        .start = self.cur,
+                        .end = self.cur,
+                    };
                     self.cur += 1;
                     return result;
                 },
@@ -171,12 +177,19 @@ pub fn next(self: *Self) !Token {
                 },
                 '(' => {
                     result.ty = .open_paren;
+                    result.loc = .{
+                        .start = self.cur,
+                        .end = self.cur,
+                    };
                     self.cur += 1;
                     return result;
                 },
                 ')' => {
                     result.ty = .close_paren;
-
+                    result.loc = .{
+                        .start = self.cur,
+                        .end = self.cur,
+                    };
                     self.cur += 1;
                     return result;
                 },
@@ -553,5 +566,29 @@ test "complex" {
     try testing.expectEqual(Token.Loc{
         .start = 8,
         .end = 8,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.close_paren, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 10,
+        .end = 10,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.lcbrace, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 12,
+        .end = 12,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.rcbrace, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 13,
+        .end = 13,
     }, tok.loc);
 }
