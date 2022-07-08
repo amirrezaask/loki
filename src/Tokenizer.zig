@@ -125,8 +125,14 @@ pub fn next(self: *Self) !Token {
                     result.val = .{ .unsigned_int = parsed_uint };
                     return result;
                 },
+
                 else => {
-                    @panic("not implemented");
+                    // identifier probably
+                    const thing = self.src[start_of_token..self.cur];
+                    result.ty = .identifier;
+                    result.val = .{ .identifier = thing };
+                    result.loc.end = self.cur - 1;
+                    return result;
                 },
             }
         }
@@ -523,7 +529,19 @@ test "keywords" {
     }, tok.loc);
 }
 
-test "complex" {
+test "identifiers" {
+    var t = Self.init("asd");
+    var tok = try t.next();
+
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqual(Token.Val{ .identifier = "asd" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 2,
+    }, tok.loc);
+}
+
+test "if and it's cond" {
     var t = Self.init("if (x < 2 ) {} ");
     var tok = try t.next();
 
