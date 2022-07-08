@@ -3,7 +3,36 @@ const testing = std.testing;
 
 pub const Self = @This();
 
-pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn", @"true", @"false", @"return", @"void", @"int", @"unsigned_int", @"string", @"byte" };
+pub const Keyword = enum {
+    // conditions
+    @"if",
+    @"unless",
+    @"switch",
+
+    // loops
+    @"for",
+    @"while",
+
+    @"fn",
+    @"return",
+
+    // booleans
+    @"true",
+    @"false",
+
+    // types
+    @"enum",
+    @"bool",
+    @"struct",
+    @"union",
+    @"void",
+    @"int",
+    @"unsigned_int",
+    @"string",
+    @"float",
+    @"hash_map",
+    @"char",
+};
 
 fn strEql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
