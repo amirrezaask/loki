@@ -2,7 +2,9 @@ const std = @import("std");
 const testing = std.testing;
 
 pub const Self = @This();
-pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn", @"true", @"false" };
+
+pub const Keyword = enum { @"if", @"for", @"while", @"enum", @"struct", @"union", @"fn", @"true", @"false", @"return", @"void", @"int", @"unsigned_int", @"string", @"byte" };
+
 fn strEql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
@@ -287,19 +289,18 @@ pub fn next(self: *Self) !Token {
                 },
                 ' ' => {
                     const thing = self.src[start_of_token..self.cur];
-                    if (strEql("if", thing)) {
-                        result.ty = .keyword;
-                        result.val = .{ .keyword = Keyword.@"if" };
-                        result.loc.end = self.cur - 1;
-                        self.cur += 1;
-                        return result;
-                    } else if (strEql("for", thing)) {
-                        result.ty = .keyword;
-                        result.val = .{ .keyword = Keyword.@"for" };
-                        result.loc.end = self.cur - 1;
-                        self.cur += 1;
-                        return result;
-                    } else if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
+                    var keyword_iter: u8 = 0;
+                    while (keyword_iter < @typeInfo(Keyword).Enum.fields.len) : (keyword_iter += 1) {
+                        const keyword = @intToEnum(Keyword, keyword_iter);
+                        if (strEql(@tagName(keyword), thing)) {
+                            result.ty = .keyword;
+                            result.val = .{ .keyword = keyword };
+                            result.loc.end = self.cur - 1;
+                            self.cur += 1;
+                            return result;
+                        }
+                    }
+                    if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
                         self.cur += 1;
                         start_of_token = self.cur;
                         continue;
