@@ -4,14 +4,17 @@ const testing = std.testing;
 pub const Self = @This();
 
 pub const Keyword = enum {
-    // conditions
+    // branching and jumps
     @"if",
     @"unless",
     @"switch",
+    @"goto",
 
     // loops
     @"for",
     @"while",
+    @"continue",
+    @"break",
 
     @"fn",
     @"return",
@@ -128,10 +131,6 @@ pub fn init(input: []const u8) Self {
     return .{ .cur = 0, .src = input };
 }
 
-// fn handle_ws(self: *Self) !Token {
-
-// }
-
 pub fn next(self: *Self) !Token {
     var start_of_token = self.cur;
     var state: State = .start;
@@ -159,7 +158,18 @@ pub fn next(self: *Self) !Token {
 
                 else => {
                     // identifier probably
+                    var keyword_iter: u8 = 0;
                     const thing = self.src[start_of_token..self.cur];
+                    while (keyword_iter < @typeInfo(Keyword).Enum.fields.len) : (keyword_iter += 1) {
+                        const keyword = @intToEnum(Keyword, keyword_iter);
+                        if (strEql(@tagName(keyword), thing)) {
+                            result.ty = .keyword;
+                            result.val = .{ .keyword = keyword };
+                            result.loc.end = self.cur - 1;
+                            self.cur += 1;
+                            return result;
+                        }
+                    }
                     result.ty = .identifier;
                     result.val = .{ .identifier = thing };
                     result.loc.end = self.cur - 1;
@@ -639,4 +649,21 @@ test "if and it's cond" {
         .start = 13,
         .end = 13,
     }, tok.loc);
+}
+
+test "all keywords only" {
+    var keyword_iter: u8 = 0;
+    while (keyword_iter < @typeInfo(Keyword).Enum.fields.len) : (keyword_iter += 1) {
+        const keyword = @intToEnum(Keyword, keyword_iter);
+        const keyword_name = @tagName(keyword);
+        var t = Self.init(keyword_name);
+        var tok = try t.next();
+
+        try testing.expectEqual(Token.Type.keyword, tok.ty);
+        try testing.expectEqual(Token.Val{ .keyword = keyword }, tok.val);
+        try testing.expectEqual(Token.Loc{
+            .start = 0,
+            .end = keyword_name.len - 1,
+        }, tok.loc);
+    }
 }
