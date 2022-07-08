@@ -20,6 +20,8 @@ pub const Token = struct {
         bang,
         sharp,
         dollor,
+        left_angle,
+        right_angle,
 
         minus,
         plus,
@@ -32,6 +34,8 @@ pub const Token = struct {
         div_equal,
         mod_equal,
         mul_equal,
+        less_equal,
+        greater_equal,
 
         equal,
         colon,
@@ -49,13 +53,13 @@ pub const Token = struct {
         identifier,
         keyword,
         char,
-        int,
+        unsigned_int,
         float,
         string_literal,
     };
     pub const Val = union(enum) {
         nothing: void,
-        int: i64,
+        unsigned_int: u64,
         keyword: Keyword,
         identifier: []const u8,
     };
@@ -72,7 +76,7 @@ pub const State = enum {
     start,
     string,
     in_char_literal,
-    int_decimal,
+    unsigned_int,
     saw_equal,
     saw_bang,
     saw_plus,
@@ -93,6 +97,10 @@ pub fn init(input: []const u8) Self {
     return .{ .cur = 0, .src = input };
 }
 
+// fn handle_ws(self: *Self) !Token {
+
+// }
+
 pub fn next(self: *Self) !Token {
     var start_of_token = self.cur;
     var state: State = .start;
@@ -107,14 +115,14 @@ pub fn next(self: *Self) !Token {
     while (true) {
         if (self.src.len <= self.cur) {
             switch (state) {
-                .int_decimal => {
-                    const parsed_int = try std.fmt.parseInt(i64, self.src[start_of_token..self.cur], 0);
-                    result.ty = .int;
+                .unsigned_int => {
+                    const parsed_uint = try std.fmt.parseUnsigned(u64, self.src[start_of_token..self.cur], 0);
+                    result.ty = .unsigned_int;
                     result.loc = .{
                         .start = start_of_token,
                         .end = self.cur,
                     };
-                    result.val = .{ .int = parsed_int };
+                    result.val = .{ .unsigned_int = parsed_uint };
                     return result;
                 },
                 else => {
@@ -128,7 +136,9 @@ pub fn next(self: *Self) !Token {
             .start => switch (c) {
                 '1'...'9' => {
                     self.cur += 1;
-                    state = .int_decimal;
+                    result.ty = .unsigned_int;
+                    state = .unsigned_int;
+                    continue;
                 },
                 '<' => {
                     state = .saw_left_angle_bracket;
@@ -272,6 +282,7 @@ pub fn next(self: *Self) !Token {
                         return result;
                     } else if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
                         self.cur += 1;
+                        start_of_token = self.cur;
                         continue;
                     } else {
                         // probably an identifier
@@ -362,13 +373,22 @@ pub fn next(self: *Self) !Token {
                     else => {},
                 }
             },
-            .int_decimal => {
+            .unsigned_int => {
                 switch (c) {
                     '1'...'9' => {},
                     '0' => {},
+                    ' ' => {
+                        result.ty = .unsigned_int;
+                        const parsed_uint = try std.fmt.parseUnsigned(u64, self.src[start_of_token..self.cur], 0);
+                        result.val = .{ .unsigned_int = parsed_uint };
+                        result.loc = .{ .start = start_of_token, .end = self.cur - 1 };
+                        return result;
+                    },
                     else => {
-                        result.ty = .int;
-                        result.loc = .{ .start = start_of_token, .end = self.cur + 1 };
+                        result.ty = .unsigned_int;
+                        const parsed_uint = try std.fmt.parseUnsigned(u64, self.src[start_of_token .. self.cur - 1], 0);
+                        result.val = .{ .unsigned_int = parsed_uint };
+                        result.loc = .{ .start = start_of_token, .end = self.cur - 1 };
                         return result;
                     },
                 }
@@ -404,8 +424,48 @@ pub fn next(self: *Self) !Token {
             },
             .saw_bang => {},
             .saw_hat => {},
-            .saw_left_angle_bracket => {},
-            .saw_right_angle_bracket => {},
+            .saw_left_angle_bracket => {
+                switch (c) {
+                    '=' => {
+                        result.ty = .less_equal;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur,
+                        };
+                        self.cur += 1;
+                        return result;
+                    },
+                    else => {
+                        result.ty = .left_angle;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur - 1,
+                        };
+                        return result;
+                    },
+                }
+            },
+            .saw_right_angle_bracket => {
+                switch (c) {
+                    '=' => {
+                        result.ty = .greater_equal;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur,
+                        };
+                        self.cur += 1;
+                        return result;
+                    },
+                    else => {
+                        result.ty = .right_angle;
+                        result.loc = .{
+                            .start = start_of_token,
+                            .end = self.cur - 1,
+                        };
+                        return result;
+                    },
+                }
+            },
         }
         self.cur += 1;
     }
@@ -415,7 +475,7 @@ test "int" {
     var t = Self.init("123");
     var tok = try t.next();
 
-    try testing.expectEqual(Self.Token{ .ty = .int, .val = .{ .int = 123 }, .loc = .{ .start = 0, .end = 3 } }, tok);
+    try testing.expectEqual(Self.Token{ .ty = .unsigned_int, .val = .{ .unsigned_int = 123 }, .loc = .{ .start = 0, .end = 3 } }, tok);
 }
 
 test "string" {
@@ -476,5 +536,22 @@ test "complex" {
     try testing.expectEqual(Token.Loc{
         .start = 4,
         .end = 4,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.left_angle, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 6,
+        .end = 6,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.unsigned_int, tok.ty);
+    try testing.expectEqual(@intCast(u64, 2), tok.val.unsigned_int);
+    try testing.expectEqual(Token.Loc{
+        .start = 8,
+        .end = 8,
     }, tok.loc);
 }
