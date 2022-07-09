@@ -111,6 +111,7 @@ pub const State = enum {
     string,
     in_char_literal,
     unsigned_int,
+    identifier_or_keyword,
     saw_equal,
     saw_bang,
     saw_plus,
@@ -273,10 +274,12 @@ pub fn next(self: *Self) !Token {
                 },
                 ':' => {
                     state = .saw_colon;
+                    result.ty = .colon;
+                    self.cur += 1;
+                    return result;
                 },
                 ';' => {
                     result.ty = .semi_colon;
-
                     self.cur += 1;
                     return result;
                 },
@@ -329,30 +332,36 @@ pub fn next(self: *Self) !Token {
                 ' ' => {
                     const thing = self.src[start_of_token..self.cur];
                     var keyword_iter: u8 = 0;
-                    while (keyword_iter < @typeInfo(Keyword).Enum.fields.len) : (keyword_iter += 1) {
-                        const keyword = @intToEnum(Keyword, keyword_iter);
-                        if (strEql(@tagName(keyword), thing)) {
-                            result.ty = .keyword;
-                            result.val = .{ .keyword = keyword };
-                            result.loc.end = self.cur - 1;
-                            self.cur += 1;
-                            return result;
-                        }
-                    }
+
                     if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
                         self.cur += 1;
                         start_of_token = self.cur;
                         continue;
-                    } else {
-                        // probably an identifier
+                    }
+
+                    if (state == .identifier_or_keyword) {
+                        while (keyword_iter < @typeInfo(Keyword).Enum.fields.len) : (keyword_iter += 1) {
+                            const keyword = @intToEnum(Keyword, keyword_iter);
+                            if (strEql(@tagName(keyword), thing)) {
+                                result.ty = .keyword;
+                                result.val = .{ .keyword = keyword };
+                                result.loc.start = start_of_token;
+                                result.loc.end = self.cur - 1;
+                                self.cur += 1;
+                                return result;
+                            }
+                        }
                         self.cur += 1;
                         result.ty = .identifier;
                         result.val = .{ .identifier = self.src[start_of_token .. self.cur - thing.len] };
+                        result.loc.start = start_of_token;
                         result.loc.end = self.cur - thing.len - 1;
                         return result;
                     }
                 },
-                else => {},
+                else => {
+                    state = .identifier_or_keyword;
+                },
             },
             .saw_colon => {
                 switch (c) {
@@ -450,6 +459,39 @@ pub fn next(self: *Self) !Token {
                         result.loc = .{ .start = start_of_token, .end = self.cur - 1 };
                         return result;
                     },
+                }
+            },
+            .identifier_or_keyword => {
+                switch (c) {
+                    ' ', ':', ';', ',' => {
+                        const thing = self.src[start_of_token..self.cur];
+                        var keyword_iter: u8 = 0;
+
+                        if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
+                            self.cur += 1;
+                            start_of_token = self.cur;
+                            continue;
+                        }
+
+                        if (state == .identifier_or_keyword) {
+                            while (keyword_iter < @typeInfo(Keyword).Enum.fields.len) : (keyword_iter += 1) {
+                                const keyword = @intToEnum(Keyword, keyword_iter);
+                                if (strEql(@tagName(keyword), thing)) {
+                                    result.ty = .keyword;
+                                    result.val = .{ .keyword = keyword };
+                                    result.loc.start = start_of_token;
+                                    result.loc.end = self.cur - 1;
+                                    return result;
+                                }
+                            }
+                            result.ty = .identifier;
+                            result.val = .{ .identifier = self.src[start_of_token .. self.cur - thing.len + 1] };
+                            result.loc.start = start_of_token;
+                            result.loc.end = self.cur - thing.len;
+                            return result;
+                        }
+                    },
+                    else => {},
                 }
             },
             .saw_equal => {
@@ -666,4 +708,65 @@ test "all keywords only" {
             .end = keyword_name.len - 1,
         }, tok.loc);
     }
+}
+
+test "type block" {
+    // used in unions, structs, fn signature
+    // identifier: type
+    var t = Self.init("x: int, y: unsigned_int");
+
+    var tok = try t.next();
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("x", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 0,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.colon, tok.ty);
+    try testing.expectEqual(Token.Val.nothing, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 1,
+        .end = 1,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"int" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 3,
+        .end = 5,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.comma, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 6,
+        .end = 6,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("y", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 8,
+        .end = 8,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.colon, tok.ty);
+    try testing.expectEqual(Token.Val.nothing, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 9,
+        .end = 9,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"unsigned_int" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 10,
+        .end = 22,
+    }, tok.loc);
 }
