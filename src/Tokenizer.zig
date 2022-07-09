@@ -485,9 +485,9 @@ pub fn next(self: *Self) !Token {
                                 }
                             }
                             result.ty = .identifier;
-                            result.val = .{ .identifier = self.src[start_of_token .. self.cur - thing.len + 1] };
+                            result.val = .{ .identifier = self.src[start_of_token..self.cur] };
                             result.loc.start = start_of_token;
-                            result.loc.end = self.cur - thing.len;
+                            result.loc.end = self.cur - 1;
                             return result;
                         }
                     },
@@ -620,6 +620,44 @@ test "identifiers" {
     try testing.expectEqual(Token.Loc{
         .start = 0,
         .end = 2,
+    }, tok.loc);
+}
+
+test "for loop" {
+    var t = Self.init("for item: items ");
+    var tok = try t.next();
+
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"for" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 2,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("item", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 4,
+        .end = 7,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.colon, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 8,
+        .end = 8,
+    }, tok.loc);
+
+    tok = try t.next();
+
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("items", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 10,
+        .end = 14,
     }, tok.loc);
 }
 
