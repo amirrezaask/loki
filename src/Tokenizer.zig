@@ -275,8 +275,6 @@ pub fn next(self: *Self) !Token {
                 ':' => {
                     state = .saw_colon;
                     result.ty = .colon;
-                    self.cur += 1;
-                    return result;
                 },
                 ';' => {
                     result.ty = .semi_colon;
@@ -366,11 +364,16 @@ pub fn next(self: *Self) !Token {
             .saw_colon => {
                 switch (c) {
                     ':' => {
-                        self.cur += 1;
+                        result.loc.start = start_of_token;
+                        result.loc.end = self.cur;
                         result.ty = .double_colon;
+                        self.cur += 1;
                         return result;
                     },
                     else => {
+                        result.ty = .colon;
+                        result.loc.start = start_of_token;
+                        result.loc.end = start_of_token;
                         return result;
                     },
                 }
@@ -623,7 +626,7 @@ test "identifiers" {
     }, tok.loc);
 }
 
-test "for loop" {
+test "for loop header" {
     var t = Self.init("for item: items ");
     var tok = try t.next();
 
@@ -751,7 +754,7 @@ test "all keywords only" {
 test "type block" {
     // used in unions, structs, fn signature
     // identifier: type
-    var t = Self.init("x: int, y: unsigned_int");
+    var t = Self.init("x: int, y: unsigned_int ");
 
     var tok = try t.next();
     try testing.expectEqual(Token.Type.identifier, tok.ty);
@@ -804,7 +807,26 @@ test "type block" {
     try testing.expectEqual(Token.Type.keyword, tok.ty);
     try testing.expectEqual(Token.Val{ .keyword = .@"unsigned_int" }, tok.val);
     try testing.expectEqual(Token.Loc{
-        .start = 10,
+        .start = 11,
         .end = 22,
+    }, tok.loc);
+}
+
+test "code block" {
+    var t = Self.init("a :: 2;\nb :: 3;\nif b < a {\n} ");
+
+    var tok = try t.next();
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("a", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 0,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.double_colon, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 2,
+        .end = 3,
     }, tok.loc);
 }
