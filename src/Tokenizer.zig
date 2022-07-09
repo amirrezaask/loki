@@ -923,4 +923,62 @@ test "Hello world program" {
         .start = 32,
         .end = 35,
     }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.lcbrace, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 37,
+        .end = 37,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("printf", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 44,
+        .end = 49,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.open_paren, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 50,
+        .end = 50,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.string_literal, tok.ty);
+    try testing.expectEqualStrings("Hello World from loki", tok.val.string_literal);
+    try testing.expectEqual(Token.Loc{
+        .start = 51,
+        .end = 73,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.close_paren, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 74,
+        .end = 74,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.semi_colon, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 75,
+        .end = 75,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.rcbrace, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 77,
+        .end = 77,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.semi_colon, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 78,
+        .end = 78,
+    }, tok.loc);
 }
