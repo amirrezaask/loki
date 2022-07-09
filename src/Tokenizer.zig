@@ -448,7 +448,7 @@ pub fn next(self: *Self) !Token {
                 switch (c) {
                     '1'...'9' => {},
                     '0' => {},
-                    ' ' => {
+                    ' ', ';', ',' => {
                         result.ty = .unsigned_int;
                         const parsed_uint = try std.fmt.parseUnsigned(u64, self.src[start_of_token..self.cur], 0);
                         result.val = .{ .unsigned_int = parsed_uint };
@@ -828,5 +828,12 @@ test "code block" {
     try testing.expectEqual(Token.Loc{
         .start = 2,
         .end = 3,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.unsigned_int, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 5,
+        .end = 5,
     }, tok.loc);
 }
