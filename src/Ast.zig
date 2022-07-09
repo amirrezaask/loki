@@ -40,12 +40,18 @@ pub const Node = struct {
         @"expr",
     };
     pub const Val = union(enum) {
-        @"const_decl": ConstDecl,
-        @"var_decl": VarDecl,
+        @"decl": Decl,
         @"import": Import,
         @"expr": Expr,
     };
     ty: Type,
+    val: Val,
 };
 
-top_level: []Node,
+top_level: std.ArrayList(Node),
+
+pub fn init(alloc: std.mem.Allocator) Self {
+    return .{
+        .top_level = std.ArrayList(Node).init(alloc),
+    };
+}
