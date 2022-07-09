@@ -16,6 +16,8 @@ pub const Keyword = enum {
     @"continue",
     @"break",
 
+    @"import",
+
     @"fn",
     @"return",
 
@@ -96,6 +98,7 @@ pub const Token = struct {
         unsigned_int: u64,
         keyword: Keyword,
         identifier: []const u8,
+        string_literal: []const u8,
     };
     pub const Loc = struct {
         start: u64,
@@ -108,7 +111,7 @@ pub const Token = struct {
 
 pub const State = enum {
     start,
-    string,
+    string_literal,
     in_char_literal,
     unsigned_int,
     identifier_or_keyword,
@@ -146,6 +149,10 @@ pub fn next(self: *Self) !Token {
     while (true) {
         if (self.src.len <= self.cur) {
             switch (state) {
+                .start => {
+                    result.ty = .EOF;
+                    return result;
+                },
                 .unsigned_int => {
                     const parsed_uint = try std.fmt.parseUnsigned(u64, self.src[start_of_token..self.cur], 0);
                     result.ty = .unsigned_int;
@@ -310,7 +317,7 @@ pub fn next(self: *Self) !Token {
                     state = .in_char_literal;
                 },
                 '"' => {
-                    state = .string;
+                    state = .string_literal;
                 },
                 '/' => {
                     state = .saw_slash;
@@ -327,11 +334,11 @@ pub fn next(self: *Self) !Token {
                     self.cur += 1;
                     return result;
                 },
-                ' ' => {
+                ' ', '\n', '\t' => {
                     const thing = self.src[start_of_token..self.cur];
                     var keyword_iter: u8 = 0;
 
-                    if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\n', '\r' }).len == 0) {
+                    if (std.mem.trim(u8, thing, &[_]u8{ ' ', '\t', '\n', '\r' }).len == 0) {
                         self.cur += 1;
                         start_of_token = self.cur;
                         continue;
@@ -433,12 +440,14 @@ pub fn next(self: *Self) !Token {
                     },
                 }
             },
-            .string => {
+            .string_literal => {
                 switch (c) {
                     '"' => {
                         // ending string
                         result.ty = .string_literal;
-                        result.loc = .{ .start = start_of_token + 1, .end = self.cur - 1 };
+                        result.val = .{ .string_literal = self.src[start_of_token + 1 .. self.cur] };
+                        result.loc = .{ .start = start_of_token, .end = self.cur };
+                        self.cur += 1;
                         return result;
                     },
                     else => {},
@@ -466,7 +475,7 @@ pub fn next(self: *Self) !Token {
             },
             .identifier_or_keyword => {
                 switch (c) {
-                    ' ', ':', ';', ',' => {
+                    ' ', ':', ';', ',', '(', ')' => {
                         const thing = self.src[start_of_token..self.cur];
                         var keyword_iter: u8 = 0;
 
@@ -587,9 +596,10 @@ test "string" {
     var tok = try t.next();
 
     try testing.expectEqual(Token.Type.string_literal, tok.ty);
+    try testing.expectEqualStrings("123", tok.val.string_literal);
     try testing.expectEqual(Token.Loc{
-        .start = 1,
-        .end = 3,
+        .start = 0,
+        .end = 4,
     }, tok.loc);
 }
 test "keywords" {
@@ -835,5 +845,82 @@ test "code block" {
     try testing.expectEqual(Token.Loc{
         .start = 5,
         .end = 5,
+    }, tok.loc);
+}
+
+test "Hello world program" {
+    var t = Self.init(
+        \\import "std.loki";
+        \\main :: fn() void {
+        \\     printf("Hello World from loki");
+        \\};
+    );
+
+    var tok = try t.next();
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"import" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 0,
+        .end = 5,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.string_literal, tok.ty);
+    try testing.expectEqualStrings("std.loki", tok.val.string_literal);
+    try testing.expectEqual(Token.Loc{
+        .start = 7,
+        .end = 16,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.semi_colon, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 17,
+        .end = 17,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.identifier, tok.ty);
+    try testing.expectEqualStrings("main", tok.val.identifier);
+    try testing.expectEqual(Token.Loc{
+        .start = 19,
+        .end = 22,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.double_colon, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 24,
+        .end = 25,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"fn" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 27,
+        .end = 28,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.open_paren, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 29,
+        .end = 29,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.close_paren, tok.ty);
+    try testing.expectEqual(Token.Loc{
+        .start = 30,
+        .end = 30,
+    }, tok.loc);
+
+    tok = try t.next();
+    try testing.expectEqual(Token.Type.keyword, tok.ty);
+    try testing.expectEqual(Token.Val{ .keyword = .@"void" }, tok.val);
+    try testing.expectEqual(Token.Loc{
+        .start = 32,
+        .end = 35,
     }, tok.loc);
 }
