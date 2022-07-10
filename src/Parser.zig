@@ -12,27 +12,29 @@ const State = enum {
     const_decl,
 };
 
-const Stack = struct {
-    allocator: std.mem.Allocator,
-    array_list: std.ArrayList,
-    pub fn init(alloc: std.mem.Allocator) Stack {
-        return .{ .allocator = alloc, .array_list = std.ArrayList(State).init(alloc) };
-    }
+fn Stack(comptime T: type) type {
+    return struct {
+        allocator: std.mem.Allocator,
+        array_list: std.ArrayList(T),
+        pub fn init(alloc: std.mem.Allocator) Stack {
+            return .{ .allocator = alloc, .array_list = std.ArrayList(State).init(alloc) };
+        }
 
-    pub fn pop(self: *Stack) State {
-        const last = self.array_list[self.array_list.len - 1];
-        self.array_list = self.array_list[0 .. self.array_list.len - 1];
-        return last;
-    }
+        pub fn pop(self: *Stack) State {
+            const last = self.array_list[self.array_list.len - 1];
+            self.array_list = self.array_list[0 .. self.array_list.len - 1];
+            return last;
+        }
 
-    pub fn push(self: *Stack, s: State) !void {
-        try self.array_list.append(s);
-    }
+        pub fn push(self: *Stack, s: State) !void {
+            try self.array_list.append(s);
+        }
 
-    pub fn top(self: *Stack) State {
-        return self.array_list[self.array_list.len - 1];
-    }
-};
+        pub fn top(self: *Stack) State {
+            return self.array_list[self.array_list.len - 1];
+        }
+    };
+}
 
 src: []const u8,
 cur: u64,
@@ -54,7 +56,8 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
 
     const tokens = tokens_list.toOwnedSlice();
     std.debug.print("tokens aquired...", .{});
-    var states: Stack = Stack.init(alloc);
+    var states = Stack(State).init(alloc);
+    var data = Stack(Tokenizer.Token).init(alloc);
     var ast = Ast.init(alloc);
     while (true) : (self.cur += 1) {
         const cur_token = tokens[self.cur];
@@ -62,7 +65,8 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
             .start => {
                 switch (cur_token.ty) {
                     .identifier => {
-                        states.push(.in_decl);
+                        states.push(.saw_identifier);
+                        data.push(cur_token);
                         continue;
                     },
                     .keyword => {
@@ -113,6 +117,9 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                     .double_colon => {
                         try states.push(.const_decl);
                     },
+                    else => {
+                        // compile error
+                    },
                 }
                 continue;
             },
@@ -121,9 +128,45 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                 continue;
             },
             .waiting_for_expr => {
+                var node: Ast.Node = .{
+                    .ty = .@"undefined",
+                    .val = Ast.Node.Val.@"undefined",
+                };
                 switch (cur_token.ty) {
-                    // parse expr
+                    .keyword => {},
+                    .unsigned_int => {
+                        switch (states.top()) {
+                            .var_decl => {
+                                node.ty = .@"decl";
+                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().val.identifier, .val = cur_token.val.unsigned_int } };
+                            },
+                            .const_decl => {
+                                node.ty = .@"decl";
+                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().val.identifier, .val = cur_token.val.unsigned_int } };
+                            },
+                            else => {
+                                // compile error
+                            },
+                        }
+                    },
+                    .string_literal => {
+                        switch (states.top()) {
+                            .var_decl => {
+                                node.ty = .@"decl";
+                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().val.identifier, .val = cur_token.val.string_literal } };
+                            },
+                            .const_decl => {
+                                node.ty = .@"decl";
+                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().val.identifier, .val = cur_token.val.string_literal } };
+                            },
+                            else => {
+                                // compile error
+                            },
+                        }
+                    },
                 }
+
+                ast.top_level.append();
             },
         }
     }

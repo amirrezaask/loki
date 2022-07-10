@@ -164,6 +164,10 @@ pub fn next(self: *Self) !Token {
                     return result;
                 },
 
+                .dot, .double_colon, .colon, .lcbrace, .lbrace, .open_paren => {
+                    //compile error
+                },
+
                 else => {
                     // identifier probably
                     var keyword_iter: u8 = 0;

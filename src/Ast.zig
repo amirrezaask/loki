@@ -35,11 +35,13 @@ pub const Node = struct {
         call: FnCall,
     };
     pub const Type = enum {
+        @"undefined",
         @"decl",
         @"import",
         @"expr",
     };
     pub const Val = union(enum) {
+        @"undefined": void,
         @"decl": Decl,
         @"import": Import,
         @"expr": Expr,
