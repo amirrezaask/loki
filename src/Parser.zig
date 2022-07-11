@@ -352,9 +352,10 @@ test "just a const" {
     );
 
     var ast = try parser.getAst(std.testing.allocator);
-    print("\n{r}\n", .{ast.top_level.items});
     defer ast.deinit();
-    _ = ast;
+    try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
+    try std.testing.expectEqualStrings("a", ast.top_level.items[1].data.@"const_decl".name);
+    try std.testing.expectEqual(@as(u64, 2), ast.top_level.items[1].data.@"const_decl".val.data.@"unsigned_int");
 }
 // test "hello world program" {
 //     var parser = Self.init(
