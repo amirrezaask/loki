@@ -1,6 +1,8 @@
 const std = @import("std");
 const print = std.debug.print;
 const Ast = @import("Ast.zig");
+const Node = Ast.Node;
+const Decl = Ast.Decl;
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Self = @This();
@@ -39,67 +41,52 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
     var states = Stack(State).init(alloc);
     var data = Stack(Token).init(alloc);
     var ast = Ast.init(alloc);
-    states.push(.start);
+    try states.push(.start);
     while (true) {
         const cur_token = tokens[self.cur];
-        print("state is {}\n", .{states.top().?});
+        print("state: {} - token: {}\n", .{ states.top().?, cur_token.ty });
         switch (states.top().?) {
             .start => {
                 switch (cur_token.ty) {
                     .identifier => {
                         try states.push(.saw_identifier);
                         try data.push(cur_token);
+                        self.cur += 1;
                         continue;
                     },
                     .keyword_import => {
-                        switch (cur_token.val) {
-                            .keyword => {
-                                switch (cur_token.val.keyword) {
-                                    .@"import" => {
-                                        try states.push(.import);
-                                        try states.push(.waiting_for_string);
-                                        continue;
-                                    },
-                                    else => {
-                                        unreachable;
-                                    },
-                                }
-                            },
-                            else => {
-                                unreachable;
-                            },
-                        }
+                        try states.push(.import);
+                        try states.push(.waiting_for_string);
+                        self.cur += 1;
+                        continue;
                     },
-                    .equal => {},
-                    else => {},
-                }
-            },
-            .waiting_for_string => {
-                switch (cur_token.ty) {
-                    .string_literal => {
-                        _ = states.pop();
-                        switch (states.top().?) {
-                            .import => {
-                                try ast.top_level.append(.{
-                                    .ty = .@"import",
-                                    .val = .{ .import = .{
-                                        .path = cur_token.val.string_literal,
-                                    } },
-                                });
-                                _ = states.pop();
-                            },
-                            else => {
-                                unreachable;
-                                // is there any state that we are waiting_for just a string ?
-                            },
-                        }
+                    .semi_colon => {
+                        self.cur += 1;
+                        continue;
                     },
                     else => {
                         unreachable;
-                        //compile error.
                     },
                 }
             },
+            .waiting_for_string => {
+                _ = states.pop();
+                if (cur_token.ty == .string_literal and states.top().? == .import) {
+                    try ast.top_level.append(.{
+                        .loc = cur_token.loc,
+                        .data = .{
+                            .import = cur_token.val.string_literal,
+                        },
+                    });
+                    _ = states.pop();
+                    self.cur += 1;
+                    continue;
+                } else {
+                    unreachable;
+                    // compile error
+                }
+            },
+
             .saw_identifier => {
                 switch (cur_token.ty) {
                     .equal => {
@@ -113,113 +100,228 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         // compile error
                     },
                 }
-                continue;
-            },
-            .var_decl, .const_decl => {
                 try states.push(.waiting_for_expr);
+                self.cur += 1;
                 continue;
             },
             .waiting_for_expr => {
                 _ = states.pop();
-                print("waiting_for_expr state is {}\n", .{states.top().?});
+                print("waiting_for_expr last state was {}\n", .{states.top().?});
                 print("token is {}", .{cur_token.ty});
-                var node: Ast.Node = .{
-                    .ty = .@"undefined",
-                    .val = Ast.Node.Val.@"undefined",
-                };
+                var node: Ast.Node = undefined;
                 switch (cur_token.ty) {
-                    .keyword => {
-                        // fn function def
-                    },
-                    .lcbrace => {
-                        // code block
-                    },
+                    .keyword_fn => {}, // fn def TODO
+                    .keyword_if => {}, // if expr TODO
+                    .keyword_true => {
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = .{ .loc = cur_token.loc, .data = .{
+                                    .@"bool" = true,
+                                } },
+                            };
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
+                        }
+                    }, // bool true
+                    .keyword_false => {
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = Node{
+                                    .loc = cur_token.loc,
+                                    .data = .{
+                                        .@"bool" = false,
+                                    },
+                                },
+                            };
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
+                        }
+                    }, // bool false
+
+                    .keyword_struct => {}, //TODO
+                    .keyword_union => {}, // TODO
+                    .keyword_enum => {}, //TODO
+
+                    .lcbrace => {}, // code block //TODO
                     .identifier => {
-                        switch (states.top().?) {
-                            .var_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().?.val.identifier, .val = .{ .identifier = cur_token.val.identifier } } };
-                            },
-                            .const_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().?.val.identifier, .val = .{ .identifier = cur_token.val.identifier } } };
-                            },
-                            else => {
-                                unreachable;
-                                // compile error
-                            },
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = Node{ .loc = cur_token.loc, .data = .{
+                                    .@"identifier" = cur_token.val.identifier,
+                                } },
+                            };
+
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
                         }
-                    },
-                    .float => {
-                        switch (states.top().?) {
-                            .var_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().?.val.identifier, .val = .{ .float = cur_token.val.float } } };
-                            },
-                            .const_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().?.val.identifier, .val = .{ .float = cur_token.val.float } } };
-                            },
-                            else => {
-                                unreachable;
-                                // compile error
-                            },
-                        }
-                    },
-                    .char => {
-                        switch (states.top().?) {
-                            .var_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().?.val.identifier, .val = .{ .char = cur_token.val.char } } };
-                            },
-                            .const_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().?.val.identifier, .val = .{ .char = cur_token.val.char } } };
-                            },
-                            else => {
-                                unreachable;
-                                // compile error
-                            },
+                    }, // another ident
+                    .string_literal => {
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = Node{
+                                    .loc = cur_token.loc,
+                                    .data = .{
+                                        .@"string_literal" = cur_token.val.string_literal,
+                                    },
+                                },
+                            };
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
                         }
                     },
                     .unsigned_int => {
-                        switch (states.top().?) {
-                            .var_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().?.val.identifier, .val = .{ .unsigned_int = cur_token.val.unsigned_int } } };
-                            },
-                            .const_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().?.val.identifier, .val = .{ .unsigned_int = cur_token.val.unsigned_int } } };
-                            },
-                            else => {
-                                unreachable;
-                                // compile error
-                            },
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = Node{
+                                    .loc = cur_token.loc,
+                                    .data = .{
+                                        .@"unsigned_int" = cur_token.val.unsigned_int,
+                                    },
+                                },
+                            };
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
                         }
                     },
-                    .string_literal => {
-                        switch (states.top().?) {
-                            .var_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"var", .name = data.pop().?.val.identifier, .val = .{ .string_literal = cur_token.val.string_literal } } };
-                            },
-                            .const_decl => {
-                                node.ty = .@"decl";
-                                node.val = .{ .decl = .{ .ty = .@"const", .name = data.pop().?.val.identifier, .val = .{ .string_literal = cur_token.val.string_literal } } };
-                            },
-                            else => {
-                                unreachable;
-                                // compile error
-                            },
+                    .float => {
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = Node{ .loc = cur_token.loc, .data = .{
+                                    .@"float" = cur_token.val.float,
+                                } },
+                            };
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
                         }
                     },
-                    else => {
-                        unreachable;
-                        //compile error ,expected an expression
+                    .char => {
+                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                            const decl = &Decl{
+                                .name = data.pop().?.val.identifier,
+                                .val = Node{ .loc = cur_token.loc, .data = .{
+                                    .@"char" = cur_token.val.char,
+                                } },
+                            };
+                            switch (states.top().?) {
+                                .const_decl => {
+                                    node = .{
+                                        .data = .{ .@"const_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                .var_decl => {
+                                    node = .{
+                                        .data = .{ .@"var_decl" = decl },
+                                        .loc = cur_token.loc,
+                                    };
+                                },
+                                else => {
+                                    unreachable;
+                                },
+                            }
+                        }
+                    },
+                    else => { // compile error
                     },
                 }
 
+                node.loc = cur_token.loc;
                 try ast.top_level.append(node);
                 _ = states.pop();
             },
@@ -227,7 +329,6 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                 unreachable;
             },
         }
-        self.cur += 1;
     }
 }
 

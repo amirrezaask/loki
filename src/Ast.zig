@@ -1,56 +1,44 @@
 const std = @import("std");
+const Tokenizer = @import("Tokenizer.zig");
+const Loc = Tokenizer.Token.Loc;
 const Self = @This();
-
-pub const Node = struct {
-    pub const Decl = struct {
-        ty: enum {
-            @"const",
-            @"var",
-        },
-        name: []const u8,
-        val: Expr,
-    };
-    pub const Import = struct {
-        path: []const u8,
-    };
-
-    pub const Struct = struct {};
-    pub const Union = struct {};
-    pub const Enum = struct {};
-    pub const FnCall = struct {};
-    pub const Expr = union(enum) {
-        @"int": i64,
-        @"unsigned_int": u64,
-        @"float": f64,
-        @"string_literal": []const u8,
-        @"bool": bool,
-        @"identifier": []const u8,
-        @"char": u8,
-        paren_expr: *Expr,
-        type_def: union(enum) {
-            @"struct": Struct,
-            @"enum": Enum,
-            @"union": Union,
-        },
-        increment: *Expr,
-        decrement: *Expr,
-        call: FnCall,
-    };
-    pub const Type = enum {
-        @"undefined",
-        @"decl",
-        @"import",
-        @"expr",
-    };
-    pub const Val = union(enum) {
-        @"undefined": void,
-        @"decl": Decl,
-        @"import": Import,
-        @"expr": Expr,
-    };
-    ty: Type,
-    val: Val,
+pub const Decl = struct {
+    name: []const u8,
+    val: Node,
 };
+
+pub const Struct = struct {
+    name: []const u8,
+};
+pub const Union = struct {
+    name: []const u8,
+};
+pub const Enum = struct {};
+pub const FnCall = struct {
+    name: Node,
+    args: []Node,
+};
+
+pub const Node = struct { data: union(enum) {
+    @"undefined",
+    @"const_decl": *Decl,
+    @"var_decl": *Decl,
+    @"import": []const u8,
+    @"int": i64,
+    @"unsigned_int": u64,
+    @"float": f64,
+    @"string_literal": []const u8,
+    @"bool": bool,
+    @"identifier": []const u8,
+    @"char": u8,
+    @"paren_expr": *Node,
+    @"type_def_struct": *Struct,
+    @"type_def_enum": *Enum,
+    @"type_def_union": *Union,
+    @"increment": *Node,
+    @"decrement": *Node,
+    @"fn_call": *FnCall,
+}, loc: Loc };
 
 top_level: std.ArrayList(Node),
 
