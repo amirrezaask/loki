@@ -30,7 +30,7 @@ pub fn init(src: []const u8) Self {
     };
 }
 
-pub fn getAst(self: *Self, alloc: std.mem.Allocator) ![]Node {
+pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
     var tokenizer = Tokenizer.init(self.src);
     var tokens = std.ArrayList(Token).init(alloc);
     defer tokens.deinit();
@@ -148,9 +148,11 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) ![]Node {
                     },
                 }
                 if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                    const objects = try alloc.alloc(Node, 1);
+                    objects[0] = expr;
                     const decl = Decl{
                         .name = data.pop().?.val.identifier,
-                        .val = &expr,
+                        .val = &objects[0],
                     };
                     var decl_node: Node = .{ .data = .@"undefined", .loc = .{ .start = 0, .end = 0 } };
                     switch (states.top().?) {
@@ -171,8 +173,6 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) ![]Node {
                         },
                     }
 
-                    print("@@{s}@@\n", .{decl_node.data.@"const_decl".name});
-                    print("@@{}@@\n", .{decl_node.data.@"const_decl".val});
                     decl_node.loc = cur_token.loc;
                     try ast.top_level.append(decl_node);
                     self.cur += 1;
@@ -187,7 +187,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) ![]Node {
         }
     }
 
-    return ast.top_level.toOwnedSlice();
+    return ast;
 }
 
 test "all simple expressions" {
@@ -195,36 +195,29 @@ test "all simple expressions" {
         \\import "std.loki";
         \\a :: 2;
         \\b :: "salam";
-        // \\c :: 'c';
-        // \\d :: true;
-        // \\e :: false;
+        \\c :: 'c';
+        \\d :: true;
+        \\e :: false;
     );
 
-    var items = try parser.getAst(std.testing.allocator);
-    print("##################{}\n", .{items.len});
-    for (items[1..]) |node| {
-        print("#{}#\n", .{node.data.const_decl});
-    }
+    var ast = try parser.getAst(std.testing.allocator);
+    defer ast.deinit();
+    try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
 
-    try std.testing.expectEqualStrings("std.loki", items[0].data.@"import");
+    try std.testing.expectEqualStrings("a", ast.top_level.items[1].data.@"const_decl".name);
+    try std.testing.expectEqual(@as(u64, 2), ast.top_level.items[1].data.@"const_decl".val.data.@"unsigned_int");
 
-    try std.testing.expectEqualStrings("a", items[1].data.@"const_decl".name);
-    // print("{}\n", .{ast.top_level.items[2].data.@"const_decl".val.data});
-    // print("{}\n", .{ast.top_level.items[3].data.@"const_decl".val.data});
-    // print("{}\n", .{ast.top_level.items[4].data.@"const_decl".val.data});
-    try std.testing.expectEqual(@as(u64, 2), items[1].data.@"const_decl".val.data.@"unsigned_int");
+    try std.testing.expectEqualStrings("b", ast.top_level.items[2].data.@"const_decl".name);
+    try std.testing.expectEqualStrings("salam", ast.top_level.items[2].data.@"const_decl".val.data.@"string_literal");
 
-    // try std.testing.expectEqualStrings("b", ast.top_level.items[2].data.@"const_decl".name);
-    // try std.testing.expectEqualStrings("salam", ast.top_level.items[2].data.@"const_decl".val.data.@"string_literal");
+    try std.testing.expectEqualStrings("c", ast.top_level.items[3].data.@"const_decl".name);
+    try std.testing.expectEqual(@as(u8, 'c'), ast.top_level.items[3].data.@"const_decl".val.data.@"char");
 
-    // try std.testing.expectEqualStrings("c", ast.top_level.items[3].data.@"const_decl".name);
-    // try std.testing.expectEqual(@as(u8, 'c'), ast.top_level.items[3].data.@"const_decl".val.data.@"char");
+    try std.testing.expectEqualStrings("d", ast.top_level.items[4].data.@"const_decl".name);
+    try std.testing.expectEqual(true, ast.top_level.items[4].data.@"const_decl".val.data.@"bool");
 
-    // try std.testing.expectEqualStrings("d", ast.top_level.items[4].data.@"const_decl".name);
-    // try std.testing.expectEqual(true, ast.top_level.items[4].data.@"const_decl".val.data.@"bool");
-
-    // try std.testing.expectEqualStrings("e", ast.top_level.items[5].data.@"const_decl".name);
-    // try std.testing.expectEqual(false, ast.top_level.items[5].data.@"const_decl".val.data.@"bool");
+    try std.testing.expectEqualStrings("e", ast.top_level.items[5].data.@"const_decl".name);
+    try std.testing.expectEqual(false, ast.top_level.items[5].data.@"const_decl".val.data.@"bool");
 }
 
 // test "booleans" {
