@@ -549,12 +549,14 @@ pub fn next(self: *Self) !Token {
             .in_char_literal => {
                 switch (c) {
                     else => {
-                        self.cur += 2;
+                        self.cur += 1;
                         result.ty = .char;
+                        result.val = .{ .char = self.src[start_of_token + 1] };
                         result.loc = .{
                             .start = start_of_token,
                             .end = self.cur,
                         };
+                        self.cur += 1;
                         return result;
                     },
                 }
@@ -606,6 +608,12 @@ pub fn next(self: *Self) !Token {
         }
         self.cur += 1;
     }
+}
+test "char" {
+    var t = Self.init("'c'");
+    var tok = try t.next();
+
+    try testing.expectEqual(Self.Token{ .ty = .char, .val = .{ .char = 'c' }, .loc = .{ .start = 0, .end = 2 } }, tok);
 }
 
 test "int" {

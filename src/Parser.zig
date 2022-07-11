@@ -297,6 +297,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     },
                     .char => {
+                        print("char token is {}", .{cur_token});
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
@@ -329,7 +330,6 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                 }
 
                 node.loc = cur_token.loc;
-                print(">{}<\n", .{node.data.@"const_decl"});
                 try ast.top_level.append(node);
                 self.cur += 1;
                 _ = states.pop();
@@ -349,14 +349,24 @@ test "just a const" {
     var parser = Self.init(
         \\import "std.loki";
         \\a :: 2;
+        \\b :: "salam";
+        \\c :: 'c';
     );
 
     var ast = try parser.getAst(std.testing.allocator);
     defer ast.deinit();
     try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
+
     try std.testing.expectEqualStrings("a", ast.top_level.items[1].data.@"const_decl".name);
     try std.testing.expectEqual(@as(u64, 2), ast.top_level.items[1].data.@"const_decl".val.data.@"unsigned_int");
+
+    try std.testing.expectEqualStrings("b", ast.top_level.items[2].data.@"const_decl".name);
+    try std.testing.expectEqualStrings("salam", ast.top_level.items[2].data.@"const_decl".val.data.@"string_literal");
+
+    try std.testing.expectEqualStrings("c", ast.top_level.items[3].data.@"const_decl".name);
+    try std.testing.expectEqual(@as(u8, 'c'), ast.top_level.items[3].data.@"const_decl".val.data.@"char");
 }
+
 // test "hello world program" {
 //     var parser = Self.init(
 //         \\import "std.loki";
