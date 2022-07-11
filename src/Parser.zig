@@ -74,7 +74,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
             },
             .waiting_for_string => {
                 _ = states.pop();
-                if (cur_token.ty == .string_literal and states.top().? == .import) {
+                if (cur_token.ty == .string_literal or states.top().? == .import) {
                     try ast.top_level.append(.{
                         .loc = cur_token.loc,
                         .data = .{
@@ -109,12 +109,13 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
             },
             .waiting_for_expr => {
                 _ = states.pop();
+                print("\nwaiting for exp last state {} {}\n", .{ states.top().?, cur_token.ty });
                 var node: Ast.Node = undefined;
                 switch (cur_token.ty) {
                     .keyword_fn => {}, // fn def TODO
                     .keyword_if => {}, // if expr TODO
                     .keyword_true => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = .{ .loc = cur_token.loc, .data = .{
@@ -141,7 +142,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     }, // bool true
                     .keyword_false => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{
@@ -177,7 +178,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
 
                     .lcbrace => {}, // code block //TODO
                     .identifier => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{ .loc = cur_token.loc, .data = .{
@@ -205,7 +206,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     }, // another ident
                     .string_literal => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{
@@ -235,7 +236,10 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     },
                     .unsigned_int => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        print("1", .{});
+
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            print("2", .{});
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{
@@ -262,10 +266,11 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                                     unreachable;
                                 },
                             }
+                            print("inja node {}\n", .{node});
                         }
                     },
                     .float => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{ .loc = cur_token.loc, .data = .{
@@ -292,7 +297,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     },
                     .char => {
-                        if (states.top().? == .const_decl and states.top().? == .var_decl) {
+                        if (states.top().? == .const_decl or states.top().? == .var_decl) {
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{ .loc = cur_token.loc, .data = .{
@@ -319,10 +324,12 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     },
                     else => { // compile error
+                        unreachable;
                     },
                 }
 
                 node.loc = cur_token.loc;
+                print(">{}<\n", .{node.data.@"const_decl"});
                 try ast.top_level.append(node);
                 self.cur += 1;
                 _ = states.pop();
