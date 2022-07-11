@@ -116,12 +116,15 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                     .keyword_if => {}, // if expr TODO
                     .keyword_true => {
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
-                                .name = data.pop().?.val.identifier,
+                                .name = ident,
                                 .val = .{ .loc = cur_token.loc, .data = .{
                                     .@"bool" = true,
                                 } },
                             };
+                            print("'{s}'\n", .{decl.name});
                             switch (states.top().?) {
                                 .const_decl => {
                                     node = .{
@@ -143,8 +146,10 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                     }, // bool true
                     .keyword_false => {
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
-                                .name = data.pop().?.val.identifier,
+                                .name = ident,
                                 .val = Node{
                                     .loc = cur_token.loc,
                                     .data = .{
@@ -179,8 +184,10 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                     .lcbrace => {}, // code block //TODO
                     .identifier => {
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
-                                .name = data.pop().?.val.identifier,
+                                .name = ident,
                                 .val = Node{ .loc = cur_token.loc, .data = .{
                                     .@"identifier" = cur_token.val.identifier,
                                 } },
@@ -207,8 +214,10 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                     }, // another ident
                     .string_literal => {
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
-                                .name = data.pop().?.val.identifier,
+                                .name = ident,
                                 .val = Node{
                                     .loc = cur_token.loc,
                                     .data = .{
@@ -236,12 +245,11 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     },
                     .unsigned_int => {
-                        print("1", .{});
-
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
-                            print("2", .{});
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
-                                .name = data.pop().?.val.identifier,
+                                .name = ident,
                                 .val = Node{
                                     .loc = cur_token.loc,
                                     .data = .{
@@ -271,6 +279,8 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                     },
                     .float => {
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{ .loc = cur_token.loc, .data = .{
@@ -297,8 +307,9 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                         }
                     },
                     .char => {
-                        print("char token is {}", .{cur_token});
                         if (states.top().? == .const_decl or states.top().? == .var_decl) {
+                            var ident = &std.mem.zeroes([1000]u8);
+                            std.mem.copy(u8, ident, data.pop().?.val.identifier);
                             const decl = &Decl{
                                 .name = data.pop().?.val.identifier,
                                 .val = Node{ .loc = cur_token.loc, .data = .{
@@ -345,12 +356,31 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
     return ast;
 }
 
-test "just a const" {
+test "booleans" {
+    var parser = Self.init(
+        \\import "std.loki";
+        \\d :: true;
+    );
+
+    var ast = try parser.getAst(std.testing.allocator);
+    defer ast.deinit();
+    try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
+    print("{}\n", .{ast.top_level.items[1].data.@"const_decl".name.len});
+    try std.testing.expectEqualStrings("d", ast.top_level.items[1].data.@"const_decl".name);
+    // try std.testing.expectEqual(true, ast.top_level.items[1].data.@"const_decl".val.data.@"bool");
+
+    // try std.testing.expectEqualStrings("e", ast.top_level.items[2].data.@"const_decl".name);
+    // try std.testing.expectEqual(false, ast.top_level.items[2].data.@"const_decl".val.data.@"bool");
+}
+
+test "all simple expressions" {
     var parser = Self.init(
         \\import "std.loki";
         \\a :: 2;
         \\b :: "salam";
         \\c :: 'c';
+        // \\d :: true;
+        // \\e :: false;
     );
 
     var ast = try parser.getAst(std.testing.allocator);
@@ -365,6 +395,12 @@ test "just a const" {
 
     try std.testing.expectEqualStrings("c", ast.top_level.items[3].data.@"const_decl".name);
     try std.testing.expectEqual(@as(u8, 'c'), ast.top_level.items[3].data.@"const_decl".val.data.@"char");
+
+    // try std.testing.expectEqualStrings("d", ast.top_level.items[4].data.@"const_decl".name);
+    // try std.testing.expectEqual(true, ast.top_level.items[4].data.@"const_decl".val.data.@"bool");
+
+    // try std.testing.expectEqualStrings("e", ast.top_level.items[5].data.@"const_decl".name);
+    // try std.testing.expectEqual(false, ast.top_level.items[5].data.@"const_decl".val.data.@"bool");
 }
 
 // test "hello world program" {
