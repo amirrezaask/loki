@@ -29,21 +29,24 @@ pub fn init(src: []const u8) Self {
 
 pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
     var tokenizer = Tokenizer.init(self.src);
-    var tokens_list = std.ArrayList(Token).init(alloc);
+    var tokens = std.ArrayList(Token).init(alloc);
+    defer tokens.deinit();
     while (true) {
         const token = try tokenizer.next();
         if (token.ty == .EOF) break;
-        try tokens_list.append(token);
+        try tokens.append(token);
     }
 
-    const tokens = tokens_list.toOwnedSlice();
     print("\n{any}\n", .{tokens});
     var states = Stack(State).init(alloc);
+    defer states.deinit();
     var data = Stack(Token).init(alloc);
+    defer data.deinit();
     var ast = Ast.init(alloc);
     try states.push(.start);
     while (true) {
-        const cur_token = tokens[self.cur];
+        if (self.cur >= tokens.items.len) break;
+        const cur_token = tokens.items[self.cur];
         print("state: {} - token: {}\n", .{ states.top().?, cur_token.ty });
         switch (states.top().?) {
             .start => {
@@ -106,8 +109,6 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
             },
             .waiting_for_expr => {
                 _ = states.pop();
-                print("waiting_for_expr last state was {}\n", .{states.top().?});
-                print("token is {}", .{cur_token.ty});
                 var node: Ast.Node = undefined;
                 switch (cur_token.ty) {
                     .keyword_fn => {}, // fn def TODO
@@ -323,13 +324,18 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
 
                 node.loc = cur_token.loc;
                 try ast.top_level.append(node);
+                self.cur += 1;
                 _ = states.pop();
+                _ = states.pop();
+                continue;
             },
             else => {
                 unreachable;
             },
         }
     }
+
+    return ast;
 }
 
 test "just a const" {
@@ -338,7 +344,9 @@ test "just a const" {
         \\a :: 2;
     );
 
-    const ast = try parser.getAst(std.testing.allocator);
+    var ast = try parser.getAst(std.testing.allocator);
+    print("\n{r}\n", .{ast.top_level.items});
+    defer ast.deinit();
     _ = ast;
 }
 // test "hello world program" {

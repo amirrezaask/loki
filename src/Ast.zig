@@ -41,6 +41,9 @@ pub const Node = struct { data: union(enum) {
 }, loc: Loc };
 
 top_level: std.ArrayList(Node),
+pub fn deinit(self: *Self) void {
+    self.top_level.deinit();
+}
 
 pub fn init(alloc: std.mem.Allocator) Self {
     return .{
