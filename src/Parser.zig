@@ -198,6 +198,7 @@ test "all simple expressions" {
         \\c :: 'c';
         \\d :: true;
         \\e :: false;
+        \\f :: a;
     );
 
     var ast = try parser.getAst(std.testing.allocator);
@@ -218,6 +219,8 @@ test "all simple expressions" {
 
     try std.testing.expectEqualStrings("e", ast.top_level.items[5].data.@"const_decl".name);
     try std.testing.expectEqual(false, ast.top_level.items[5].data.@"const_decl".val.data.@"bool");
+    try std.testing.expectEqualStrings("f", ast.top_level.items[6].data.@"const_decl".name);
+    try std.testing.expectEqualStrings("a", ast.top_level.items[6].data.@"const_decl".val.data.identifier);
 }
 
 // test "hello world program" {
