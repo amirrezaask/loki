@@ -43,14 +43,21 @@ pub const Node = struct {
 };
 
 top_level: std.ArrayList(Node),
-allocated_ptrs: std.ArrayList(*Node) = undefined,
 
 pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
-    for (self.allocated_ptrs.items) |ptr| {
-        alloc.destroy(ptr);
+    for (self.top_level.items) |node| {
+        switch (node.data) {
+            .@"const_decl" => {
+                const ptr = node.data.const_decl.val;
+                alloc.destroy(ptr);
+            },
+            .@"var_decl" => {
+                const ptr = node.data.const_decl.val;
+                alloc.destroy(ptr);
+            },
+            else => {},
+        }
     }
-
-    self.allocated_ptrs.deinit();
     self.top_level.deinit();
 }
 

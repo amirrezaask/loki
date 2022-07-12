@@ -22,13 +22,11 @@ fn strEql(a: []const u8, b: []const u8) bool {
 
 src: []const u8,
 cur: u64,
-allocated_ptrs: std.ArrayList(*Node),
 
-pub fn init(alloc: std.mem.Allocator, src: []const u8) Self {
+pub fn init(src: []const u8) Self {
     return .{
         .cur = 0,
         .src = src,
-        .allocated_ptrs = std.ArrayList(*Node).init(alloc),
     };
 }
 
@@ -152,7 +150,6 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
                 if (states.top().? == .const_decl or states.top().? == .var_decl) {
                     const objects = try alloc.alloc(Node, 1);
                     objects[0] = expr;
-                    try self.allocated_ptrs.append(&objects[0]);
                     const decl = Decl{
                         .name = data.pop().?.val.identifier,
                         .val = &objects[0],
@@ -190,12 +187,11 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
         }
     }
 
-    ast.allocated_ptrs = std.ArrayList(*Node).fromOwnedSlice(alloc, self.allocated_ptrs.toOwnedSlice());
     return ast;
 }
 
 test "all simple expressions" {
-    var parser = Self.init(std.testing.allocator,
+    var parser = Self.init(
         \\import "std.loki";
         \\a :: 2;
         \\b :: "salam";
