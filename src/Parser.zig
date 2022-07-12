@@ -224,25 +224,6 @@ test "all simple expressions" {
     try std.testing.expectEqual(false, ast.top_level.items[5].data.@"const_decl".val.data.@"bool");
 }
 
-// test "booleans" {
-//     var parser = Self.init(
-//         \\import "std.loki";
-//         \\d :: false;
-//         \\e:: true;
-//     );
-
-//     var ast = try parser.getAst(std.testing.allocator);
-//     defer ast.deinit();
-
-//     try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
-//     try std.testing.expectEqualStrings("d", ast.top_level.items[1].data.@"const_decl".name);
-//     try std.testing.expectEqual(false, ast.top_level.items[1].data.@"const_decl".val.data.@"bool");
-
-//     // try std.testing.expectEqualStrings("e", ast.top_level.items[2].data.@"const_decl".name);
-//     print("{}\n", .{ast.top_level.items[2].data.@"const_decl".name.len});
-//     try std.testing.expectEqual(true, ast.top_level.items[2].data.@"const_decl".val.data.@"bool");
-// }
-
 // test "hello world program" {
 //     var parser = Self.init(
 //         \\import "std.loki";
