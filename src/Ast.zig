@@ -12,6 +12,16 @@ pub const Decl = struct {
     val: *Node,
 };
 
+pub const FnSign = struct {
+    args: [][2]*Node,
+    ret_ty: *Node,
+};
+
+pub const FnDef = struct {
+    signature: FnSign,
+    block: []*Node,
+};
+
 pub const Struct = struct {
     name: []const u8,
 };
@@ -42,6 +52,15 @@ pub const Node = struct {
         @"increment": *Node,
         @"decrement": *Node,
         @"fn_call": FnCall,
+        @"fn_sign": FnSign,
+        @"fn_def": FnDef,
+        @"bool_ty",
+        @"int_ty",
+        @"uint_ty",
+        @"char_ty",
+        @"void_ty",
+        @"float_ty",
+        @"string_ty",
     },
     loc: Loc,
 };

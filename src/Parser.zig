@@ -45,6 +45,10 @@ fn forwardToken(self: *Self) void {
     self.cur += 1;
 }
 
+fn peekToken(self: *Self) Token {
+    return self.tokens.items[self.cur + 1];
+}
+
 fn curToken(self: *Self) Token {
     return self.tokens.items[self.cur];
 }
@@ -71,10 +75,12 @@ fn expectDecl(self: *Self) !Decl {
     }
 
     self.forwardToken();
-    const expr = self.expectExpr();
+    const expr = try self.expectExpr();
     const objects = try self.alloc.alloc(Node, 1);
     objects[0] = expr;
 
+    self.forwardToken(); // ;
+    self.forwardToken(); // next start
     return Ast.Decl{
         .name = ident_token.val.identifier,
         .ty = decl_ty,
@@ -82,7 +88,7 @@ fn expectDecl(self: *Self) !Decl {
     };
 }
 
-fn expectExpr(self: *Self) Node {
+fn expectExpr(self: *Self) !Node {
     var node: Node = undefined;
     switch (self.curToken().ty) {
         .unsigned_int => {
@@ -90,56 +96,222 @@ fn expectExpr(self: *Self) Node {
                 .data = .{ .unsigned_int = self.curToken().val.unsigned_int },
                 .loc = self.curToken().loc,
             };
-            self.forwardToken();
         },
         .keyword_true => {
             node = .{
                 .data = .{ .@"bool" = true },
                 .loc = self.curToken().loc,
             };
-            self.forwardToken();
         },
         .keyword_false => {
             node = .{
                 .data = .{ .@"bool" = false },
                 .loc = self.curToken().loc,
             };
-            self.forwardToken();
         },
         .char => {
             node = .{
                 .data = .{ .@"char" = self.curToken().val.char },
                 .loc = self.curToken().loc,
             };
-            self.forwardToken();
         },
         .string_literal => {
             node = .{
                 .data = .{ .@"string_literal" = self.curToken().val.string_literal },
                 .loc = self.curToken().loc,
             };
-            self.forwardToken();
         },
         .identifier => {
             node = .{
                 .data = .{ .@"identifier" = self.curToken().val.identifier },
                 .loc = self.curToken().loc,
             };
-            self.forwardToken();
+        },
+        .keyword_fn => {
+            node = try self.expectFnDef();
+        },
+        .keyword_bool => {
+            node = .{
+                .data = .bool_ty,
+                .loc = self.curToken().loc,
+            };
+        },
+        .keyword_int => {
+            node = .{
+                .data = .int_ty,
+                .loc = self.curToken().loc,
+            };
+        },
+        .keyword_float => {
+            node = .{
+                .data = .float_ty,
+                .loc = self.curToken().loc,
+            };
+        },
+        .keyword_uint => {
+            node = .{
+                .data = .uint_ty,
+                .loc = self.curToken().loc,
+            };
+        },
+        .keyword_string => {
+            node = .{
+                .data = .string_ty,
+                .loc = self.curToken().loc,
+            };
+        },
+        .keyword_char => {
+            node = .{
+                .data = .char_ty,
+                .loc = self.curToken().loc,
+            };
         },
         else => {
             print("expectExpr ty: {}", .{self.curToken().ty});
             unreachable;
         },
     }
-    // we expect all our switch cases to move until semicolon and stop on it so by
-    // going to next token we should give control back to the main loop.
-    if (self.curToken().ty != .semi_colon) {
+    // we expect all our switch cases to stay at last token.
+    // if (self.curToken().ty != .semi_colon) {
+    //     // compile error
+    //     unreachable;
+    // }
+    return node;
+}
+
+fn expectFnSignature(self: *Self) !Node {
+    self.forwardToken(); // this will move us to open paren
+    if (self.curToken().ty != .open_paren) {
+        unreachable;
+        // compile error
+    }
+
+    self.forwardToken();
+    var args = std.ArrayList([2]*Node).init(self.alloc);
+
+    while (true) {
+        if (self.curToken().ty == .close_paren) break;
+        if (self.curToken().ty == .identifier) {
+            const ident: Node = .{
+                .data = .{
+                    .identifier = self.curToken().val.identifier,
+                },
+                .loc = self.curToken().loc,
+            };
+
+            self.forwardToken();
+            const ty = try self.expectExpr();
+            var objects = try self.alloc.alloc(Node, 2);
+            objects[0] = ident;
+            objects[1] = ty;
+            try args.append([2]*Node{ &objects[0], &objects[1] });
+        } else {
+            unreachable;
+            // compile error
+        }
+    }
+    self.forwardToken();
+
+    const ret_ty = try self.expectExpr();
+
+    var objects = try self.alloc.alloc(Node, 1);
+    objects[0] = ret_ty;
+
+    objects = try self.alloc.alloc(Node, 1);
+    objects[0] = ret_ty;
+
+    return Node{
+        .data = .{ .@"fn_sign" = .{
+            .args = args.toOwnedSlice(),
+            .ret_ty = &objects[0],
+        } },
+        .loc = self.curToken().loc,
+    };
+}
+
+fn expectFnCall(self: *Self) !Ast.FnCall {
+    const name = .{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc };
+    self.forwardToken();
+    if (self.curToken().ty != .open_paren) unreachable;
+    var args = std.ArrayList(Node).init(self.alloc);
+    while (true) {
+        const expr = try self.expectExpr();
+        try args.append(expr);
+    }
+
+    return Ast.FnCall{
+        .name = name,
+        .args = args.toOwnedSlice(),
+    };
+}
+
+fn expectBlock(self: *Self) ![]*Node {
+    if (self.curToken().ty != .lcbrace) {
         // compile error
         unreachable;
     }
+
+    var nodes = std.ArrayList(*Node).init(self.alloc);
+    while (true) {
+        if (self.curToken().ty == .rcbrace) break;
+        switch (self.curToken().ty) {
+            .identifier => {
+                if (self.peekToken().ty == .open_paren) {
+                    // function call
+                    const node: Node = .{
+                        .data = .{ .fn_call = try self.expectFnCall() },
+                        .loc = self.curToken().loc,
+                    };
+                    var objects = try self.alloc.alloc(Node, 1);
+                    objects[0] = node;
+                    try nodes.append(&objects[0]);
+                } else if (self.peekToken().ty == .double_colon or self.peekToken().ty == .equal) {
+                    const decl = try self.expectDecl();
+                    const node: Node = .{
+                        .data = .{ .decl = decl },
+                        .loc = decl.val.loc,
+                    };
+                    var objects = try self.alloc.alloc(Node, 1);
+                    objects[0] = node;
+
+                    try nodes.append(&objects[0]);
+                }
+            },
+
+            else => {
+                unreachable;
+            },
+        }
+    } else {
+        unreachable;
+        //compile error
+    }
+
+    return nodes.toOwnedSlice();
+}
+
+fn expectFnDef(self: *Self) !Node {
+    const sign = try self.expectFnSignature();
     self.forwardToken();
-    return node;
+
+    if (self.curToken().ty != .lcbrace) {
+        // compile error
+        unreachable;
+    }
+
+    const block = try self.expectBlock();
+
+    if (self.curToken().ty != .rcbrace) {
+        // compile error
+        unreachable;
+    }
+
+    return Ast.Node{ .data = .{
+        .fn_def = .{
+            .signature = sign.data.@"fn_sign",
+            .block = block,
+        },
+    }, .loc = self.curToken().loc };
 }
 
 fn expectSemiColon(self: *Self) !void {

@@ -71,7 +71,7 @@ pub const Token = struct {
         keyword_union,
         keyword_void,
         keyword_int,
-        keyword_unsigned_int,
+        keyword_uint,
         keyword_string,
         keyword_float,
         keyword_hashmap,
@@ -132,8 +132,8 @@ pub const Token = struct {
             return .keyword_void;
         } else if (strEql(s, "int")) {
             return .keyword_int;
-        } else if (strEql(s, "unsigned_int")) {
-            return .keyword_unsigned_int;
+        } else if (strEql(s, "uint")) {
+            return .keyword_uint;
         } else if (strEql(s, "string")) {
             return .keyword_string;
         } else if (strEql(s, "float")) {
@@ -792,7 +792,7 @@ test "if and it's cond" {
 test "type block" {
     // used in unions, structs, fn signature
     // identifier: type
-    var t = Self.init("x: int, y: unsigned_int ");
+    var t = Self.init("x: int, y: uint ");
 
     var tok = try t.next();
     try testing.expectEqual(Token.Type.identifier, tok.ty);
@@ -841,10 +841,10 @@ test "type block" {
     }, tok.loc);
 
     tok = try t.next();
-    try testing.expectEqual(Token.Type.keyword_unsigned_int, tok.ty);
+    try testing.expectEqual(Token.Type.keyword_uint, tok.ty);
     try testing.expectEqual(Token.Loc{
         .start = 11,
-        .end = 22,
+        .end = 14,
     }, tok.loc);
 }
 
