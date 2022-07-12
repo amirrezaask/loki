@@ -3,7 +3,12 @@ const Tokenizer = @import("Tokenizer.zig");
 const Loc = Tokenizer.Token.Loc;
 const Self = @This();
 pub const Decl = struct {
+    pub const Tag = enum {
+        @"const",
+        @"var",
+    };
     name: []const u8,
+    ty: Tag,
     val: *Node,
 };
 
@@ -21,8 +26,7 @@ pub const FnCall = struct {
 pub const Node = struct {
     data: union(enum) {
         @"undefined",
-        @"const_decl": Decl,
-        @"var_decl": Decl,
+        @"decl": Decl,
         @"import": []const u8,
         @"int": i64,
         @"unsigned_int": u64,
@@ -47,18 +51,18 @@ top_level: std.ArrayList(Node),
 pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
     for (self.top_level.items) |node| {
         switch (node.data) {
-            .@"const_decl" => {
-                const ptr = node.data.const_decl.val;
-                alloc.destroy(ptr);
-            },
-            .@"var_decl" => {
-                const ptr = node.data.const_decl.val;
+            .@"decl" => {
+                const ptr = node.data.decl.val;
                 alloc.destroy(ptr);
             },
             else => {},
         }
     }
     self.top_level.deinit();
+}
+
+pub fn addTopLevelNode(self: *Self, node: Node) !void {
+    try self.top_level.append(node);
 }
 
 pub fn init(alloc: std.mem.Allocator) Self {

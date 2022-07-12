@@ -9,189 +9,215 @@ const Self = @This();
 const Stack = @import("stack.zig").Stack;
 const State = enum {
     start,
+    block,
     import,
     import_waiting_for_string,
     waiting_for_expr,
     saw_identifier,
     var_decl,
     const_decl,
+    saw_if,
+    saw_fn,
+};
+
+const Error = error{
+    expects_semicolon,
 };
 fn strEql(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
-
+alloc: std.mem.Allocator,
 src: []const u8,
 cur: u64,
+state: State = .start,
+tokens: std.ArrayList(Token),
 
-pub fn init(src: []const u8) Self {
+pub fn init(alloc: std.mem.Allocator, src: []const u8) Self {
     return .{
         .cur = 0,
         .src = src,
+        .tokens = undefined,
+        .alloc = alloc,
     };
+}
+
+fn forwardToken(self: *Self) void {
+    self.cur += 1;
+}
+
+fn curToken(self: *Self) Token {
+    return self.tokens.items[self.cur];
+}
+
+fn expectDecl(self: *Self) !Decl {
+    // either const or var decls
+    // this will parse until semicolon and end of value expression.
+    const ident_token = self.curToken();
+
+    self.forwardToken();
+    var decl_ty: Ast.Decl.Tag = undefined;
+
+    switch (self.curToken().ty) {
+        .double_colon => {
+            decl_ty = .@"const";
+        },
+        .equal => {
+            decl_ty = .@"const";
+        },
+        else => {
+            unreachable;
+            // compile error;
+        },
+    }
+
+    self.forwardToken();
+    const expr = self.expectExpr();
+    const objects = try self.alloc.alloc(Node, 1);
+    objects[0] = expr;
+
+    return Ast.Decl{
+        .name = ident_token.val.identifier,
+        .ty = decl_ty,
+        .val = &objects[0],
+    };
+}
+
+fn expectExpr(self: *Self) Node {
+    var node: Node = undefined;
+    switch (self.curToken().ty) {
+        .unsigned_int => {
+            node = .{
+                .data = .{ .unsigned_int = self.curToken().val.unsigned_int },
+                .loc = self.curToken().loc,
+            };
+            self.forwardToken();
+        },
+        .keyword_true => {
+            node = .{
+                .data = .{ .@"bool" = true },
+                .loc = self.curToken().loc,
+            };
+            self.forwardToken();
+        },
+        .keyword_false => {
+            node = .{
+                .data = .{ .@"bool" = false },
+                .loc = self.curToken().loc,
+            };
+            self.forwardToken();
+        },
+        .char => {
+            node = .{
+                .data = .{ .@"char" = self.curToken().val.char },
+                .loc = self.curToken().loc,
+            };
+            self.forwardToken();
+        },
+        .string_literal => {
+            node = .{
+                .data = .{ .@"string_literal" = self.curToken().val.string_literal },
+                .loc = self.curToken().loc,
+            };
+            self.forwardToken();
+        },
+        .identifier => {
+            node = .{
+                .data = .{ .@"identifier" = self.curToken().val.identifier },
+                .loc = self.curToken().loc,
+            };
+            self.forwardToken();
+        },
+        else => {
+            print("expectExpr ty: {}", .{self.curToken().ty});
+            unreachable;
+        },
+    }
+    // we expect all our switch cases to move until semicolon and stop on it so by
+    // going to next token we should give control back to the main loop.
+    if (self.curToken().ty != .semi_colon) {
+        // compile error
+        unreachable;
+    }
+    self.forwardToken();
+    return node;
+}
+
+fn expectSemiColon(self: *Self) !void {
+    if (self.curToken().ty == .semi_colon) {
+        return;
+    } else {
+        return Error.expects_semicolon;
+    }
+}
+
+fn expectImport(self: *Self) ![]const u8 {
+    self.forwardToken();
+
+    switch (self.curToken().ty) {
+        .string_literal => {
+            const import_string = self.curToken().val.string_literal;
+            self.forwardToken();
+            try self.expectSemiColon();
+            self.forwardToken();
+            return import_string;
+        },
+
+        else => {
+            unreachable;
+        },
+    }
 }
 
 pub fn getAst(self: *Self, alloc: std.mem.Allocator) !Ast {
     var tokenizer = Tokenizer.init(self.src);
-    var tokens = std.ArrayList(Token).init(alloc);
-    defer tokens.deinit();
+    self.tokens = std.ArrayList(Token).init(alloc);
+    defer self.tokens.deinit();
     while (true) {
         const token = try tokenizer.next();
         if (token.ty == .EOF) break;
-        try tokens.append(token);
+        try self.tokens.append(token);
     }
-    var states = Stack(State).init(alloc);
-    defer states.deinit();
-    var data = Stack(Token).init(alloc);
-    defer data.deinit();
+
     var ast = Ast.init(alloc);
-    try states.push(.start);
+
     while (true) {
-        if (self.cur >= tokens.items.len) break;
-        const cur_token = tokens.items[self.cur];
-        print("state: {} - token: {}\n", .{ states.top().?, cur_token.ty });
-        switch (states.top().?) {
-            .start => {
-                switch (cur_token.ty) {
-                    .identifier => {
-                        try states.push(.saw_identifier);
-                        try data.push(cur_token);
-                        self.cur += 1;
-                        continue;
-                    },
-                    .keyword_import => {
-                        try states.push(.import);
-                        try states.push(.import_waiting_for_string);
-                        self.cur += 1;
-                        continue;
-                    },
-                    .semi_colon => {
-                        self.cur += 1;
-                        continue;
-                    },
-                    else => {
-                        unreachable;
-                    },
-                }
-            },
-            .import_waiting_for_string => {
-                _ = states.pop();
-                if (cur_token.ty == .string_literal or states.top().? == .import) {
-                    try ast.top_level.append(.{
-                        .loc = cur_token.loc,
-                        .data = .{
-                            .import = cur_token.val.string_literal,
-                        },
+        if (self.cur >= self.tokens.items.len) {
+            break;
+        }
+        if (self.state == .start) {
+            print("\n{}\n", .{self.curToken()});
+            switch (self.curToken().ty) {
+                .identifier => {
+                    const decl = try self.expectDecl();
+                    try ast.addTopLevelNode(.{
+                        .data = .{ .decl = decl },
+                        .loc = decl.val.loc,
                     });
-                    _ = states.pop();
-                    self.cur += 1;
-                    continue;
-                } else {
+                },
+
+                .keyword_import => {
+                    const import_str = try self.expectImport();
+                    try ast.addTopLevelNode(.{
+                        .data = .{ .import = import_str },
+                        .loc = self.curToken().loc,
+                    });
+                },
+
+                else => {
                     unreachable;
-                    // compile error
-                }
-            },
-
-            .saw_identifier => {
-                switch (cur_token.ty) {
-                    .equal => {
-                        try states.push(.var_decl);
-                    },
-                    .double_colon => {
-                        try states.push(.const_decl);
-                    },
-                    else => {
-                        unreachable;
-                        // compile error
-                    },
-                }
-                try states.push(.waiting_for_expr);
-                self.cur += 1;
-                continue;
-            },
-            .waiting_for_expr => {
-                _ = states.pop();
-                var expr: Ast.Node = .{
-                    .data = .@"undefined",
-                    .loc = .{ .start = 0, .end = 0 },
-                };
-                switch (cur_token.ty) {
-                    .keyword_true => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .@"bool" = true } };
-                    },
-                    .keyword_false => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .@"bool" = false } };
-                    },
-                    .identifier => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .identifier = cur_token.val.identifier } };
-                    },
-                    .string_literal => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .string_literal = cur_token.val.string_literal } };
-                    },
-                    .unsigned_int => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .unsigned_int = cur_token.val.unsigned_int } };
-                    },
-                    .float => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .float = cur_token.val.float } };
-                    },
-                    .char => {
-                        expr = .{ .loc = cur_token.loc, .data = .{ .char = cur_token.val.char } };
-                    },
-
-                    .keyword_fn => {}, // fn def TODO
-                    .keyword_if => {}, // if expr TODO
-                    .keyword_struct => {}, //TODO
-                    .keyword_union => {}, // TODO
-                    .keyword_enum => {}, //TODO
-                    .lcbrace => {}, // code block //TODO
-                    else => {
-                        unreachable;
-                    },
-                }
-                if (states.top().? == .const_decl or states.top().? == .var_decl) {
-                    const objects = try alloc.alloc(Node, 1);
-                    objects[0] = expr;
-                    const decl = Decl{
-                        .name = data.pop().?.val.identifier,
-                        .val = &objects[0],
-                    };
-                    var decl_node: Node = .{ .data = .@"undefined", .loc = .{ .start = 0, .end = 0 } };
-                    switch (states.top().?) {
-                        .const_decl => {
-                            decl_node = .{
-                                .data = .{ .@"const_decl" = decl },
-                                .loc = cur_token.loc,
-                            };
-                        },
-                        .var_decl => {
-                            decl_node = .{
-                                .data = .{ .@"var_decl" = decl },
-                                .loc = cur_token.loc,
-                            };
-                        },
-                        else => {
-                            unreachable;
-                        },
-                    }
-
-                    decl_node.loc = cur_token.loc;
-                    try ast.top_level.append(decl_node);
-                    self.cur += 1;
-                    _ = states.pop();
-                    _ = states.pop();
-                    continue;
-                } else {
-                    unreachable;
-                }
-            },
-            .var_decl, .const_decl, .import => {}, //TODO
+                },
+            }
+        } else {
+            unreachable;
+            //compile error
         }
     }
 
     return ast;
 }
 
-test "all simple expressions" {
-    var parser = Self.init(
+test "all static expressions" {
+    var parser = Self.init(std.testing.allocator,
         \\import "std.loki";
         \\a :: 2;
         \\b :: "salam";
@@ -205,22 +231,22 @@ test "all simple expressions" {
     defer ast.deinit(std.testing.allocator);
     try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
 
-    try std.testing.expectEqualStrings("a", ast.top_level.items[1].data.@"const_decl".name);
-    try std.testing.expectEqual(@as(u64, 2), ast.top_level.items[1].data.@"const_decl".val.data.@"unsigned_int");
+    try std.testing.expectEqualStrings("a", ast.top_level.items[1].data.@"decl".name);
+    try std.testing.expectEqual(@as(u64, 2), ast.top_level.items[1].data.@"decl".val.data.@"unsigned_int");
 
-    try std.testing.expectEqualStrings("b", ast.top_level.items[2].data.@"const_decl".name);
-    try std.testing.expectEqualStrings("salam", ast.top_level.items[2].data.@"const_decl".val.data.@"string_literal");
+    try std.testing.expectEqualStrings("b", ast.top_level.items[2].data.@"decl".name);
+    try std.testing.expectEqualStrings("salam", ast.top_level.items[2].data.@"decl".val.data.@"string_literal");
 
-    try std.testing.expectEqualStrings("c", ast.top_level.items[3].data.@"const_decl".name);
-    try std.testing.expectEqual(@as(u8, 'c'), ast.top_level.items[3].data.@"const_decl".val.data.@"char");
+    try std.testing.expectEqualStrings("c", ast.top_level.items[3].data.@"decl".name);
+    try std.testing.expectEqual(@as(u8, 'c'), ast.top_level.items[3].data.@"decl".val.data.@"char");
 
-    try std.testing.expectEqualStrings("d", ast.top_level.items[4].data.@"const_decl".name);
-    try std.testing.expectEqual(true, ast.top_level.items[4].data.@"const_decl".val.data.@"bool");
+    try std.testing.expectEqualStrings("d", ast.top_level.items[4].data.@"decl".name);
+    try std.testing.expectEqual(true, ast.top_level.items[4].data.@"decl".val.data.@"bool");
 
-    try std.testing.expectEqualStrings("e", ast.top_level.items[5].data.@"const_decl".name);
-    try std.testing.expectEqual(false, ast.top_level.items[5].data.@"const_decl".val.data.@"bool");
-    try std.testing.expectEqualStrings("f", ast.top_level.items[6].data.@"const_decl".name);
-    try std.testing.expectEqualStrings("a", ast.top_level.items[6].data.@"const_decl".val.data.identifier);
+    try std.testing.expectEqualStrings("e", ast.top_level.items[5].data.@"decl".name);
+    try std.testing.expectEqual(false, ast.top_level.items[5].data.@"decl".val.data.@"bool");
+    try std.testing.expectEqualStrings("f", ast.top_level.items[6].data.@"decl".name);
+    try std.testing.expectEqualStrings("a", ast.top_level.items[6].data.@"decl".val.data.identifier);
 }
 
 // test "hello world program" {
