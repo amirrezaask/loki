@@ -7,6 +7,7 @@ const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 const Self = @This();
 const Stack = @import("stack.zig").Stack;
+const Error = @import("errors.zig").Error;
 const State = enum {
     start,
     block,
@@ -18,15 +19,6 @@ const State = enum {
     const_decl,
     saw_if,
     saw_fn,
-};
-
-const Error = error{
-    AllocationFailed,
-    NotImplemented,
-    ExpectsSemiColon,
-    ExpectsOpenParen,
-    ExpectsOpenCurlyBrace,
-    ExpectsCloseCurlyBrace,
 };
 
 fn strEql(a: []const u8, b: []const u8) bool {
@@ -92,16 +84,14 @@ fn expectDecl(self: *Self) Error!Decl {
     }
 
     self.forwardToken();
-    const expr = try self.expectExpr();
-    const objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
-    objects[0] = expr;
+    const expr = try Node.initAlloc(try self.expectExpr(), self.alloc);
 
     self.forwardToken(); // ;
     self.forwardToken(); // next start
     return Ast.Decl{
         .name = ident_token.val.identifier,
         .ty = decl_ty,
-        .val = &objects[0],
+        .val = expr,
     };
 }
 
@@ -199,7 +189,6 @@ fn expectExpr(self: *Self) Error!Node {
 
 fn expectFnSignature(self: *Self) Error!Node {
     self.forwardToken(); // this will move us to open paren
-    print("cur token: {}\n", .{self.tokens.items[self.cur]});
 
     if (self.curToken().ty != .open_paren) return Error.ExpectsOpenParen;
 
@@ -210,61 +199,54 @@ fn expectFnSignature(self: *Self) Error!Node {
     while (true) {
         if (self.curToken().ty == .close_paren) break;
         if (self.curToken().ty == .identifier) {
-            const ident: Node = .{
+            const ident = try Node.initAlloc(.{
                 .data = .{
                     .identifier = self.curToken().val.identifier,
                 },
                 .loc = self.curToken().loc,
-            };
+            }, self.alloc);
 
             self.forwardToken(); //:
             self.forwardToken();
-            const ty = try self.expectExpr();
-            var objects = self.alloc.alloc(Node, 2) catch return Error.AllocationFailed;
-            objects[0] = ident;
-            objects[1] = ty;
-            args.append([2]*Node{ &objects[0], &objects[1] }) catch return Error.AllocationFailed;
+            const ty = try Node.initAlloc(try self.expectExpr(), self.alloc);
+
+            args.append([2]*Node{ ident, ty }) catch return Error.AllocationFailed;
             self.forwardToken(); // next type or end
         } else {
-            print("225cur token: {}\n", .{self.tokens.items[self.cur]});
             unreachable;
         }
     }
     self.forwardToken();
 
-    const ret_ty = try self.expectExpr();
-
-    var objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
-    objects[0] = ret_ty;
+    const ret_ty = try Node.initAlloc(try self.expectExpr(), self.alloc);
 
     return Node{
         .data = .{ .@"fn_sign" = .{
             .args = args.toOwnedSlice(),
-            .ret_ty = &objects[0],
+            .ret_ty = ret_ty,
         } },
         .loc = self.curToken().loc,
     };
 }
 
 fn expectFnCall(self: *Self) Error!Ast.FnCall {
-    const name: Node = .{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc };
-    var objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
-    objects[0] = name;
+    const name = try Node.initAlloc(.{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc }, self.alloc);
     self.forwardToken();
     if (self.curToken().ty != .open_paren) return Error.ExpectsOpenParen;
     self.forwardToken();
-    var args = std.ArrayList(Node).init(self.alloc);
+    var args = std.ArrayList(*Node).init(self.alloc);
     while (true) {
         if (self.curToken().ty == .close_paren) {
             break;
         }
-        const expr = try self.expectExpr();
+        const expr = try Node.initAlloc(try self.expectExpr(), self.alloc);
+
         args.append(expr) catch return Error.AllocationFailed;
         self.forwardToken();
     }
 
     return Ast.FnCall{
-        .name = &objects[0],
+        .name = name,
         .args = args.toOwnedSlice(),
     };
 }
@@ -277,33 +259,26 @@ fn expectBlock(self: *Self) Error![]*Node {
     var nodes = std.ArrayList(*Node).init(self.alloc);
     self.forwardToken();
     while (true) {
-        print("block token loop: {}\n", .{self.curToken()});
         if (self.curToken().ty == .rcbrace) break;
         switch (self.curToken().ty) {
             .identifier => {
                 if (self.peekToken().ty == .open_paren) {
                     // function call
-                    const node = Node{
+                    const node = try Node.initAlloc(.{
                         .data = .{ .fn_call = try self.expectFnCall() },
                         .loc = self.curToken().loc,
-                    };
-                    var objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
-                    objects[0] = node;
-                    print("node => {}\n", .{node});
-                    nodes.append(&objects[0]) catch return Error.AllocationFailed;
+                    }, self.alloc);
+                    nodes.append(node) catch return Error.AllocationFailed;
                     self.forwardToken();
                     self.expectSemiColon();
                     self.forwardToken();
                 } else if (self.peekToken().ty == .double_colon or self.peekToken().ty == .equal) {
                     const decl = try self.expectDecl();
-                    const node: Node = .{
+                    const node = try Node.initAlloc(.{
                         .data = .{ .decl = decl },
                         .loc = decl.val.loc,
-                    };
-                    var objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
-                    objects[0] = node;
-
-                    nodes.append(&objects[0]) catch return Error.AllocationFailed;
+                    }, self.alloc);
+                    nodes.append(node) catch return Error.AllocationFailed;
                 }
             },
 
@@ -411,13 +386,17 @@ test "all static expressions" {
         \\d :: true;
         \\e :: false;
         \\f :: a;
-        \\t1 :: float,
+        \\t1 :: float;
+        \\f1 :: fn(a: int) void {
+        \\ printf("Hello World");
+        \\};
     );
 
     defer parser.deinit();
 
     var ast = try parser.getAst(std.testing.allocator);
     defer ast.deinit(std.testing.allocator);
+
     try std.testing.expectEqualStrings("std.loki", ast.top_level.items[0].data.@"import");
 
     try std.testing.expectEqualStrings("a", ast.top_level.items[1].data.@"decl".name);
@@ -440,19 +419,13 @@ test "all static expressions" {
 
     try std.testing.expectEqualStrings("t1", ast.top_level.items[7].data.@"decl".name);
     try std.testing.expectEqual(Ast.Node.Data.float_ty, ast.top_level.items[7].data.@"decl".val.data);
-}
 
-test "test fndef" {
-    var parser = try Self.init(std.testing.allocator,
-        \\fn(a: int) void {
-        \\  printf("Hello World");
-        \\}
-    );
-    defer parser.deinit();
-
-    const node = try parser.expectFnDef();
-
-    _ = node;
+    try std.testing.expectEqualStrings("f1", ast.top_level.items[8].data.@"decl".name);
+    try std.testing.expectEqual(Ast.Node.Data.void_ty, ast.top_level.items[8].data.@"decl".val.data.fn_def.signature.ret_ty.data);
+    try std.testing.expectEqualStrings("a", ast.top_level.items[8].data.@"decl".val.data.fn_def.signature.args[0][0].data.identifier);
+    try std.testing.expectEqual(Ast.Node.Data.int_ty, ast.top_level.items[8].data.@"decl".val.data.fn_def.signature.args[0][1].data);
+    try std.testing.expectEqualStrings("printf", ast.top_level.items[8].data.@"decl".val.data.fn_def.block[0].data.fn_call.name.data.identifier);
+    try std.testing.expectEqualStrings("Hello World", ast.top_level.items[8].data.@"decl".val.data.fn_def.block[0].data.fn_call.args[0].data.string_literal);
 }
 
 // test "hello world program" {

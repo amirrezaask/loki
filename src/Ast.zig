@@ -2,6 +2,7 @@ const std = @import("std");
 const Tokenizer = @import("Tokenizer.zig");
 const Loc = Tokenizer.Token.Loc;
 const Self = @This();
+const Error = @import("errors.zig").Error;
 pub const Decl = struct {
     pub const Tag = enum {
         @"const",
@@ -31,7 +32,7 @@ pub const Union = struct {
 pub const Enum = struct {};
 pub const FnCall = struct {
     name: *Node,
-    args: []Node,
+    args: []*Node,
 };
 pub const Node = struct {
     pub const Data = union(enum) {
@@ -64,19 +65,54 @@ pub const Node = struct {
     };
     data: Data,
     loc: Loc,
+
+    pub fn initAlloc(self: Node, alloc: std.mem.Allocator) Error!*Node {
+        var node_heap_ptr = alloc.create(Node) catch return Error.AllocationFailed;
+        node_heap_ptr.* = self;
+        return node_heap_ptr;
+    }
+
+    pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
+        switch (self.data) {
+            .@"decl" => {
+                self.data.decl.val.deinit(alloc);
+                alloc.destroy(self.data.decl.val);
+            },
+            .fn_call => {
+                self.data.fn_call.name.deinit(alloc);
+                alloc.destroy(self.data.fn_call.name);
+                for (self.data.fn_call.args) |arg| {
+                    arg.deinit(alloc);
+                    alloc.destroy(arg);
+                }
+                alloc.free(self.data.@"fn_call".args);
+            },
+            .fn_def => {
+                for (self.data.fn_def.block) |stmt| {
+                    stmt.deinit(alloc);
+                    alloc.destroy(stmt);
+                }
+                alloc.free(self.data.@"fn_def".block);
+                for (self.data.fn_def.signature.args) |arg| {
+                    arg[0].deinit(alloc);
+                    alloc.destroy(arg[0]);
+                    arg[1].deinit(alloc);
+                    alloc.destroy(arg[1]);
+                }
+                alloc.free(self.data.fn_def.signature.args);
+                self.data.fn_def.signature.ret_ty.deinit(alloc);
+                alloc.destroy(self.data.fn_def.signature.ret_ty);
+            },
+            else => {},
+        }
+    }
 };
 
 top_level: std.ArrayList(Node),
 
 pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
-    for (self.top_level.items) |node| {
-        switch (node.data) {
-            .@"decl" => {
-                const ptr = node.data.decl.val;
-                alloc.destroy(ptr);
-            },
-            else => {},
-        }
+    for (self.top_level.items) |*node| {
+        node.deinit(alloc);
     }
     self.top_level.deinit();
 }
