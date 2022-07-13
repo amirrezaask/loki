@@ -194,11 +194,6 @@ fn expectExpr(self: *Self) Error!Node {
             unreachable;
         },
     }
-    // we expect all our switch cases to stay at last token.
-    // if (self.curToken().ty != .semi_colon) {
-    //     // compile error
-    //     unreachable;
-    // }
     return node;
 }
 
@@ -253,16 +248,23 @@ fn expectFnSignature(self: *Self) Error!Node {
 
 fn expectFnCall(self: *Self) Error!Ast.FnCall {
     const name: Node = .{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc };
+    var objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
+    objects[0] = name;
     self.forwardToken();
     if (self.curToken().ty != .open_paren) return Error.ExpectsOpenParen;
+    self.forwardToken();
     var args = std.ArrayList(Node).init(self.alloc);
     while (true) {
+        if (self.curToken().ty == .close_paren) {
+            break;
+        }
         const expr = try self.expectExpr();
         args.append(expr) catch return Error.AllocationFailed;
+        self.forwardToken();
     }
 
     return Ast.FnCall{
-        .name = name,
+        .name = &objects[0],
         .args = args.toOwnedSlice(),
     };
 }
@@ -273,8 +275,9 @@ fn expectBlock(self: *Self) Error![]*Node {
     }
 
     var nodes = std.ArrayList(*Node).init(self.alloc);
-    _ = nodes;
+    self.forwardToken();
     while (true) {
+        print("block token loop: {}\n", .{self.curToken()});
         if (self.curToken().ty == .rcbrace) break;
         switch (self.curToken().ty) {
             .identifier => {
@@ -286,7 +289,11 @@ fn expectBlock(self: *Self) Error![]*Node {
                     };
                     var objects = self.alloc.alloc(Node, 1) catch return Error.AllocationFailed;
                     objects[0] = node;
+                    print("node => {}\n", .{node});
                     nodes.append(&objects[0]) catch return Error.AllocationFailed;
+                    self.forwardToken();
+                    self.expectSemiColon();
+                    self.forwardToken();
                 } else if (self.peekToken().ty == .double_colon or self.peekToken().ty == .equal) {
                     const decl = try self.expectDecl();
                     const node: Node = .{
@@ -305,8 +312,7 @@ fn expectBlock(self: *Self) Error![]*Node {
             },
         }
     }
-    return Error.NotImplemented;
-    //return nodes.toOwnedSlice();
+    return nodes.toOwnedSlice();
 }
 
 fn expectFnDef(self: *Self) Error!Node {
