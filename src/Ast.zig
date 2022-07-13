@@ -39,7 +39,7 @@ pub const Node = struct {
         @"decl": Decl,
         @"import": []const u8,
         @"int": i64,
-        @"unsigned_int": u64,
+        @"uint": u64,
         @"float": f64,
         @"string_literal": []const u8,
         @"bool": bool,
