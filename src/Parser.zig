@@ -377,7 +377,7 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) Error!Ast {
     return ast;
 }
 
-test "all static expressions" {
+test "all expressions" {
     var parser = try Self.init(std.testing.allocator,
         \\import "std.loki";
         \\a :: 2;
@@ -428,14 +428,21 @@ test "all static expressions" {
     try std.testing.expectEqualStrings("Hello World", ast.top_level.items[8].data.@"decl".val.data.fn_def.block[0].data.fn_call.args[0].data.string_literal);
 }
 
-// test "hello world program" {
-//     var parser = Self.init(
-//         \\import "std.loki";
-//         \\main :: fn() void {
-//         \\     printf("Hello World from loki");
-//         \\};
-//     );
+test "hello world program" {
+    var parser = try Self.init(std.testing.allocator,
+        \\import "std.loki";
+        \\main :: fn() void {
+        \\     printf("Hello World from loki");
+        \\};
+    );
 
-//     const ast = try parser.getAst(std.testing.allocator);
-//     _ = ast;
-// }
+    defer parser.deinit();
+
+    var ast = try parser.getAst(std.testing.allocator);
+    defer ast.deinit(std.testing.allocator);
+
+    try std.testing.expectEqualStrings("main", ast.top_level.items[1].data.@"decl".name);
+    try std.testing.expectEqual(Ast.Node.Data.void_ty, ast.top_level.items[1].data.@"decl".val.data.fn_def.signature.ret_ty.data);
+    try std.testing.expectEqualStrings("printf", ast.top_level.items[1].data.@"decl".val.data.fn_def.block[0].data.fn_call.name.data.identifier);
+    try std.testing.expectEqualStrings("Hello World from loki", ast.top_level.items[1].data.@"decl".val.data.fn_def.block[0].data.fn_call.args[0].data.string_literal);
+}
