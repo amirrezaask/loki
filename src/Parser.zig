@@ -179,8 +179,16 @@ fn expectExpr(self: *Self) Error!Node {
                 .loc = self.curToken().loc,
             };
         },
+        .keyword_struct => {
+            return Error.NotImplemented;
+        },
+        .keyword_union => {
+            return Error.NotImplemented;
+        },
+        .keyword_enum => {
+            return Error.NotImplemented;
+        },
         else => {
-            print("expectExpr ty: {}", .{self.curToken().ty});
             unreachable;
         },
     }
