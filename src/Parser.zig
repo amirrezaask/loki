@@ -228,7 +228,7 @@ fn expectFnSignature(self: *Self) Error!Node {
         .loc = self.curToken().loc,
     };
 }
-
+// reads until closing paren of the function call.
 fn expectFnCall(self: *Self) Error!Ast.FnCall {
     const name = try Node.initAlloc(.{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc }, self.alloc);
     self.forwardToken();
@@ -251,6 +251,57 @@ fn expectFnCall(self: *Self) Error!Ast.FnCall {
     };
 }
 
+fn expectStmt(self: *Self) Error!Node {
+    switch (self.curToken().ty) {
+        .identifier => {
+            switch (self.peekToken().ty) {
+                .open_paren => {
+                    const node = Node{
+                        .data = .{ .fn_call = try self.expectFnCall() },
+                        .loc = self.curToken().loc,
+                    };
+
+                    self.forwardToken();
+                    self.expectSemiColon();
+                    self.forwardToken();
+                    return node;
+                },
+                .double_colon, .equal => {
+                    return Node{ .data = .{ .decl = try self.expectDecl() }, .loc = self.curToken().loc };
+                },
+                else => {
+                    return Error.NotImplemented;
+                },
+            }
+        },
+
+        .keyword_if => {
+            return Error.NotImplemented;
+        },
+        .keyword_for => {
+            return Error.NotImplemented;
+        },
+        .keyword_while => {
+            return Error.NotImplemented;
+        },
+        .keyword_switch => {
+            return Error.NotImplemented;
+        },
+        .keyword_goto => {
+            return Error.NotImplemented;
+        },
+        .keyword_unless => {
+            return Error.NotImplemented;
+        },
+        .keyword_continue => {
+            return Error.NotImplemented;
+        },
+        else => {
+            unreachable;
+        },
+    }
+}
+
 fn expectBlock(self: *Self) Error![]*Node {
     if (self.curToken().ty != .lcbrace) {
         return Error.ExpectsOpenCurlyBrace;
@@ -260,32 +311,8 @@ fn expectBlock(self: *Self) Error![]*Node {
     self.forwardToken();
     while (true) {
         if (self.curToken().ty == .rcbrace) break;
-        switch (self.curToken().ty) {
-            .identifier => {
-                if (self.peekToken().ty == .open_paren) {
-                    // function call
-                    const node = try Node.initAlloc(.{
-                        .data = .{ .fn_call = try self.expectFnCall() },
-                        .loc = self.curToken().loc,
-                    }, self.alloc);
-                    nodes.append(node) catch return Error.AllocationFailed;
-                    self.forwardToken();
-                    self.expectSemiColon();
-                    self.forwardToken();
-                } else if (self.peekToken().ty == .double_colon or self.peekToken().ty == .equal) {
-                    const decl = try self.expectDecl();
-                    const node = try Node.initAlloc(.{
-                        .data = .{ .decl = decl },
-                        .loc = decl.val.loc,
-                    }, self.alloc);
-                    nodes.append(node) catch return Error.AllocationFailed;
-                }
-            },
-
-            else => {
-                unreachable;
-            },
-        }
+        const node = try Node.initAlloc(try self.expectStmt(), self.alloc);
+        nodes.append(node) catch return Error.AllocationFailed;
     }
     return nodes.toOwnedSlice();
 }
@@ -346,7 +373,6 @@ pub fn getAst(self: *Self, alloc: std.mem.Allocator) Error!Ast {
             break;
         }
         if (self.state == .start) {
-            print("\n{}\n", .{self.curToken()});
             switch (self.curToken().ty) {
                 .identifier => {
                     const decl = try self.expectDecl();
