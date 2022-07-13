@@ -144,9 +144,9 @@ fn expectExpr(self: *Self) Error!Node {
                 .loc = self.curToken().loc,
             };
         },
-        // .keyword_fn => {
-        //     node = try self.expectFnDef();
-        // },
+        .keyword_fn => {
+            node = try self.expectFnDef();
+        },
         .keyword_bool => {
             node = .{
                 .data = .bool_ty,
@@ -252,9 +252,9 @@ fn expectFnSignature(self: *Self) Error!Node {
 }
 
 fn expectFnCall(self: *Self) Error!Ast.FnCall {
-    const name = .{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc };
+    const name: Node = .{ .data = .{ .identifier = self.curToken().val.identifier }, .loc = self.curToken().loc };
     self.forwardToken();
-    if (self.curToken().ty != .open_paren) unreachable;
+    if (self.curToken().ty != .open_paren) return Error.ExpectsOpenParen;
     var args = std.ArrayList(Node).init(self.alloc);
     while (true) {
         const expr = try self.expectExpr();
@@ -268,20 +268,19 @@ fn expectFnCall(self: *Self) Error!Ast.FnCall {
 }
 
 fn expectBlock(self: *Self) Error![]*Node {
-    print("inja\n", .{});
     if (self.curToken().ty != .lcbrace) {
-        // compile error
-        unreachable;
+        return Error.ExpectsOpenCurlyBrace;
     }
 
     var nodes = std.ArrayList(*Node).init(self.alloc);
+    _ = nodes;
     while (true) {
         if (self.curToken().ty == .rcbrace) break;
         switch (self.curToken().ty) {
             .identifier => {
                 if (self.peekToken().ty == .open_paren) {
                     // function call
-                    const node: Node = .{
+                    const node = Node{
                         .data = .{ .fn_call = try self.expectFnCall() },
                         .loc = self.curToken().loc,
                     };
@@ -305,26 +304,20 @@ fn expectBlock(self: *Self) Error![]*Node {
                 unreachable;
             },
         }
-    } else {
-        unreachable;
-        //compile error
     }
-
-    return nodes.toOwnedSlice();
+    return Error.NotImplemented;
+    //return nodes.toOwnedSlice();
 }
 
 fn expectFnDef(self: *Self) Error!Node {
     const sign = try self.expectFnSignature();
-    _ = sign;
     self.forwardToken();
     if (self.curToken().ty != .lcbrace) {
-        // compile error
         return Error.ExpectsCloseCurlyBrace;
     }
 
     // this function call causes a segfault
-    // const block = try self.expectBlock();
-    // _ = block;
+    const block = try self.expectBlock();
 
     if (self.curToken().ty != .rcbrace) {
         return Error.ExpectsCloseCurlyBrace;
@@ -333,7 +326,7 @@ fn expectFnDef(self: *Self) Error!Node {
     return Ast.Node{ .data = .{
         .fn_def = .{
             .signature = sign.data.@"fn_sign",
-            .block = std.ArrayList(*Node).init(self.alloc).toOwnedSlice(),
+            .block = block,
         },
     }, .loc = self.curToken().loc };
 }
