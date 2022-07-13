@@ -34,7 +34,7 @@ pub const FnCall = struct {
     args: []Node,
 };
 pub const Node = struct {
-    data: union(enum) {
+    pub const Data = union(enum) {
         @"undefined",
         @"decl": Decl,
         @"import": []const u8,
@@ -61,7 +61,8 @@ pub const Node = struct {
         @"void_ty",
         @"float_ty",
         @"string_ty",
-    },
+    };
+    data: Data,
     loc: Loc,
 };
 
