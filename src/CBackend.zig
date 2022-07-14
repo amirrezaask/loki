@@ -28,12 +28,40 @@ fn inferType(expr: *Node) []const u8 {
     }
 }
 
-fn generateArgs(args: [][2]*Node) []const u8 {
+fn generateFnArgs(alloc: std.mem.Allocator, args: [][2]*Node) []const u8 {
+    var i: u16 = 0;
+    var list = std.ArrayList(u8).init(alloc);
 
-    for (args) |arg| {
-        
+    while (i < args.len) : (i += 1) {
+        list.appendSlice(std.fmt.format("{} {},", .{ args[i][1], args[i][0] }));
     }
 
+    _ = list.pop();
+
+    return list.toOwnedSlice();
+}
+
+fn generateForDecl(node: *Node) ![]const u8 {
+    switch (node.data.decl.val) {
+        .fn_def => {
+            const fn_def = node.data.decl.fn_def;
+            const name = node.data.decl.name;
+            const args = generateFnArgs(fn_def.signature.args);
+            const ret_ty = generateForNode(fn_def.signature.ret_ty);
+            const body = generateForNode(fn_def.block);
+
+            return std.fmt.format("{} {}({}) {{\n{}\n}}", .{ ret_ty, name, args, body });
+        },
+        .@"struct" => {},
+        .@"enum" => {},
+        .@"union" => {},
+        else => {
+            const name = node.data.decl.name;
+            const ty = inferType(node.data.decl.val);
+            const val = generateForNode(node.data.decl.val);
+            return std.fmt.format("{} {} = {}", .{ ty, name, val });
+        },
+    }
 }
 
 fn generateForNode(node: *Node) Error![]const u8 {
@@ -43,23 +71,7 @@ fn generateForNode(node: *Node) Error![]const u8 {
             return std.fmt.format("#include {}", .{import_path});
         },
         .@"decl" => {
-            if (node.data.decl.val == .fn_def) {
-                const fn_def = node.data.decl.fn_def;
-                const name = node.data.decl.name;
-                const args = generateForNode(fn_def.signature.args);
-                const ret_ty = generateArgs(fn_def.signature.ret_ty);
-                const body = generateForNode(fn_def.block);
-
-                return std.fmt.format("{} {}({}) {{\n{}\n}}", .{ret_ty, name, });
-
-            } else {
-                const name = node.data.decl.name;
-                // const tag = node.data.decl.ty;
-                const ty = inferType(node.data.decl.val);
-                const val = generateForNode(node.data.decl.val);
-
-                return std.fmt.format("{} {} = {}", .{ ty, name, val });
-            }
+            return generateForDecl(node);
         },
         .@"int" => {
             return std.fmt.format("{}", .{node.data.int});
