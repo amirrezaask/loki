@@ -68,6 +68,7 @@ fn expectDecl(self: *Self) Error!Decl {
     const ident_token = self.curToken();
 
     self.forwardToken();
+
     var decl_ty: Ast.Decl.Tag = undefined;
 
     switch (self.curToken().ty) {
@@ -75,7 +76,7 @@ fn expectDecl(self: *Self) Error!Decl {
             decl_ty = .@"const";
         },
         .equal => {
-            decl_ty = .@"const";
+            decl_ty = .@"var";
         },
         else => {
             unreachable;

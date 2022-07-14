@@ -3,6 +3,7 @@ const Tokenizer = @import("Tokenizer.zig");
 const Loc = Tokenizer.Token.Loc;
 const Self = @This();
 const Error = @import("errors.zig").Error;
+
 pub const Decl = struct {
     pub const Tag = enum {
         @"const",
