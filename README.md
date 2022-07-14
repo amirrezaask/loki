@@ -18,3 +18,9 @@ graph TD
 ```
 
 ## [Language Spec](https://github.com/amirrezaask/loki/tree/master/spec.md)
+
+## Plans
+- C Backend as a working solution for compiling to native code.
+- SSA IR
+- SSA Optimizations
+- LLVM Integration
