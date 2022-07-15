@@ -5,6 +5,9 @@ const Node = Ast.Node;
 const Backend = @import("CodeGen.zig");
 const Error = error{};
 
+fn allocPrint(allocator: std.mem.Allocator, comptime fmt: []const u8, args: anytype) []u8 {
+    return std.fmt.allocPrint(allocator, fmt, args) catch unreachable;
+}
 fn inferType(expr: *Node) []const u8 {
     switch (expr.data) {
         .int => {
@@ -25,6 +28,9 @@ fn inferType(expr: *Node) []const u8 {
         .string_literal => {
             return "char[]";
         },
+        else => {
+            unreachable;
+        },
     }
 }
 
@@ -33,7 +39,7 @@ fn generateFnArgs(alloc: std.mem.Allocator, args: [][2]*Node) []const u8 {
     var list = std.ArrayList(u8).init(alloc);
 
     while (i < args.len) : (i += 1) {
-        list.appendSlice(std.fmt.format("{} {},", .{ args[i][1], args[i][0] }));
+        list.appendSlice(allocPrint(alloc, "{s} {s},", .{ args[i][1], args[i][0] })) catch unreachable;
     }
 
     _ = list.pop();
@@ -41,58 +47,70 @@ fn generateFnArgs(alloc: std.mem.Allocator, args: [][2]*Node) []const u8 {
     return list.toOwnedSlice();
 }
 
-fn generateForDecl(node: *Node) ![]const u8 {
-    switch (node.data.decl.val) {
-        .fn_def => {
-            const fn_def = node.data.decl.fn_def;
-            const name = node.data.decl.name;
-            const args = generateFnArgs(fn_def.signature.args);
-            const ret_ty = generateForNode(fn_def.signature.ret_ty);
-            const body = generateForNode(fn_def.block);
+fn generateForBlock(alloc: std.mem.Allocator, block: []*Node) []const u8 {
+    _ = alloc;
+    _ = block;
+    return "";
+}
 
-            return std.fmt.format("{} {}({}) {{\n{}\n}}", .{ ret_ty, name, args, body });
+fn generateForDecl(alloc: std.mem.Allocator, node: *Node) []const u8 {
+    switch (node.data.decl.val.data) {
+        .fn_def => {
+            const fn_def = node.data.decl.val.data.fn_def;
+            const name = node.data.decl.name;
+            const args = generateFnArgs(alloc, fn_def.signature.args);
+            const ret_ty = generateForNode(alloc, fn_def.signature.ret_ty);
+            const body = generateForBlock(alloc, fn_def.block);
+
+            return allocPrint(alloc, "{s} {s}({s}) {{\n{s}\n}}", .{ ret_ty, name, args, body });
         },
-        .@"struct" => {},
-        .@"enum" => {},
-        .@"union" => {},
+        .@"type_def_struct" => {
+            unreachable;
+        },
+        .@"type_def_enum" => {
+            unreachable;
+        },
+        .@"type_def_union" => {
+            unreachable;
+        },
         else => {
             const name = node.data.decl.name;
             const ty = inferType(node.data.decl.val);
-            const val = generateForNode(node.data.decl.val);
-            return std.fmt.format("{} {} = {}", .{ ty, name, val });
+            const val = generateForNode(alloc, node.data.decl.val);
+            return allocPrint(alloc, "{s} {s} = {s}", .{ ty, name, val });
         },
     }
 }
 
-fn generateForNode(node: *Node) Error![]const u8 {
+fn generateForNode(alloc: std.mem.Allocator, node: *Node) []const u8 {
     switch (node.data) {
         .@"import" => {
             const import_path = node.data.import;
-            return std.fmt.format("#include {}", .{import_path});
+            return allocPrint(alloc, "#include \"{s}\"", .{import_path});
         },
         .@"decl" => {
-            return generateForDecl(node);
+            return generateForDecl(alloc, node);
         },
         .@"int" => {
-            return std.fmt.format("{}", .{node.data.int});
+            return allocPrint(alloc, "{}", .{node.data.int});
         },
         .@"uint" => {
-            return std.fmt.format("{}", .{node.data.uint});
+            return allocPrint(alloc, "{}", .{node.data.uint});
         },
         .@"float" => {
-            return std.fmt.format("{}", .{node.data.float});
+            return allocPrint(alloc, "{}", .{node.data.float});
         },
         .@"string_literal" => {
-            return std.fmt.format("{}", .{node.data.string_literal});
+            return allocPrint(alloc, "{s}", .{node.data.string_literal});
         },
         .@"bool" => {
-            return std.fmt.format("{}", .{node.data.@"bool"});
+            return allocPrint(alloc, "{}", .{node.data.@"bool"});
         },
         .@"identifier" => {
-            return std.fmt.format("{}", .{node.data.@"identifier"});
+            return allocPrint(alloc, "{s}", .{node.data.@"identifier"});
         },
         .@"char" => {
-            return std.fmt.format("'{}'", .{node.data.@"char"});
+            return allocPrint(alloc, "'{c}'", .{node.data.@"char"});
         },
         .@"paren_expr" => {
             unreachable;
@@ -119,9 +137,7 @@ fn generateForNode(node: *Node) Error![]const u8 {
             unreachable;
         },
         .@"fn_def" => {
-            const sign = generateForNode(node.data.fn_def.signature);
-            const body = generateForNode(node.data.@"fn_def".block);
-            return std.fmt.format("{} {{\n{}\n}}", sign, body);
+            unreachable;
         },
         .@"bool_ty" => {
             return "bool";
@@ -144,6 +160,9 @@ fn generateForNode(node: *Node) Error![]const u8 {
         .@"string_ty" => {
             return "char[]";
         },
+        else => {
+            unreachable;
+        },
     }
 }
 
@@ -153,4 +172,15 @@ fn generate(ast: Ast) Error![]const u8 {
 
 fn getBackend() Backend {
     return Backend.init(generate);
+}
+
+test "import node should generate a #include" {
+    var node = Node{
+        .data = .{ .import = "stdio.h" },
+        .loc = .{ .start = 0, .end = 0 },
+    };
+
+    const include_str = generateForNode(std.testing.allocator, &node);
+    try std.testing.expectEqualStrings("#include \"stdio.h\"", include_str);
+    defer std.testing.allocator.free(include_str);
 }

@@ -1,0 +1,1 @@
+- use dod principle for tokenizer ( no need to store the value seperately, just store offset in the source )
