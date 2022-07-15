@@ -65,7 +65,7 @@ pub const Node = struct {
         @"string_ty",
     };
     data: Data,
-    loc: Loc,
+    loc: Loc = undefined,
 
     pub fn initAlloc(self: Node, alloc: std.mem.Allocator) Error!*Node {
         var node_heap_ptr = alloc.create(Node) catch return Error.AllocationFailed;

@@ -4,6 +4,7 @@ const Ast = @import("Ast.zig");
 const Node = Ast.Node;
 const Backend = @import("CodeGen.zig");
 const Error = error{};
+const Parser = @import("Parser.zig");
 
 fn allocPrint(allocator: std.mem.Allocator, comptime fmt: []const u8, args: anytype) []u8 {
     return std.fmt.allocPrint(allocator, fmt, args) catch unreachable;
@@ -34,12 +35,37 @@ fn inferType(expr: *Node) []const u8 {
     }
 }
 
-fn generateFnArgs(alloc: std.mem.Allocator, args: [][2]*Node) []const u8 {
+fn generateForFnCallArgs(alloc: std.mem.Allocator, args: []*Node) []const u8 {
     var i: u16 = 0;
     var list = std.ArrayList(u8).init(alloc);
 
     while (i < args.len) : (i += 1) {
-        list.appendSlice(allocPrint(alloc, "{s} {s},", .{ args[i][1], args[i][0] })) catch unreachable;
+        const arg_val = generateForNode(alloc, args[i]);
+        const arg = allocPrint(alloc, "{s},", .{arg_val});
+        list.appendSlice(arg) catch unreachable;
+        defer alloc.free(arg);
+        defer alloc.free(arg_val);
+    }
+    if (list.items.len < 1) {
+        return "";
+    }
+
+    _ = list.pop();
+
+    return list.toOwnedSlice();
+}
+
+fn generateFnDefArgs(alloc: std.mem.Allocator, args: [][2]*Node) []const u8 {
+    var i: u16 = 0;
+    var list = std.ArrayList(u8).init(alloc);
+
+    while (i < args.len) : (i += 1) {
+        const arg = allocPrint(alloc, "{s} {s},", .{ args[i][1], args[i][0] });
+        list.appendSlice(arg) catch unreachable;
+        defer alloc.free(arg);
+    }
+    if (list.items.len < 1) {
+        return "";
     }
 
     _ = list.pop();
@@ -48,9 +74,21 @@ fn generateFnArgs(alloc: std.mem.Allocator, args: [][2]*Node) []const u8 {
 }
 
 fn generateForBlock(alloc: std.mem.Allocator, block: []*Node) []const u8 {
-    _ = alloc;
-    _ = block;
-    return "";
+    var i: u16 = 0;
+    var list = std.ArrayList(u8).init(alloc);
+
+    while (i < block.len) : (i += 1) {
+        const stmt = generateForNode(alloc, block[i]);
+        list.appendSlice(stmt) catch unreachable;
+        list.append(';') catch unreachable;
+        defer alloc.free(stmt);
+    }
+
+    if (list.items.len < 1) {
+        return "";
+    }
+
+    return list.toOwnedSlice();
 }
 
 fn generateForDecl(alloc: std.mem.Allocator, node: *Node) []const u8 {
@@ -58,9 +96,11 @@ fn generateForDecl(alloc: std.mem.Allocator, node: *Node) []const u8 {
         .fn_def => {
             const fn_def = node.data.decl.val.data.fn_def;
             const name = node.data.decl.name;
-            const args = generateFnArgs(alloc, fn_def.signature.args);
+            const args = generateFnDefArgs(alloc, fn_def.signature.args);
             const ret_ty = generateForNode(alloc, fn_def.signature.ret_ty);
             const body = generateForBlock(alloc, fn_def.block);
+
+            defer alloc.free(body);
 
             return allocPrint(alloc, "{s} {s}({s}) {{\n{s}\n}}", .{ ret_ty, name, args, body });
         },
@@ -101,7 +141,7 @@ fn generateForNode(alloc: std.mem.Allocator, node: *Node) []const u8 {
             return allocPrint(alloc, "{}", .{node.data.float});
         },
         .@"string_literal" => {
-            return allocPrint(alloc, "{s}", .{node.data.string_literal});
+            return allocPrint(alloc, "\"{s}\"", .{node.data.string_literal});
         },
         .@"bool" => {
             return allocPrint(alloc, "{}", .{node.data.@"bool"});
@@ -131,7 +171,13 @@ fn generateForNode(alloc: std.mem.Allocator, node: *Node) []const u8 {
             unreachable;
         },
         .@"fn_call" => {
-            unreachable;
+            const fn_call = node.data.fn_call;
+            const name = generateForNode(alloc, fn_call.name);
+            const args = generateForFnCallArgs(alloc, fn_call.args);
+            defer alloc.free(name);
+            defer alloc.free(args);
+
+            return allocPrint(alloc, "{s}({s})", .{ name, args });
         },
         .@"fn_sign" => {
             unreachable;
@@ -183,4 +229,16 @@ test "import node should generate a #include" {
     const include_str = generateForNode(std.testing.allocator, &node);
     try std.testing.expectEqualStrings("#include \"stdio.h\"", include_str);
     defer std.testing.allocator.free(include_str);
+}
+
+test "decl fn def" {
+    var parser = try Parser.init(std.testing.allocator, "main :: fn() void {\nprintf(\"Hello world\");\n}");
+    defer parser.deinit();
+    var ast = try parser.getAst(std.testing.allocator);
+    defer ast.deinit(std.testing.allocator);
+    var main_decl = ast.top_level.items[0];
+    const code = generateForNode(std.testing.allocator, &main_decl);
+    defer std.testing.allocator.free(code);
+
+    try std.testing.expectEqualStrings("void main() {\nprintf(\"Hello world\");\n}", code);
 }
