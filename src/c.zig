@@ -2,7 +2,7 @@ const std = @import("std");
 const Self = @This();
 const Ast = @import("Ast.zig");
 const Node = Ast.Node;
-const Backend = @import("CodeGen.zig");
+const Backend = @import("Backend.zig");
 const Error = error{};
 const Parser = @import("Parser.zig");
 
@@ -212,8 +212,17 @@ fn generateForNode(alloc: std.mem.Allocator, node: *Node) []const u8 {
     }
 }
 
-fn generate(ast: Ast) Error![]const u8 {
-    _ = ast;
+pub fn generate(alloc: std.mem.Allocator, ast: *Ast) []const u8 {
+    var codes = std.ArrayList(u8).init(alloc);
+    for (ast.top_level.items) |*node| {
+        const code = generateForNode(alloc, node);
+        codes.appendSlice(code) catch unreachable;
+        codes.append(';') catch unreachable;
+        codes.append('\n') catch unreachable;
+        alloc.free(code);
+    }
+
+    return codes.toOwnedSlice();
 }
 
 fn getBackend() Backend {
@@ -225,8 +234,10 @@ test "import node should generate a #include" {
         .data = .{ .import = "stdio.h" },
         .loc = .{ .start = 0, .end = 0 },
     };
-
-    const include_str = generateForNode(std.testing.allocator, &node);
+    var ast = Ast.init(std.testing.allocator);
+    try ast.addTopLevelNode(node);
+    defer ast.deinit(std.testing.allocator);
+    const include_str = generate(std.testing.allocator, &ast);
     try std.testing.expectEqualStrings("#include \"stdio.h\"", include_str);
     defer std.testing.allocator.free(include_str);
 }
@@ -236,8 +247,7 @@ test "decl fn def" {
     defer parser.deinit();
     var ast = try parser.getAst(std.testing.allocator);
     defer ast.deinit(std.testing.allocator);
-    var main_decl = ast.top_level.items[0];
-    const code = generateForNode(std.testing.allocator, &main_decl);
+    const code = generate(std.testing.allocator, &ast);
     defer std.testing.allocator.free(code);
 
     try std.testing.expectEqualStrings("void main() {\nprintf(\"Hello world\");\n}", code);
