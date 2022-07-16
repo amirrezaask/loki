@@ -79,8 +79,10 @@ fn generateForBlock(alloc: std.mem.Allocator, block: []*Node) []const u8 {
 
     while (i < block.len) : (i += 1) {
         const stmt = generateForNode(alloc, block[i]);
+        list.append('\t') catch unreachable;
         list.appendSlice(stmt) catch unreachable;
-        list.append(';') catch unreachable;
+        list.appendSlice(";\n") catch unreachable;
+
         defer alloc.free(stmt);
     }
 
