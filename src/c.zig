@@ -181,6 +181,17 @@ fn generateForNode(alloc: std.mem.Allocator, node: *Node) []const u8 {
 
             return allocPrint(alloc, "{s}({s})", .{ name, args });
         },
+        .@"if" => {
+            const ifstmt = node.data.@"if";
+            const cond = generateForNode(alloc, ifstmt.cond);
+            const body = generateForBlock(alloc, ifstmt.then);
+            var if_code = allocPrint(alloc, "if ({s}) {{\n\t{s}\n\t}}", .{ cond, body });
+            if (ifstmt.@"else" != null) {
+                if_code = allocPrint(alloc, "{s} else {{\n\t{s}}}", .{ if_code, generateForBlock(alloc, ifstmt.@"else".?) });
+            }
+
+            return if_code;
+        },
         .@"fn_sign" => {
             unreachable;
         },

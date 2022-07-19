@@ -264,6 +264,7 @@ fn expectFnCall(self: *Self) Error!Ast.FnCall {
 // }
 
 fn expectIf(self: *Self) Error!Node {
+    print("tooye if\n", .{});
     switch (self.curToken().ty) {
         .keyword_if => {
             var if_node: Node = undefined;
@@ -274,8 +275,7 @@ fn expectIf(self: *Self) Error!Node {
                 return Error.ExpectsOpenCurlyBrace;
             }
             const then = try self.expectBlock();
-
-            self.forwardToken();
+            print("then block len {}\n", .{then.len});
             if (self.curToken().ty != .rcbrace) {
                 return Error.ExpectsCloseCurlyBrace;
             }
@@ -286,16 +286,12 @@ fn expectIf(self: *Self) Error!Node {
                     .@"if" = .{
                         .cond = cond,
                         .then = then,
+                        .@"else" = null,
                     },
                 },
                 .loc = self.curToken().loc,
             };
-            if (self.curToken().ty != .semi_colon) {
-                if (self.curToken().ty != .keyword_else) {
-                    // error
-                    unreachable;
-                }
-
+            if (self.curToken().ty == .keyword_else) {
                 self.forwardToken();
                 if (self.curToken().ty != .lcbrace) {
                     return Error.ExpectsOpenCurlyBrace;
@@ -304,7 +300,6 @@ fn expectIf(self: *Self) Error!Node {
                 if_node.data.@"if".@"else" = else_blk;
                 return if_node;
             } else {
-                // return ?
                 return if_node;
             }
         },
@@ -535,4 +530,28 @@ test "hello world program" {
     try std.testing.expectEqual(Ast.Node.Data.void_ty, ast.top_level.items[1].data.@"decl".val.data.fn_def.signature.ret_ty.data);
     try std.testing.expectEqualStrings("printf", ast.top_level.items[1].data.@"decl".val.data.fn_def.block[0].data.fn_call.name.data.identifier);
     try std.testing.expectEqualStrings("Hello World from loki", ast.top_level.items[1].data.@"decl".val.data.fn_def.block[0].data.fn_call.args[0].data.string_literal);
+}
+
+test "if" {
+    var parser = try Self.init(std.testing.allocator,
+        \\import "std.loki";
+        \\main :: fn() void {
+        \\     if true {
+        \\        printf("salam");
+        \\     }
+        \\};
+    );
+
+    defer parser.deinit();
+
+    var ast = try parser.getAst(std.testing.allocator);
+    defer ast.deinit(std.testing.allocator);
+    const if_node = ast.top_level.items[1].data.decl.val.data.fn_def.block[0];
+    const cond = if_node.data.@"if".cond.*.data.bool;
+    const printf = if_node.data.@"if".then[0].data.fn_call.name;
+    const arg = if_node.data.@"if".then[0].data.fn_call.args[0];
+
+    try std.testing.expectEqual(true, cond);
+    try std.testing.expectEqualStrings(printf.data.identifier, "printf");
+    try std.testing.expectEqualStrings(arg.data.string_literal, "salam");
 }

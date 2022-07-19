@@ -1,5 +1,7 @@
 import "stdio.h";
 
 main :: fn() void {
-    printf("H3ll0 W0r1d");
+    if true {
+        printf("salam");
+    }
 };

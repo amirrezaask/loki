@@ -34,7 +34,7 @@ pub const Enum = struct {};
 pub const If = struct {
     cond: *Node,
     then: []*Node,
-    @"else": []*Node = undefined,
+    @"else": ?[]*Node = undefined,
 };
 pub const For = struct {};
 pub const While = struct {};
@@ -85,6 +85,17 @@ pub const Node = struct {
 
     pub fn deinit(self: *Node, alloc: std.mem.Allocator) void {
         switch (self.data) {
+            .@"if" => {
+                const ifstmt = self.data.@"if";
+                ifstmt.cond.deinit(alloc);
+                alloc.destroy(ifstmt.cond);
+                for (ifstmt.then) |stmt| {
+                    stmt.deinit(alloc);
+                    alloc.destroy(stmt);
+                }
+
+                alloc.free(ifstmt.then);
+            },
             .@"decl" => {
                 self.data.decl.val.deinit(alloc);
                 alloc.destroy(self.data.decl.val);
