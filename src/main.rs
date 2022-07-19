@@ -3,6 +3,8 @@ mod cmd;
 mod errors;
 mod parser;
 mod passes;
+mod tokenizer;
+mod new_parser;
 mod src_discovery;
 use anyhow::Result;
 
