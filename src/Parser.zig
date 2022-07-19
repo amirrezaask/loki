@@ -264,7 +264,6 @@ fn expectFnCall(self: *Self) Error!Ast.FnCall {
 // }
 
 fn expectIf(self: *Self) Error!Node {
-    print("tooye if\n", .{});
     switch (self.curToken().ty) {
         .keyword_if => {
             var if_node: Node = undefined;
@@ -275,7 +274,6 @@ fn expectIf(self: *Self) Error!Node {
                 return Error.ExpectsOpenCurlyBrace;
             }
             const then = try self.expectBlock();
-            print("then block len {}\n", .{then.len});
             if (self.curToken().ty != .rcbrace) {
                 return Error.ExpectsCloseCurlyBrace;
             }
