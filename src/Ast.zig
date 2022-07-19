@@ -31,6 +31,13 @@ pub const Union = struct {
     name: []const u8,
 };
 pub const Enum = struct {};
+pub const If = struct {
+    cond: *Node,
+    then: []*Node,
+    @"else": []*Node = undefined,
+};
+pub const For = struct {};
+pub const While = struct {};
 pub const FnCall = struct {
     name: *Node,
     args: []*Node,
@@ -56,6 +63,9 @@ pub const Node = struct {
         @"fn_call": FnCall,
         @"fn_sign": FnSign,
         @"fn_def": FnDef,
+        @"if": If,
+        @"for": For,
+        @"while": While,
         @"bool_ty",
         @"int_ty",
         @"uint_ty",

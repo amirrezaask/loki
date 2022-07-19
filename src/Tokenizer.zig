@@ -66,6 +66,7 @@ pub const Token = struct {
         keyword_true,
         keyword_false,
         keyword_enum,
+        keyword_else,
         keyword_bool,
         keyword_struct,
         keyword_union,
@@ -142,6 +143,8 @@ pub const Token = struct {
             return .keyword_hashmap;
         } else if (strEql(s, "char")) {
             return .keyword_char;
+        } else if (strEql(s, "else")) {
+            return .keyword_else;
         } else {
             return .identifier;
         }

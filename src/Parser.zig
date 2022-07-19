@@ -260,10 +260,65 @@ fn expectFnCall(self: *Self) Error!Ast.FnCall {
     };
 }
 
+// fn expectKeyword(keyword: Token.Type) Error {
+// }
+
+fn expectIf(self: *Self) Error!Node {
+    switch (self.curToken().ty) {
+        .keyword_if => {
+            var if_node: Node = undefined;
+            self.forwardToken();
+            const cond = try Node.initAlloc((try self.expectExpr()), self.alloc);
+            self.forwardToken();
+            if (self.curToken().ty != .lcbrace) {
+                return Error.ExpectsOpenCurlyBrace;
+            }
+            const then = try self.expectBlock();
+
+            self.forwardToken();
+            if (self.curToken().ty != .rcbrace) {
+                return Error.ExpectsCloseCurlyBrace;
+            }
+
+            self.forwardToken();
+            if_node = .{
+                .data = .{
+                    .@"if" = .{
+                        .cond = cond,
+                        .then = then,
+                    },
+                },
+                .loc = self.curToken().loc,
+            };
+            if (self.curToken().ty != .semi_colon) {
+                if (self.curToken().ty != .keyword_else) {
+                    // error
+                    unreachable;
+                }
+
+                self.forwardToken();
+                if (self.curToken().ty != .lcbrace) {
+                    return Error.ExpectsOpenCurlyBrace;
+                }
+                const else_blk = try self.expectBlock();
+                if_node.data.@"if".@"else" = else_blk;
+                return if_node;
+            } else {
+                // return ?
+                return if_node;
+            }
+        },
+        else => {
+            return Error.expected_if_keyword;
+        },
+    }
+}
+
 fn expectStmt(self: *Self) Error!Node {
     switch (self.curToken().ty) {
         .identifier => {
             switch (self.peekToken().ty) {
+                // fn call
                 .open_paren => {
                     const node = Node{
                         .data = .{ .fn_call = try self.expectFnCall() },
@@ -285,7 +340,7 @@ fn expectStmt(self: *Self) Error!Node {
         },
 
         .keyword_if => {
-            return Error.NotImplemented;
+            return self.expectIf();
         },
         .keyword_for => {
             return Error.NotImplemented;
