@@ -1,0 +1,8 @@
+import "stdio.h";
+
+
+main :: fn() void {
+    if true {
+        printf("salam");
+    }
+}
