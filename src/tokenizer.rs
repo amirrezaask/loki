@@ -1,6 +1,5 @@
 use anyhow::Result;
-
-
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
     EOF,
     OpenBracket,
@@ -79,17 +78,17 @@ pub enum Type {
 impl Type {
     fn from_str(s: &str) -> Self {
         match s {
-            "if" => {
-                Type::KeywordIf
+            "if" => Type::KeywordIf,
+            "for" => Type::KeywordFor,
+            "true" => Type::KeywordTrue,
+            "false" => Type::KeywordFalse,
+            _ => {
+                unreachable!();
             }
-            "for" => {
-                Type::KeywordFor
-            }
-            _ => { unreachable!(); }
         }
     }
 }
-
+#[derive(Debug)]
 pub struct Token {
     ty: Type,
     loc: (usize, usize),
@@ -144,7 +143,6 @@ impl Tokenizer {
     pub fn next(&mut self) -> Result<Token> {
         let mut state = State::Start;
         loop {
-            self.forward_char();
             match state {
                 State::Start => {
                     match self.current_char() {
@@ -158,52 +156,52 @@ impl Tokenizer {
                             state = State::SawLeftAngleBracket;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '>' => {
                             state = State::SawRightAngleBracket;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '1'..='9' | '0' => {
                             state = State::Integer(self.cur);
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '=' => {
                             state = State::SawEqual;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '"' => {
                             state = State::InStringLiteral(self.cur);
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '%' => {
                             state = State::SawPercent;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '+' => {
                             state = State::SawPlus;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '-' => {
                             state = State::SawMinus;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '/' => {
                             state = State::SawSlash;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         '*' => {
                             state = State::SawAstrix;
                             self.forward_char();
                             continue;
-                        },
+                        }
                         _ => {
                             state = State::IdentifierOrKeyword(self.cur);
                             self.forward_char();
@@ -211,57 +209,48 @@ impl Tokenizer {
                         }
                     };
                 }
-                State::SawEqual => {
-                    match self.current_char() {
-                        '=' => {
-                            state = State::Start;
-                            return Ok(Token::new(Type::DoubleEqual, (self.cur - 1, self.cur)));
-                        }
-                        _ => {
-                            state = State::Start;
-                            continue;
-                        }
+                State::SawEqual => match self.current_char() {
+                    '=' => {
+                        state = State::Start;
+                        return Ok(Token::new(Type::DoubleEqual, (self.cur - 1, self.cur)));
+                    }
+                    _ => {
+                        state = State::Start;
+                        continue;
                     }
                 },
-                State::InStringLiteral(start) => {
-                    self.forward_char();
-                    match self.current_char() {
-                        '"' => {
-                            state = State::Start;
-                            let tok = Token::new(Type::StringLiteral, (start, self.cur));
-                            return Ok(tok);
-                        }
-                        _ => {
-                            self.forward_char();
-                            continue;
-                        }
+                State::InStringLiteral(start) => match self.current_char() {
+                    '"' => {
+                        state = State::Start;
+                        let tok = Token::new(Type::StringLiteral, (start + 1, self.cur));
+                        return Ok(tok);
+                    }
+                    _ => {
+                        self.forward_char();
+                        continue;
                     }
                 },
-                State::SawLeftAngleBracket => {
-                    match self.current_char() {
-                        '=' => {
-                            let tok = Token::new(Type::LessEqual, (self.cur-1, self.cur));
-                            self.forward_char();
-                            return Ok(tok);
-                        },
-                        _ => {
-                            state = State::Start;
-                            return Ok(Token::new(Type::LeftAngle, (self.cur-1, self.cur-1)));
-                        }
+                State::SawLeftAngleBracket => match self.current_char() {
+                    '=' => {
+                        let tok = Token::new(Type::LessEqual, (self.cur - 1, self.cur));
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    _ => {
+                        state = State::Start;
+                        return Ok(Token::new(Type::LeftAngle, (self.cur - 1, self.cur - 1)));
                     }
                 },
-                State::SawRightAngleBracket => {
-                    match self.current_char() {
-                        '=' => {
-                            let tok = Token::new(Type::GreaterEqual, (self.cur-1, self.cur));
-                            self.forward_char();
-                            state = State::Start;
-                            return Ok(tok);
-                        },
-                        _ => {
-                            state = State::Start;
-                            return Ok(Token::new(Type::RightAngle, (self.cur-1, self.cur-1)));
-                        }
+                State::SawRightAngleBracket => match self.current_char() {
+                    '=' => {
+                        let tok = Token::new(Type::GreaterEqual, (self.cur - 1, self.cur));
+                        self.forward_char();
+                        state = State::Start;
+                        return Ok(tok);
+                    }
+                    _ => {
+                        state = State::Start;
+                        return Ok(Token::new(Type::RightAngle, (self.cur - 1, self.cur - 1)));
                     }
                 },
 
@@ -273,7 +262,10 @@ impl Tokenizer {
                             self.src[start..self.cur].to_vec().into_iter().collect();
 
                         self.forward_char();
-                        return Ok(Token::new(Type::from_str(&ident_or_keyword), (start, self.cur)));
+                        return Ok(Token::new(
+                            Type::from_str(&ident_or_keyword),
+                            (start, self.cur),
+                        ));
                     }
                     _ => {
                         self.forward_char();
@@ -284,7 +276,7 @@ impl Tokenizer {
                     ' ' | '\t' | '\n' | '\r' => {
                         state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(Type::UnsignedInt, (start, self.cur)));
+                        return Ok(Token::new(Type::UnsignedInt, (start, self.cur - 1)));
                     }
                     _ => {
                         self.forward_char();
@@ -298,16 +290,42 @@ impl Tokenizer {
         }
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::Tokenizer;
 
-    fn integers() {
-        let mut tokenizer = Tokenizer::new("123 ");
-        assert!(tokenizer.next().is_ok());
-    }
+#[test]
+fn integers() {
+    let src = "123 ";
+    let mut tokenizer = Tokenizer::new(src);
 
+    let num = tokenizer.next();
+
+    assert!(num.is_ok());
+    let num = num.unwrap();
+    println!("{:?}", num);
+    assert_eq!("123", &src[num.loc.0..num.loc.1]);
+}
+#[test]
+fn boolean_true() {
+    let src = "true";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    println!("{:?}", tok);
+    assert_eq!(Type::KeywordTrue, tok.ty);
+    assert_eq!("true", &src[tok.loc.0..tok.loc.1]);
 }
 
+#[test]
+fn strings() {
+    let src = "\"amirreza\"";
+    let mut tokenizer = Tokenizer::new(src);
 
+    let tok = tokenizer.next();
 
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    println!("{:?}", tok);
+    assert_eq!("amirreza", &src[tok.loc.0..tok.loc.1]);
+}
