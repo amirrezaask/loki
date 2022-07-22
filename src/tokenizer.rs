@@ -77,6 +77,7 @@ pub enum Type {
 
 impl Type {
     fn from_str(s: &str) -> Self {
+        println!("in from_str type: {}", s);
         match s {
             "if" => Type::KeywordIf,
             "for" => Type::KeywordFor,
@@ -264,7 +265,7 @@ impl Tokenizer {
                         self.forward_char();
                         return Ok(Token::new(
                             Type::from_str(&ident_or_keyword),
-                            (start, self.cur),
+                            (start, self.cur - 1),
                         ));
                     }
                     _ => {
@@ -305,7 +306,7 @@ fn integers() {
 }
 #[test]
 fn boolean_true() {
-    let src = "true";
+    let src = "true ";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -317,6 +318,19 @@ fn boolean_true() {
     assert_eq!("true", &src[tok.loc.0..tok.loc.1]);
 }
 
+#[test]
+fn boolean_false() {
+    let src = "false ";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    println!("{:?}", tok);
+    assert_eq!(Type::KeywordFalse, tok.ty);
+    assert_eq!("false", &src[tok.loc.0..tok.loc.1]);
+}
 #[test]
 fn strings() {
     let src = "\"amirreza\"";
