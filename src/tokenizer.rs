@@ -178,6 +178,7 @@ impl Tokenizer {
             cur: 0,
         }
     }
+
     fn eof(&self) -> bool {
         self.cur >= self.src.len()
     }
@@ -190,9 +191,21 @@ impl Tokenizer {
         self.src[self.cur]
     }
 
+    fn at_eof(&mut self, state: State) -> Token {
+        match state {
+            State::Integer(start) => {}
+            _ => {
+                unreachable!();
+            }
+        }
+    }
+
     pub fn next(&mut self) -> Result<Token> {
         let mut state = State::Start;
         loop {
+            if (self.eof()) {
+                return Ok(self.at_eof(state));
+            }
             match state {
                 State::Start => {
                     match self.current_char() {
@@ -256,6 +269,17 @@ impl Tokenizer {
                             state = State::IdentifierOrKeyword(self.cur);
                             self.forward_char();
                             continue;
+                        }
+                        ':' => {
+                            state = State::SawColon;
+                            self.forward_char();
+                            continue;
+                        }
+
+                        ';' => {
+                            state = State::Start;
+                            self.forward_char();
+                            return Ok(Token::new(Type::SemiColon, (self.cur - 1, self.cur - 1)));
                         }
                     };
                 }
