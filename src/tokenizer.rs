@@ -66,7 +66,6 @@ pub enum Type {
     KeywordUint,
     KeywordString,
     KeywordFloat,
-    KeywordHashmap,
     KeywordChar,
 
     Char,
@@ -76,13 +75,60 @@ pub enum Type {
 }
 
 impl Type {
+    fn to_vec_str() -> Vec<&'static str> {
+        vec![
+            "if ",
+            "switch ",
+            "goto ",
+            "for ",
+            "while ",
+            "continue ",
+            "break ",
+            "import ",
+            "fn ",
+            "return ",
+            "true ",
+            "false ",
+            "enum ",
+            "else ",
+            "bool ",
+            "struct ",
+            "union ",
+            "void ",
+            "int ",
+            "uint ",
+            "string ",
+            "float ",
+            "char ",
+        ]
+    }
     fn from_str(s: &str) -> Self {
         println!("in from_str type: {}", s);
         match s {
-            "if" => Type::KeywordIf,
-            "for" => Type::KeywordFor,
-            "true" => Type::KeywordTrue,
-            "false" => Type::KeywordFalse,
+            "if" => Self::KeywordIf,
+            "for" => Self::KeywordFor,
+            "true" => Self::KeywordTrue,
+            "false" => Self::KeywordFalse,
+            "switch" => Self::KeywordSwitch,
+            "goto" => Self::KeywordGoto,
+            "for" => Self::KeywordFor,
+            "while" => Self::KeywordWhile,
+            "continue" => Self::KeywordContinue,
+            "break" => Self::KeywordBreak,
+            "import" => Self::KeywordImport,
+            "fn" => Self::KeywordFn,
+            "return" => Self::KeywordReturn,
+            "enum" => Self::KeywordEnum,
+            "else" => Self::KeywordElse,
+            "bool" => Self::KeywordBool,
+            "struct" => Self::KeywordStruct,
+            "union" => Self::KeywordUnion,
+            "void" => Self::KeywordVoid,
+            "int" => Self::KeywordInt,
+            "uint" => Self::UnsignedInt,
+            "string" => Self::StringLiteral,
+            "float" => Self::KeywordFloat,
+            "char" => Self::KeywordChar,
             _ => {
                 unreachable!();
             }
@@ -131,6 +177,9 @@ impl Tokenizer {
             src: src.chars().collect(),
             cur: 0,
         }
+    }
+    fn eof(&self) -> bool {
+        self.cur >= self.src.len()
     }
 
     fn forward_char(&mut self) {
@@ -304,32 +353,22 @@ fn integers() {
     println!("{:?}", num);
     assert_eq!("123", &src[num.loc.0..num.loc.1]);
 }
-#[test]
-fn boolean_true() {
-    let src = "true ";
-    let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    println!("{:?}", tok);
-    assert_eq!(Type::KeywordTrue, tok.ty);
-    assert_eq!("true", &src[tok.loc.0..tok.loc.1]);
-}
 
 #[test]
-fn boolean_false() {
-    let src = "false ";
-    let mut tokenizer = Tokenizer::new(src);
+fn keywords() {
+    for keyword in Type::to_vec_str() {
+        let mut tokenizer = Tokenizer::new(keyword);
 
-    let tok = tokenizer.next();
+        let tok = tokenizer.next();
 
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    println!("{:?}", tok);
-    assert_eq!(Type::KeywordFalse, tok.ty);
-    assert_eq!("false", &src[tok.loc.0..tok.loc.1]);
+        assert!(tok.is_ok());
+        let tok = tok.unwrap();
+        println!("{:?}", tok);
+        assert_eq!(
+            &keyword[0..keyword.len() - 1],
+            &keyword[tok.loc.0..tok.loc.1]
+        );
+    }
 }
 #[test]
 fn strings() {
