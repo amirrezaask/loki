@@ -150,8 +150,9 @@ impl Token {
 struct Tokenizer {
     src: Vec<char>,
     cur: usize,
+    state: State,
 }
-
+#[derive(Debug)]
 enum State {
     Start,
     InStringLiteral(usize),
@@ -176,6 +177,7 @@ impl Tokenizer {
         Tokenizer {
             src: src.chars().collect(),
             cur: 0,
+            state: State::Start,
         }
     }
 
@@ -191,9 +193,23 @@ impl Tokenizer {
         self.src[self.cur]
     }
 
-    fn at_eof(&mut self, state: State) -> Token {
-        match state {
-            State::Integer(start) => {}
+    fn emit_current_token(&mut self) -> Token {
+        println!(">{:?}", self.state);
+        match self.state {
+            State::Integer(start) => {
+                self.state = State::Start;
+                self.forward_char();
+                return Token::new(Type::UnsignedInt, (start, self.cur - 1));
+            }
+            State::IdentifierOrKeyword(start) => {
+                self.state = State::Start;
+
+                let ident_or_keyword: String =
+                    self.src[start..self.cur].to_vec().into_iter().collect();
+
+                self.forward_char();
+                return Token::new(Type::from_str(&ident_or_keyword), (start, self.cur - 1));
+            }
             _ => {
                 unreachable!();
             }
@@ -201,12 +217,12 @@ impl Tokenizer {
     }
 
     pub fn next(&mut self) -> Result<Token> {
-        let mut state = State::Start;
+        println!("@state: {:?}", self.state);
         loop {
-            if (self.eof()) {
-                return Ok(self.at_eof(state));
+            if self.eof() {
+                return Ok(self.emit_current_token());
             }
-            match state {
+            match self.state {
                 State::Start => {
                     match self.current_char() {
                         '{' => return Ok(Token::new(Type::OpenBrace, (self.cur, self.cur))),
@@ -216,86 +232,86 @@ impl Tokenizer {
                         '[' => return Ok(Token::new(Type::OpenBracket, (self.cur, self.cur))),
                         ']' => return Ok(Token::new(Type::CloseBracket, (self.cur, self.cur))),
                         '<' => {
-                            state = State::SawLeftAngleBracket;
+                            self.state = State::SawLeftAngleBracket;
                             self.forward_char();
                             continue;
                         }
                         '>' => {
-                            state = State::SawRightAngleBracket;
+                            self.state = State::SawRightAngleBracket;
                             self.forward_char();
                             continue;
                         }
                         '1'..='9' | '0' => {
-                            state = State::Integer(self.cur);
+                            self.state = State::Integer(self.cur);
                             self.forward_char();
                             continue;
                         }
                         '=' => {
-                            state = State::SawEqual;
+                            self.state = State::SawEqual;
                             self.forward_char();
                             continue;
                         }
                         '"' => {
-                            state = State::InStringLiteral(self.cur);
+                            self.state = State::InStringLiteral(self.cur);
                             self.forward_char();
                             continue;
                         }
                         '%' => {
-                            state = State::SawPercent;
+                            self.state = State::SawPercent;
                             self.forward_char();
                             continue;
                         }
                         '+' => {
-                            state = State::SawPlus;
+                            self.state = State::SawPlus;
                             self.forward_char();
                             continue;
                         }
                         '-' => {
-                            state = State::SawMinus;
+                            self.state = State::SawMinus;
                             self.forward_char();
                             continue;
                         }
                         '/' => {
-                            state = State::SawSlash;
+                            self.state = State::SawSlash;
                             self.forward_char();
                             continue;
                         }
                         '*' => {
-                            state = State::SawAstrix;
-                            self.forward_char();
-                            continue;
-                        }
-                        _ => {
-                            state = State::IdentifierOrKeyword(self.cur);
-                            self.forward_char();
-                            continue;
-                        }
-                        ':' => {
-                            state = State::SawColon;
+                            self.state = State::SawAstrix;
                             self.forward_char();
                             continue;
                         }
 
+                        ':' => {
+                            self.state = State::SawColon;
+                            self.forward_char();
+                            continue;
+                        }
                         ';' => {
-                            state = State::Start;
+                            self.state = State::Start;
                             self.forward_char();
                             return Ok(Token::new(Type::SemiColon, (self.cur - 1, self.cur - 1)));
+                        }
+                        _ => {
+                            self.state = State::IdentifierOrKeyword(self.cur);
+                            self.forward_char();
+                            continue;
                         }
                     };
                 }
                 State::SawEqual => match self.current_char() {
                     '=' => {
-                        state = State::Start;
+                        self.state = State::Start;
                         return Ok(Token::new(Type::DoubleEqual, (self.cur - 1, self.cur)));
                     }
                     _ => {
-                        state = State::Start;
+                        self.state = State::Start;
                         continue;
                     }
                 },
                 State::InStringLiteral(start) => match self.current_char() {
                     '"' => {
-                        state = State::Start;
+                        self.state = State::Start;
                         let tok = Token::new(Type::StringLiteral, (start + 1, self.cur));
                         return Ok(tok);
                     }
@@ -311,7 +327,7 @@ impl Tokenizer {
                         return Ok(tok);
                     }
                     _ => {
-                        state = State::Start;
+                        self.state = State::Start;
                         return Ok(Token::new(Type::LeftAngle, (self.cur - 1, self.cur - 1)));
                     }
                 },
@@ -319,38 +335,27 @@ impl Tokenizer {
                     '=' => {
                         let tok = Token::new(Type::GreaterEqual, (self.cur - 1, self.cur));
                         self.forward_char();
-                        state = State::Start;
+                        self.state = State::Start;
                         return Ok(tok);
                     }
                     _ => {
-                        state = State::Start;
+                        self.state = State::Start;
                         return Ok(Token::new(Type::RightAngle, (self.cur - 1, self.cur - 1)));
                     }
                 },
 
-                State::IdentifierOrKeyword(start) => match self.current_char() {
+                State::IdentifierOrKeyword(_) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' => {
-                        state = State::Start;
-
-                        let ident_or_keyword: String =
-                            self.src[start..self.cur].to_vec().into_iter().collect();
-
-                        self.forward_char();
-                        return Ok(Token::new(
-                            Type::from_str(&ident_or_keyword),
-                            (start, self.cur - 1),
-                        ));
+                        return Ok(self.emit_current_token());
                     }
                     _ => {
                         self.forward_char();
                         continue;
                     }
                 },
-                State::Integer(start) => match self.current_char() {
+                State::Integer(_) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' => {
-                        state = State::Start;
-                        self.forward_char();
-                        return Ok(Token::new(Type::UnsignedInt, (start, self.cur - 1)));
+                        return Ok(self.emit_current_token());
                     }
                     _ => {
                         self.forward_char();
@@ -367,7 +372,7 @@ impl Tokenizer {
 
 #[test]
 fn integers() {
-    let src = "123 ";
+    let src = "123";
     let mut tokenizer = Tokenizer::new(src);
 
     let num = tokenizer.next();
@@ -394,6 +399,7 @@ fn keywords() {
         );
     }
 }
+
 #[test]
 fn strings() {
     let src = "\"amirreza\"";
