@@ -77,29 +77,29 @@ pub enum Type {
 impl Type {
     fn to_vec_str() -> Vec<&'static str> {
         vec![
-            "if ",
-            "switch ",
-            "goto ",
-            "for ",
-            "while ",
-            "continue ",
-            "break ",
-            "import ",
-            "fn ",
-            "return ",
-            "true ",
-            "false ",
-            "enum ",
-            "else ",
-            "bool ",
-            "struct ",
-            "union ",
-            "void ",
-            "int ",
-            "uint ",
-            "string ",
-            "float ",
-            "char ",
+            "if",
+            "switch",
+            "goto",
+            "for",
+            "while",
+            "continue",
+            "break",
+            "import",
+            "fn",
+            "return",
+            "true",
+            "false",
+            "enum",
+            "else",
+            "bool",
+            "struct",
+            "union",
+            "void",
+            "int",
+            "uint",
+            "string",
+            "float",
+            "char",
         ]
     }
     fn from_str(s: &str) -> Self {
@@ -394,7 +394,7 @@ fn keywords() {
         let tok = tok.unwrap();
         println!("{:?}", tok);
         assert_eq!(
-            &keyword[0..keyword.len() - 1],
+            &keyword[0..keyword.len()],
             &keyword[tok.loc.0..tok.loc.1]
         );
     }
