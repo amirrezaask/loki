@@ -209,12 +209,33 @@ impl Tokenizer {
             match self.state {
                 State::Start => {
                     match self.current_char() {
-                        '{' => return Ok(Token::new(Type::OpenBrace, (self.cur, self.cur))),
-                        '}' => return Ok(Token::new(Type::CloseBrace, (self.cur, self.cur))),
-                        '(' => return Ok(Token::new(Type::OpenParen, (self.cur, self.cur))),
-                        ')' => return Ok(Token::new(Type::CloseParen, (self.cur, self.cur))),
-                        '[' => return Ok(Token::new(Type::OpenBracket, (self.cur, self.cur))),
-                        ']' => return Ok(Token::new(Type::CloseBracket, (self.cur, self.cur))),
+                        '{' => {
+                            self.forward_char();
+                            return Ok(Token::new(Type::OpenBrace, (self.cur - 1, self.cur - 1)));
+                        }
+                        '}' => {
+                            self.forward_char();
+                            return Ok(Token::new(Type::CloseBrace, (self.cur - 1, self.cur - 1)));
+                        }
+                        '(' => {
+                            self.forward_char();
+                            return Ok(Token::new(Type::OpenParen, (self.cur - 1, self.cur - 1)));
+                        }
+                        ')' => {
+                            self.forward_char();
+                            return Ok(Token::new(Type::CloseParen, (self.cur - 1, self.cur - 1)));
+                        }
+                        '[' => {
+                            self.forward_char();
+                            return Ok(Token::new(Type::OpenBracket, (self.cur - 1, self.cur - 1)));
+                        }
+                        ']' => {
+                            self.forward_char();
+                            return Ok(Token::new(
+                                Type::CloseBracket,
+                                (self.cur - 1, self.cur - 1),
+                            ));
+                        }
                         '<' => {
                             self.state = State::SawLeftAngleBracket;
                             self.forward_char();
@@ -264,6 +285,10 @@ impl Tokenizer {
                             self.state = State::SawAstrix;
                             self.forward_char();
                             continue;
+                        }
+                        ',' => {
+                            self.forward_char();
+                            return Ok(Token::new(Type::Comma, (self.cur - 1, self.cur - 1)));
                         }
 
                         ':' => {
@@ -345,7 +370,7 @@ impl Tokenizer {
                 },
 
                 State::IdentifierOrKeyword(_) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ':' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | '(' | ')' | ',' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -471,6 +496,77 @@ fn const_decl_no_type() {
     let tok = tok.unwrap();
     assert_eq!(Type::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+}
+
+#[test]
+fn fn_expr() {
+    let src = "fn(x: int, y: uint) void {}";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordFn, tok.ty);
+    assert_eq!("fn", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("x", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordInt, tok.ty);
+    assert_eq!("int", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Comma, tok.ty);
+    assert_eq!(",", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("y", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(":", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordUint, tok.ty);
+    assert_eq!("uint", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(")", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordVoid, tok.ty);
+    assert_eq!("void", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!("{", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!("}", &src[tok.loc.0..tok.loc.1]);
 }
 
 #[test]
