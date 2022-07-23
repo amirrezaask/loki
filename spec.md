@@ -5,10 +5,9 @@ In loki most of the syntax is around declarations, general syntax
 for decls is:
 ```
 ident :: expr;
-a :: 2;
-b :: 2.2;
-c :: "hello";
-d :: true;
+// examples
+f :: 2;
+f :uint: 2; // you can also include a type between colons but it's optional
 sum :: fn(a: int, b: int) int {
     return a + b;
 }
