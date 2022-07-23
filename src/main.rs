@@ -1,11 +1,11 @@
+mod ast;
 mod backend;
 mod cmd;
 mod errors;
 mod parser;
 mod passes;
-mod tokenizer;
-mod new_parser;
 mod src_discovery;
+mod tokenizer;
 use anyhow::Result;
 
 pub fn main() -> Result<()> {

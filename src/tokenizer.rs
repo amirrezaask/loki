@@ -135,7 +135,7 @@ impl Token {
     }
 }
 
-struct Tokenizer {
+pub struct Tokenizer {
     src: Vec<char>,
     cur: usize,
     state: State,
