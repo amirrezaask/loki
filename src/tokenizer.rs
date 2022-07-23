@@ -109,7 +109,7 @@ impl Type {
             "union" => Self::KeywordUnion,
             "void" => Self::KeywordVoid,
             "int" => Self::KeywordInt,
-            "uint" => Self::UnsignedInt,
+            "uint" => Self::KeywordUint,
             "string" => Self::StringLiteral,
             "float" => Self::KeywordFloat,
             "char" => Self::KeywordChar,
@@ -177,19 +177,19 @@ impl Tokenizer {
     }
 
     fn emit_current_token(&mut self) -> Token {
-        println!(">{:?}", self.state);
+        println!("emitting current token, state: {:?}", self.state);
         match self.state {
             State::Integer(start) => {
                 self.state = State::Start;
                 self.forward_char();
-                return Token::new(Type::UnsignedInt, (start, self.cur - 1));
+                return Token::new(Type::UnsignedInt, (start, self.cur - 2));
             }
             State::IdentifierOrKeyword(start) => {
                 self.state = State::Start;
 
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(Type::from_str(&ident_or_keyword), (start, self.cur));
+                let tok = Token::new(Type::from_str(&ident_or_keyword), (start, self.cur - 1));
 
                 return tok;
             }
@@ -379,7 +379,7 @@ impl Tokenizer {
                     }
                 },
                 State::Integer(_) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' => {
+                    ' ' | '\t' | '\n' | '\r' | ';' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -405,7 +405,7 @@ fn integers() {
     assert!(num.is_ok());
     let num = num.unwrap();
     println!("{:?}", num);
-    assert_eq!("123", &src[num.loc.0..num.loc.1]);
+    assert_eq!("123", &src[num.loc.0..=num.loc.1]);
 }
 
 #[test]
@@ -418,7 +418,7 @@ fn keywords() {
         assert!(tok.is_ok());
         let tok = tok.unwrap();
         println!("{:?}", tok);
-        assert_eq!(&keyword[0..keyword.len()], &keyword[tok.loc.0..tok.loc.1]);
+        assert_eq!(&keyword[0..keyword.len()], &keyword[tok.loc.0..=tok.loc.1]);
     }
 }
 
@@ -432,13 +432,13 @@ fn const_decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordConst, tok.ty);
-    assert_eq!("const", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("const", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -452,7 +452,7 @@ fn const_decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordInt, tok.ty);
-    assert_eq!("int", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -466,7 +466,7 @@ fn const_decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::UnsignedInt, tok.ty);
-    assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
@@ -476,17 +476,20 @@ fn const_decl_no_type() {
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
+    println!("%{:?}", tok);
     assert_eq!(Type::KeywordConst, tok.ty);
-    assert_eq!("const", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("const", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
+    println!("%{:?}", tok);
+    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
+    println!("%{:?}", tok);
     assert_eq!(Type::Equal, tok.ty);
     assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
 
@@ -494,8 +497,9 @@ fn const_decl_no_type() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
+    println!("%{:?}", tok);
     assert_eq!(Type::UnsignedInt, tok.ty);
-    assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
@@ -506,7 +510,7 @@ fn fn_expr() {
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordFn, tok.ty);
-    assert_eq!("fn", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("fn", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -516,7 +520,7 @@ fn fn_expr() {
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::Identifier, tok.ty);
-    assert_eq!("x", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("x", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -526,7 +530,7 @@ fn fn_expr() {
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordInt, tok.ty);
-    assert_eq!("int", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -536,37 +540,37 @@ fn fn_expr() {
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::Identifier, tok.ty);
-    assert_eq!("y", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("y", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::Colon, tok.ty);
-    assert_eq!(":", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordUint, tok.ty);
-    assert_eq!("uint", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("uint", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::CloseParen, tok.ty);
-    assert_eq!(")", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordVoid, tok.ty);
-    assert_eq!("void", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("void", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::OpenBrace, tok.ty);
-    assert_eq!("{", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenBrace, tok.ty);
-    assert_eq!("}", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
@@ -579,13 +583,13 @@ fn var_decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordVar, tok.ty);
-    assert_eq!("var", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -599,7 +603,7 @@ fn var_decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordInt, tok.ty);
-    assert_eq!("int", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -613,7 +617,7 @@ fn var_decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::UnsignedInt, tok.ty);
-    assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
@@ -624,11 +628,11 @@ fn var_decl_no_type() {
     let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!(Type::KeywordVar, tok.ty);
-    assert_eq!("var", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -642,7 +646,7 @@ fn var_decl_no_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::UnsignedInt, tok.ty);
-    assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
