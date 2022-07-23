@@ -474,6 +474,82 @@ fn const_decl_no_type() {
 }
 
 #[test]
+fn var_decl_with_type() {
+    let src = "var f: int = 12";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordVar, tok.ty);
+    assert_eq!("var", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordInt, tok.ty);
+    assert_eq!("int", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+}
+
+#[test]
+fn var_decl_no_type() {
+    let src = "var f = 12";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordVar, tok.ty);
+    assert_eq!("var", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("12", &src[tok.loc.0..tok.loc.1]);
+}
+
+#[test]
 fn strings() {
     let src = "\"amirreza\"";
     let mut tokenizer = Tokenizer::new(src);
