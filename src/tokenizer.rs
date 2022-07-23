@@ -70,6 +70,7 @@ pub enum Type {
     KeywordString,
     KeywordFloat,
     KeywordChar,
+    KeywordAs,
 
     Char,
     UnsignedInt,
@@ -80,14 +81,15 @@ pub enum Type {
 impl Type {
     fn to_vec_str() -> Vec<&'static str> {
         vec![
-            "var", "const", "if", "switch", "goto", "for", "while", "continue", "break", "import",
-            "fn", "return", "true", "false", "enum", "else", "bool", "struct", "union", "void",
-            "int", "uint", "string", "float", "char",
+            "as", "var", "const", "if", "switch", "goto", "for", "while", "continue", "break",
+            "import", "fn", "return", "true", "false", "enum", "else", "bool", "struct", "union",
+            "void", "int", "uint", "string", "float", "char",
         ]
     }
     fn from_str(s: &str) -> Self {
         println!("in from_str type: {}", s);
         match s {
+            "as" => Self::KeywordAs,
             "if" => Self::KeywordIf,
             "var" => Self::KeywordVar,
             "const" => Self::KeywordConst,
@@ -374,7 +376,7 @@ impl Tokenizer {
                 },
 
                 State::IdentifierOrKeyword(_) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ':' | '(' | ')' | ',' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -765,4 +767,63 @@ fn strings() {
     let tok = tok.unwrap();
     println!("{:?}", tok);
     assert_eq!("amirreza", &src[tok.loc.0..=tok.loc.1]);
+}
+#[test]
+fn import_with_as() {
+    let src = "import \"stdio.h\" as std;";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordImport, tok.ty);
+    assert_eq!("import", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::StringLiteral, tok.ty);
+    assert_eq!("stdio.h", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordAs, tok.ty);
+    assert_eq!("as", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("std", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
+}
+
+#[test]
+fn import_no_as() {
+    let src = "import \"stdio.h\";";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordImport, tok.ty);
+    assert_eq!("import", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::StringLiteral, tok.ty);
+    assert_eq!("stdio.h", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
