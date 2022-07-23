@@ -7,7 +7,7 @@ for decls is:
 const ident: type? = expr;
 // examples
 const f = 2;
-const f :uint = 2; // you can also include a type between colons but it's optional
+const f: uint = 2; // you can also include a type between colons but it's optional
 const sum = fn(a: int, b: int) int {
     return a + b;
 }
