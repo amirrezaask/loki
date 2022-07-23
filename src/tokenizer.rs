@@ -45,6 +45,8 @@ pub enum Type {
     Pipe,
     Identifier,
 
+    KeywordConst,
+    KeywordVar,
     KeywordIf,
     KeywordSwitch,
     KeywordGoto,
@@ -78,15 +80,17 @@ pub enum Type {
 impl Type {
     fn to_vec_str() -> Vec<&'static str> {
         vec![
-            "if", "switch", "goto", "for", "while", "continue", "break", "import", "fn", "return",
-            "true", "false", "enum", "else", "bool", "struct", "union", "void", "int", "uint",
-            "string", "float", "char",
+            "var", "const", "if", "switch", "goto", "for", "while", "continue", "break", "import",
+            "fn", "return", "true", "false", "enum", "else", "bool", "struct", "union", "void",
+            "int", "uint", "string", "float", "char",
         ]
     }
     fn from_str(s: &str) -> Self {
         println!("in from_str type: {}", s);
         match s {
             "if" => Self::KeywordIf,
+            "var" => Self::KeywordVar,
+            "const" => Self::KeywordConst,
             "for" => Self::KeywordFor,
             "true" => Self::KeywordTrue,
             "false" => Self::KeywordFalse,
@@ -302,7 +306,7 @@ impl Tokenizer {
                     }
                     _ => {
                         self.state = State::Start;
-                        continue;
+                        return Ok(Token::new(Type::Equal, (self.cur - 1, self.cur - 1)));
                     }
                 },
                 State::InStringLiteral(start) => match self.current_char() {
@@ -394,9 +398,16 @@ fn keywords() {
 }
 
 #[test]
-fn decl_with_type() {
-    let src = "f :int: 12";
+fn const_decl_with_type() {
+    let src = "const f: int = 12";
     let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordConst, tok.ty);
+    assert_eq!("const", &src[tok.loc.0..tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -409,8 +420,6 @@ fn decl_with_type() {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::Colon, tok.ty);
-    println!("{:?}", tok);
-
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
@@ -424,9 +433,8 @@ fn decl_with_type() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
-    println!("{:?}", tok);
-    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -437,13 +445,16 @@ fn decl_with_type() {
 }
 
 #[test]
-fn decl_no_type() {
-    let src = "f :: 12";
+fn const_decl_no_type() {
+    let src = "const f = 12";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordConst, tok.ty);
+    assert_eq!("const", &src[tok.loc.0..tok.loc.1]);
 
-    assert!(tok.is_ok());
+    let tok = tokenizer.next();
     let tok = tok.unwrap();
     assert_eq!("f", &src[tok.loc.0..tok.loc.1]);
 
@@ -451,8 +462,8 @@ fn decl_no_type() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::DoubleColon, tok.ty);
-    assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
