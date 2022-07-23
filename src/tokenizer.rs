@@ -1176,3 +1176,84 @@ fn for_each() {
     assert_eq!(Type::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
+
+#[test]
+fn if_stmt() {
+    let src = "if (i < 10) {\n\tprint(i);\n}";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordIf, tok.ty);
+    assert_eq!("if", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::LeftAngle, tok.ty);
+    assert_eq!("<", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("10", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("print", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
+}
