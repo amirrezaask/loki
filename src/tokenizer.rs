@@ -34,6 +34,8 @@ pub enum Type {
     Colon,
     DoubleColon,
     DoubleEqual,
+    DoublePlus,
+    DoubleMinus,
     SemiColon,
     Ampersand,
     Hat,
@@ -179,12 +181,14 @@ impl Tokenizer {
     }
 
     fn emit_current_token(&mut self) -> Token {
-        println!("emitting current token, state: {:?}", self.state);
+        println!(
+            "emitting current token idx {:?}, state: {:?}",
+            self.cur, self.state
+        );
         match self.state {
             State::Integer(start) => {
                 self.state = State::Start;
-                self.forward_char();
-                return Token::new(Type::UnsignedInt, (start, self.cur - 2));
+                return Token::new(Type::UnsignedInt, (start, self.cur - 1));
             }
             State::IdentifierOrKeyword(start) => {
                 self.state = State::Start;
@@ -208,8 +212,9 @@ impl Tokenizer {
     }
 
     pub fn next(&mut self) -> Result<Token> {
-        println!("@state: {:?}", self.state);
         loop {
+            println!("@state: {:?}", self.state);
+
             if self.eof() {
                 return Ok(self.emit_current_token());
             }
@@ -376,7 +381,7 @@ impl Tokenizer {
                 },
 
                 State::IdentifierOrKeyword(_) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -391,6 +396,33 @@ impl Tokenizer {
                     _ => {
                         self.forward_char();
                         continue;
+                    }
+                },
+                State::SawPlus => match self.current_char() {
+                    '+' => {
+                        let tok = Token::new(Type::DoublePlus, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    _ => {
+                        let tok = Token::new(Type::Plus, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        return Ok(tok);
+                    }
+                },
+
+                State::SawMinus => match self.current_char() {
+                    '+' => {
+                        let tok = Token::new(Type::DoubleMinus, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    _ => {
+                        let tok = Token::new(Type::Minus, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        return Ok(tok);
                     }
                 },
                 _ => {
@@ -430,7 +462,7 @@ fn keywords() {
 
 #[test]
 fn const_decl_with_type() {
-    let src = "const f: int = 12";
+    let src = "const f: int = 12;";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -473,11 +505,18 @@ fn const_decl_with_type() {
     let tok = tok.unwrap();
     assert_eq!(Type::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
 fn const_decl_no_type() {
-    let src = "const f = 12";
+    let src = "const f = 12;";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -510,7 +549,7 @@ fn const_decl_no_type() {
 
 #[test]
 fn const_decl_fn() {
-    let src = "const main = fn(x: int, y: uint) void {\n\t printf(\"Hello World\");\n}";
+    let src = "const main = fn(x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -682,7 +721,7 @@ fn fn_sign() {
 
 #[test]
 fn var_decl_with_type() {
-    let src = "var f: int = 12";
+    let src = "var f: int = 12;";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -725,11 +764,18 @@ fn var_decl_with_type() {
     let tok = tok.unwrap();
     assert_eq!(Type::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
 
 #[test]
 fn var_decl_no_type() {
-    let src = "var f = 12";
+    let src = "var f = 12;";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -827,3 +873,102 @@ fn import_no_as() {
     assert_eq!(Type::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
+
+#[test]
+fn for_c() {
+    let src = "for (var i = 0; i < 10; i++) {\n\tprint(i);\n}";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordFor, tok.ty);
+    assert_eq!("for", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordVar, tok.ty);
+    assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("0", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::LeftAngle, tok.ty);
+    assert_eq!("<", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("10", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::DoublePlus, tok.ty);
+    assert_eq!("++", &src[tok.loc.0..=tok.loc.1]);
+}
+fn for_while() {}
+fn for_each() {}
