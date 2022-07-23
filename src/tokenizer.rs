@@ -50,6 +50,7 @@ pub enum Type {
     KeywordConst,
     KeywordVar,
     KeywordIf,
+    KeywordIn,
     KeywordSwitch,
     KeywordGoto,
     KeywordFor,
@@ -83,15 +84,16 @@ pub enum Type {
 impl Type {
     fn to_vec_str() -> Vec<&'static str> {
         vec![
-            "as", "var", "const", "if", "switch", "goto", "for", "while", "continue", "break",
-            "import", "fn", "return", "true", "false", "enum", "else", "bool", "struct", "union",
-            "void", "int", "uint", "string", "float", "char",
+            "in", "as", "var", "const", "if", "switch", "goto", "for", "while", "continue",
+            "break", "import", "fn", "return", "true", "false", "enum", "else", "bool", "struct",
+            "union", "void", "int", "uint", "string", "float", "char",
         ]
     }
     fn from_str(s: &str) -> Self {
         println!("in from_str type: {}", s);
         match s {
             "as" => Self::KeywordAs,
+            "in" => Self::KeywordIn,
             "if" => Self::KeywordIf,
             "var" => Self::KeywordVar,
             "const" => Self::KeywordConst,
@@ -1094,4 +1096,83 @@ fn for_while() {
     assert_eq!(Type::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
-fn for_each() {}
+#[test]
+fn for_each() {
+    let src = "for (i in items) {\n\tprint(i);\n}";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordFor, tok.ty);
+    assert_eq!("for", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordIn, tok.ty);
+    assert_eq!("in", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("items", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("print", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    let tok = tok.unwrap();
+    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
+}
