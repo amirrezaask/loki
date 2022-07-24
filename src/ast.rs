@@ -106,6 +106,16 @@ impl Parser {
             cur: 0,
         })
     }
+    fn expect_ident(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            Type::Identifier => {
+                return Ok(Node::Ident(self.cur));
+            }
+            _ => {
+                return Err(self.err_uexpected(Type::Identifier));
+            }
+        }
+    }
     fn expect_string_literal(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::StringLiteral => {
@@ -130,16 +140,16 @@ impl Parser {
         match self.current_token().ty {
             Type::KeywordAs => {
                 self.forward_token();
-                let as_tok_idx =
-                    if let Node::StringLiteral(as_tok_idx) = self.expect_string_literal()? {
-                        as_tok_idx
-                    } else {
-                        unreachable!()
-                    };
+                let as_tok_idx = if let Node::Ident(as_tok_idx) = self.expect_ident()? {
+                    as_tok_idx
+                } else {
+                    unreachable!()
+                };
                 self.forward_token();
                 if self.current_token().ty != Type::SemiColon {
                     return Err(self.err_uexpected(Type::SemiColon));
                 }
+                self.forward_token();
                 return Ok(Node::Import(Import {
                     path: path_tok_idx,
                     _as: Some(as_tok_idx),
@@ -184,16 +194,29 @@ impl Parser {
 }
 
 #[test]
-fn import() {
-    let mut parser = Parser::new("import \"stdio.h\";").unwrap();
-    let ast = parser.get_ast();
-    let ast = ast.unwrap();
-    let import = if let Node::Import(import) = &ast.top_level[0] {
-        import
+fn import_no_as() -> Result<()> {
+    let mut parser = Parser::new("import \"stdio.h\";")?;
+    let ast = parser.get_ast()?;
+    if let Node::Import(import) = &ast.top_level[0] {
+        assert_eq!(import.path, 1);
+        assert_eq!(import._as, None);
     } else {
-        unreachable!()
-    };
+        panic!()
+    }
 
-    assert_eq!(import.path, 1);
-    assert_eq!(import._as, None);
+    Ok(())
+}
+
+#[test]
+fn import_with_as() -> Result<()> {
+    let mut parser = Parser::new("import \"stdio.h\" as std;")?;
+    let ast = parser.get_ast()?;
+    if let Node::Import(import) = &ast.top_level[0] {
+        assert_eq!(import.path, 1);
+        assert_eq!(import._as, Some(3));
+    } else {
+        panic!()
+    }
+
+    Ok(())
 }
