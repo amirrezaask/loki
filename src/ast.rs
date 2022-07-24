@@ -13,8 +13,9 @@ pub struct Import {
 #[derive(Debug)]
 pub struct Decl {
     mutable: bool,
-    lhs: Box<Node>,
-    rhs: Box<Node>,
+    name: Box<Node>,
+    ty: Box<Option<Node>>,
+    expr: Box<Node>,
 }
 
 #[derive(Debug)]
@@ -46,6 +47,7 @@ pub enum Node {
 
 #[derive(Debug)]
 pub struct AST {
+    tokens: Vec<Token>,
     top_level: Vec<Node>,
 }
 
@@ -126,6 +128,45 @@ impl Parser {
             }
         }
     }
+    fn expect_decl(&mut self, mutable: bool) -> Result<Node> {
+        self.forward_token();
+        let mut ty: Option<Node> = None;
+        if self.current_token().ty != Type::Identifier {
+            return Err(self.err_uexpected(Type::Identifier));
+        }
+
+        let name = self.cur;
+
+        self.forward_token();
+
+        if self.current_token().ty == Type::Colon {
+            // get type info
+            self.forward_token();
+
+            ty = Some(self.expect_expr()?);
+        }
+        if self.current_token().ty != Type::Equal {
+            return Err(self.err_uexpected(Type::Equal));
+        }
+
+        self.forward_token();
+        let rhs = self.expect_expr()?;
+
+        Ok(Node::Decl(Decl {
+            mutable,
+            name: Box::new(Node::Ident(name)),
+            ty: Box::new(ty),
+            expr: Box::new(rhs),
+        }))
+    }
+
+    fn expect_expr(&mut self) -> Result<Node> {
+        Ok(Node::True(1))
+    }
+    fn expect_stmt(&mut self) -> Result<Node> {
+        Ok(Node::True(1))
+    }
+
     fn expect_import(&mut self) -> Result<Node> {
         self.forward_token();
 
@@ -179,8 +220,15 @@ impl Parser {
                         let import = self.expect_import()?;
                         top_level.push(import);
                     }
-                    Type::KeywordConst => {}
-                    Type::KeywordVar => {}
+                    Type::KeywordConst => {
+                        let decl = self.expect_decl(false)?;
+                        top_level.push(decl);
+                    }
+
+                    Type::KeywordVar => {
+                        let decl = self.expect_decl(true)?;
+                        top_level.push(decl);
+                    }
                     _ => {
                         unreachable!();
                     }
@@ -189,7 +237,10 @@ impl Parser {
             }
         }
 
-        Ok(AST { top_level })
+        Ok(AST {
+            tokens: self.tokens,
+            top_level,
+        })
     }
 }
 
@@ -210,6 +261,32 @@ fn import_no_as() -> Result<()> {
 #[test]
 fn import_with_as() -> Result<()> {
     let mut parser = Parser::new("import \"stdio.h\" as std;")?;
+    let ast = parser.get_ast()?;
+    if let Node::Import(import) = &ast.top_level[0] {
+        assert_eq!(import.path, 1);
+        assert_eq!(import._as, Some(3));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
+fn const_decl_uint_with_type() -> Result<()> {
+    let mut parser = Parser::new("const i: uint = 8;")?;
+    let ast = parser.get_ast()?;
+    if let Node::Import(import) = &ast.top_level[0] {
+        assert_eq!(import.path, 1);
+        assert_eq!(import._as, Some(3));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
+fn const_decl_uint_without_type() -> Result<()> {
+    let mut parser = Parser::new("const i = 8;")?;
     let ast = parser.get_ast()?;
     if let Node::Import(import) = &ast.top_level[0] {
         assert_eq!(import.path, 1);
