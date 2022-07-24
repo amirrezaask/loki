@@ -90,7 +90,6 @@ impl Type {
         ]
     }
     fn from_str(s: &str) -> Self {
-        println!("in from_str type: {}", s);
         match s {
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,
@@ -125,7 +124,7 @@ impl Type {
 }
 #[derive(Debug)]
 pub struct Token {
-    ty: Type,
+    pub ty: Type,
     loc: (usize, usize),
 }
 
@@ -133,12 +132,6 @@ impl Token {
     pub fn new(ty: Type, loc: (usize, usize)) -> Self {
         Self { ty, loc }
     }
-}
-
-pub struct Tokenizer {
-    src: Vec<char>,
-    cur: usize,
-    state: State,
 }
 
 #[derive(Debug)]
@@ -161,9 +154,17 @@ enum State {
     SawRightAngleBracket,
 }
 
+pub struct Tokenizer {
+    src: Vec<char>,
+    cur: usize,
+    state: State,
+    reached_eof: bool,
+}
+
 impl Tokenizer {
     pub fn new(src: &str) -> Self {
         Tokenizer {
+            reached_eof: false,
             src: src.chars().collect(),
             cur: 0,
             state: State::Start,
@@ -183,10 +184,10 @@ impl Tokenizer {
     }
 
     fn emit_current_token(&mut self) -> Token {
-        println!(
-            "emitting current token idx {:?}, state: {:?}",
-            self.cur, self.state
-        );
+        // println!(
+        //     "emitting current token idx {:?}, state: {:?}",
+        //     self.cur, self.state
+        // );
         match self.state {
             State::Integer(start) => {
                 self.state = State::Start;
@@ -207,6 +208,9 @@ impl Tokenizer {
                 self.forward_char();
                 return tok;
             }
+            State::Start => {
+                return Token::new(Type::EOF, (self.src.len(), self.src.len()));
+            }
             _ => {
                 unreachable!();
             }
@@ -215,12 +219,16 @@ impl Tokenizer {
 
     pub fn next(&mut self) -> Result<Token> {
         loop {
-            println!("@state: {:?}", self.state);
+            // println!("@state: {:?}", self.state);
 
             if self.eof() {
+                if (self.reached_eof) {
+                    return Ok(Token::new(Type::EOF, (self.src.len(), self.src.len())));
+                }
+                self.reached_eof = true;
                 return Ok(self.emit_current_token());
             }
-            println!("@current_char: {}", self.current_char());
+            // println!("@current_char: {}", self.current_char());
             match self.state {
                 State::Start => {
                     match self.current_char() {
@@ -444,7 +452,6 @@ fn integers() {
 
     assert!(num.is_ok());
     let num = num.unwrap();
-    println!("{:?}", num);
     assert_eq!("123", &src[num.loc.0..=num.loc.1]);
 }
 
@@ -457,7 +464,6 @@ fn keywords() {
 
         assert!(tok.is_ok());
         let tok = tok.unwrap();
-        println!("{:?}", tok);
         assert_eq!(&keyword[0..keyword.len()], &keyword[tok.loc.0..=tok.loc.1]);
     }
 }
@@ -523,20 +529,17 @@ fn const_decl_no_type() {
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    println!("%{:?}", tok);
     assert_eq!(Type::KeywordConst, tok.ty);
     assert_eq!("const", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    println!("%{:?}", tok);
     assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    println!("%{:?}", tok);
     assert_eq!(Type::Equal, tok.ty);
     assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
 
@@ -544,7 +547,6 @@ fn const_decl_no_type() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    println!("%{:?}", tok);
     assert_eq!(Type::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
@@ -813,7 +815,6 @@ fn strings() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    println!("{:?}", tok);
     assert_eq!("amirreza", &src[tok.loc.0..=tok.loc.1]);
 }
 #[test]
