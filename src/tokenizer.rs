@@ -1,4 +1,6 @@
 use anyhow::Result;
+#[derive(Debug)]
+pub struct SrcLocation(usize, usize);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
@@ -125,12 +127,15 @@ impl Type {
 #[derive(Debug)]
 pub struct Token {
     pub ty: Type,
-    loc: (usize, usize),
+    pub loc: SrcLocation,
 }
 
 impl Token {
     pub fn new(ty: Type, loc: (usize, usize)) -> Self {
-        Self { ty, loc }
+        Self {
+            ty,
+            loc: SrcLocation(loc.0, loc.1),
+        }
     }
 }
 

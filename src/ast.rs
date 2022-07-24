@@ -1,19 +1,92 @@
 use crate::tokenizer::Token;
 use crate::tokenizer::Tokenizer;
 use crate::tokenizer::Type;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 #[derive(Debug)]
-pub enum Node {}
+pub struct Import {
+    // this usize refer to src location.
+    path: usize,
+    _as: Option<usize>,
+}
+
+#[derive(Debug)]
+pub struct Decl {
+    mutable: bool,
+    lhs: Box<Node>,
+    rhs: Box<Node>,
+}
+
+#[derive(Debug)]
+pub enum Node {
+    //top level items
+    Import(Import),
+    Decl(Decl),
+
+    // primitive types
+    Uint(usize),
+    Int(usize),
+    StringLiteral(usize),
+    Float(usize),
+    True(usize),
+    False(usize),
+    Char(usize),
+
+    Ident(usize),
+
+    // keywords
+    IntTy(usize),
+    FloatTy(usize),
+    UintTy(usize),
+    BoolTy(usize),
+    StringTy(usize),
+    CharTy(usize),
+    VoidTy(usize),
+}
 
 #[derive(Debug)]
 pub struct AST {
     top_level: Vec<Node>,
 }
 
-impl AST {
+#[derive(Default, Debug)]
+enum State {
+    #[default]
+    Start,
+    Block,
+    Import,
+    ImportWaitingForString,
+    WaitingForExpr,
+    SawIdentifier,
+    VarDecl,
+    ConstDecl,
+    SawIf,
+    SawFn,
+}
+
+#[derive(Debug, Default)]
+struct Parser {
+    tokens: Vec<Token>,
+    cur: usize,
+    state: State,
+}
+
+impl Parser {
+    fn err_uexpected(&self, what: Type) -> anyhow::Error {
+        anyhow!(
+            "Expected {:?}, found {:?} at {:?}",
+            what,
+            self.current_token(),
+            self.current_token().loc
+        )
+    }
+    fn current_token(&self) -> &Token {
+        return &self.tokens[self.cur];
+    }
+    fn forward_token(&mut self) {
+        self.cur += 1;
+    }
     pub fn new(src: &str) -> Result<Self> {
-        let mut top_level = Vec::<Node>::new();
         let mut tokenizer = Tokenizer::new(src);
         let mut tokens = Vec::<Token>::new();
         loop {
@@ -27,15 +100,100 @@ impl AST {
                 }
             }
         }
-        println!("tokens: {:?}", tokens);
+        Ok(Self {
+            tokens: tokens,
+            state: State::Start,
+            cur: 0,
+        })
+    }
+    fn expect_string_literal(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            Type::StringLiteral => {
+                return Ok(Node::StringLiteral(self.cur));
+            }
+            _ => {
+                return Err(self.err_uexpected(Type::StringLiteral));
+            }
+        }
+    }
+    fn expect_import(&mut self) -> Result<Node> {
+        self.forward_token();
 
-        Ok(Self { top_level })
+        let path_tok_idx =
+            if let Node::StringLiteral(path_tok_idx) = self.expect_string_literal()? {
+                path_tok_idx
+            } else {
+                unreachable!()
+            };
+
+        self.forward_token();
+        match self.current_token().ty {
+            Type::KeywordAs => {
+                self.forward_token();
+                let as_tok_idx =
+                    if let Node::StringLiteral(as_tok_idx) = self.expect_string_literal()? {
+                        as_tok_idx
+                    } else {
+                        unreachable!()
+                    };
+                self.forward_token();
+                if self.current_token().ty != Type::SemiColon {
+                    return Err(self.err_uexpected(Type::SemiColon));
+                }
+                return Ok(Node::Import(Import {
+                    path: path_tok_idx,
+                    _as: Some(as_tok_idx),
+                }));
+            }
+            Type::SemiColon => {
+                println!("inja");
+                self.forward_token();
+                return Ok(Node::Import(Import {
+                    path: path_tok_idx,
+                    _as: None,
+                }));
+            }
+            _ => Err(self.err_uexpected(Type::SemiColon)),
+        }
+    }
+    pub fn get_ast(&mut self) -> Result<AST> {
+        let mut top_level = Vec::<Node>::new();
+        println!("tokens: {:?}", self.tokens);
+        loop {
+            if self.cur >= self.tokens.len() {
+                break;
+            }
+            match self.state {
+                State::Start => match self.current_token().ty {
+                    Type::KeywordImport => {
+                        let import = self.expect_import()?;
+                        top_level.push(import);
+                    }
+                    Type::KeywordConst => {}
+                    Type::KeywordVar => {}
+                    _ => {
+                        unreachable!();
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        Ok(AST { top_level })
     }
 }
 
 #[test]
-fn ast_get_tokens() {
-    let ast = AST::new("const i = 0;");
-    assert!(ast.is_err());
+fn import() {
+    let mut parser = Parser::new("import \"stdio.h\";").unwrap();
+    let ast = parser.get_ast();
     let ast = ast.unwrap();
+    let import = if let Node::Import(import) = &ast.top_level[0] {
+        import
+    } else {
+        unreachable!()
+    };
+
+    assert_eq!(import.path, 1);
+    assert_eq!(import._as, None);
 }

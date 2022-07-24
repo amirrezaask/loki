@@ -27,7 +27,7 @@ impl Operator {
             ">=" => Self::GreaterEq,
             "<=" => Self::LesserEq,
             _ => panic!(),
-        } 
+        }
     }
 }
 
@@ -111,7 +111,7 @@ pub struct TypeInit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
     pub path: Node,
-    pub _as: Option<Node> 
+    pub _as: Option<Node>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct IdentAndTy {
@@ -175,12 +175,15 @@ impl Decl {
     }
 }
 
-use crate::errors::Error;
 use crate::errors::panic;
+use crate::errors::Error;
 type ParseResult = Result<(String, Node), Error>;
 type ParserFn = fn(String, bool) -> Result<(String, Node), Error>;
 
-fn any_of(context: String, parsers: Vec<impl Fn(String, bool) -> ParseResult>) -> impl Fn(String, bool) -> ParseResult {
+fn any_of(
+    context: String,
+    parsers: Vec<impl Fn(String, bool) -> ParseResult>,
+) -> impl Fn(String, bool) -> ParseResult {
     move |input: String, should_panic: bool| {
         let mut errs: Vec<String> = vec![];
         for parser in parsers.iter() {
@@ -194,7 +197,9 @@ fn any_of(context: String, parsers: Vec<impl Fn(String, bool) -> ParseResult>) -
     }
 }
 
-fn zero_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, bool) -> ParseResult {
+fn zero_or_more(
+    parser: impl Fn(String, bool) -> ParseResult,
+) -> impl Fn(String, bool) -> ParseResult {
     move |mut input: String, should_panic: bool| {
         let mut result = Vec::new();
         while let Ok((remains, parsed)) = parser(input.clone(), should_panic) {
@@ -205,7 +210,9 @@ fn zero_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String,
     }
 }
 
-fn zero_or_one(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, bool) -> ParseResult {
+fn zero_or_one(
+    parser: impl Fn(String, bool) -> ParseResult,
+) -> impl Fn(String, bool) -> ParseResult {
     move |input: String, should_panic: bool| {
         if let Ok((remains, _parsed)) = parser(input.clone(), should_panic) {
             Ok((remains, Node::Char('-')))
@@ -215,7 +222,9 @@ fn zero_or_one(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, 
     }
 }
 
-fn one_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, bool) -> ParseResult {
+fn one_or_more(
+    parser: impl Fn(String, bool) -> ParseResult,
+) -> impl Fn(String, bool) -> ParseResult {
     move |mut input: String, should_panic: bool| {
         let mut result = Vec::new();
 
@@ -237,8 +246,7 @@ fn one_or_more(parser: impl Fn(String, bool) -> ParseResult) -> impl Fn(String, 
             } else if let Err(_e) = resp {
                 break;
             }
-
-        } 
+        }
         Ok((input, Node::List(result)))
     }
 }
@@ -261,11 +269,7 @@ fn any() -> impl Fn(String) -> ParseResult {
 fn parse_char(c: char) -> impl Fn(String, bool) -> ParseResult {
     move |input: String, _should_panic: bool| {
         if input.is_empty() {
-            return ParseResult::Err(Error::unexpected(
-                c.to_string(),
-                "nothing".to_string(),
-                0,
-            ));
+            return ParseResult::Err(Error::unexpected(c.to_string(), "nothing".to_string(), 0));
         }
         if input.chars().next().unwrap() == c {
             return ParseResult::Ok((input[1..].to_string(), Node::Char(c)));
@@ -288,7 +292,10 @@ fn string(input: String, should_panic: bool) -> ParseResult {
     let (remains, _) = parse_char('"')(input, should_panic)?;
     let mut end: usize = 0;
     for (idx, c) in remains.chars().enumerate() {
-        if c == '"' && remains.chars().nth(idx - 1).is_some() && remains.chars().nth(idx - 1).unwrap() != '\\' {
+        if c == '"'
+            && remains.chars().nth(idx - 1).is_some()
+            && remains.chars().nth(idx - 1).unwrap() != '\\'
+        {
             end = idx;
             break;
         }
@@ -474,17 +481,15 @@ fn int(mut input: String, _should_panic: bool) -> ParseResult {
     let (input, obj) = uint(input, false)?;
     match obj {
         Node::Uint(num) => Ok((input, Node::Int(with_sign as isize * num as isize))),
-        _ => Err(Error::unknown(format!(
-            "expected a uint found {:?}",
-            obj
-        ))),
+        _ => Err(Error::unknown(format!("expected a uint found {:?}", obj))),
     }
 }
 
 fn _bool(input: String, should_panic: bool) -> ParseResult {
     let _true = keyword("true".to_string());
     let _false = keyword("false".to_string());
-    let (remains, bool_parsed) = any_of("boolean".to_string(), vec![_true, _false])(input, should_panic)?;
+    let (remains, bool_parsed) =
+        any_of("boolean".to_string(), vec![_true, _false])(input, should_panic)?;
     if let Node::Keyword(b) = bool_parsed {
         Ok((remains, Node::Bool(b == "true")))
     } else {
@@ -506,7 +511,7 @@ fn _struct(input: String, _should_panic: bool) -> ParseResult {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
             if remains.chars().next().is_some() && remains.starts_with('}') {
-                break
+                break;
             }
             let ident_res = ident(remains.clone(), false)?;
             remains = ident_res.0;
@@ -581,13 +586,9 @@ fn array(input: String, _should_panic: bool) -> ParseResult {
     let (remains, _) = parse_char(']')(remains, true)?;
     Ok((
         remains,
-        Node::ArrayTy(Box::new(ArrayTy {
-            size,
-            inner_ty: ty,
-        })),
+        Node::ArrayTy(Box::new(ArrayTy { size, inner_ty: ty })),
     ))
 }
-
 
 fn statement(input: String, should_panic: bool) -> ParseResult {
     let parsers: Vec<ParserFn> = vec![_import, _for, decl, expr];
@@ -603,18 +604,21 @@ fn _import(input: String, should_panic: bool) -> ParseResult {
     let (remains, _) = whitespace()(remains, should_panic)?;
     let (remains, name) = string(remains, true)?;
     let (remains, _) = whitespace()(remains, should_panic)?;
-    Ok((remains, Node::Import(Box::new(Import {
-        path: name,
-        _as: None,
-    }))))
+    Ok((
+        remains,
+        Node::Import(Box::new(Import {
+            path: name,
+            _as: None,
+        })),
+    ))
 }
 
 fn block(input: String, should_panic: bool) -> ParseResult {
     match one_or_more(statement)(input, should_panic)? {
-        (remains, Node::List(items)) =>{
+        (remains, Node::List(items)) => {
             let (remains, _) = whitespace()(remains, false)?;
             Ok((remains, Node::Block(items)))
-        },
+        }
         (_remains, _) => unreachable!(),
     }
 }
@@ -646,17 +650,11 @@ fn _for(input: String, should_panic: bool) -> ParseResult {
 fn _for_while(input: String, _should_panic: bool) -> ParseResult {
     let (remains, _) = whitespace()(input, false)?;
     let (remains, cond) = expr(remains, true)?;
-    let (remains, _) = whitespace()(remains,false)?;
+    let (remains, _) = whitespace()(remains, false)?;
     let (remains, _) = parse_char('{')(remains, true)?;
     let (remains, body) = block(remains, false)?;
     let (remains, _) = parse_char('}')(remains, true)?;
-    Ok((
-        remains,
-        Node::While(Box::new(While {
-            cond,
-            block: body,
-        })),
-    ))
+    Ok((remains, Node::While(Box::new(While { cond, block: body }))))
 }
 
 fn _for_c(input: String, _should_panic: bool) -> ParseResult {
@@ -699,7 +697,7 @@ fn union(input: String, _should_panic: bool) -> ParseResult {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
             if remains.chars().next().is_some() && remains.starts_with('}') {
-                break
+                break;
             }
             let ident_res = ident(remains.clone(), false)?;
             remains = ident_res.0;
@@ -737,7 +735,6 @@ fn union(input: String, _should_panic: bool) -> ParseResult {
     }
     let (remains, _) = parse_char('}')(remains, true)?;
     Ok((remains, Node::UnionTy(idents_tys)))
-
 }
 
 fn _enum(input: String, _should_panic: bool) -> ParseResult {
@@ -755,7 +752,7 @@ fn _enum(input: String, _should_panic: bool) -> ParseResult {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
             if remains.chars().next().is_some() && remains.starts_with('}') {
-                break
+                break;
             }
 
             let ident_res = ident(remains.clone(), false)?;
@@ -778,7 +775,6 @@ fn _enum(input: String, _should_panic: bool) -> ParseResult {
     }
     let (remains, _) = parse_char('}')(remains, true)?;
     Ok((remains, Node::EnumTy(variants)))
-
 }
 fn fn_ty(input: String) -> ParseResult {
     let (remains, _) = whitespace()(input, false)?;
@@ -959,7 +955,7 @@ fn A(input: String) -> ParseResult {
                         rhs,
                     })),
                 ))
-            },
+            }
             Node::Keyword(k) => {
                 let operator = Operator::from_char(k);
                 let (remains, rhs) = B(remains)?;
@@ -971,9 +967,8 @@ fn A(input: String) -> ParseResult {
                         rhs,
                     })),
                 ))
- 
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         },
         Err(_e) => Ok((remains, lhs)),
         _ => unreachable!(),
@@ -1007,16 +1002,10 @@ fn C(input: String) -> ParseResult {
     match parse_char('.')(remains.clone(), false) {
         Ok((remains, _)) => {
             let (remains, rhs) = D(remains)?;
-            Ok((remains, Node::Dot(Box::new(Dot {
-                lhs,
-                rhs,
-            }))))
-        }, 
-        Err(_e) => {
-            Ok((remains, lhs))
+            Ok((remains, Node::Dot(Box::new(Dot { lhs, rhs }))))
         }
+        Err(_e) => Ok((remains, lhs)),
     }
-
 }
 
 fn D(input: String) -> ParseResult {
@@ -1064,7 +1053,7 @@ fn struct_init(input: String, _should_panic: bool) -> ParseResult {
             let whitespace_res = whitespace()(remains.clone(), false)?;
             remains = whitespace_res.0;
             if remains.chars().next().is_some() && remains.starts_with('}') {
-                break
+                break;
             }
             let ident_res = ident(remains.clone(), false)?;
             remains = ident_res.0;
@@ -1084,10 +1073,7 @@ fn struct_init(input: String, _should_panic: bool) -> ParseResult {
             remains = value_res.0;
 
             let value_obj = value_res.1;
-            fields_values.push((
-                ident_obj.clone(),
-                value_obj.primitive().clone(),
-            ));
+            fields_values.push((ident_obj.clone(), value_obj.primitive().clone()));
 
             let whitespace_res = whitespace()(remains, false)?;
             remains = whitespace_res.0;
@@ -1101,10 +1087,13 @@ fn struct_init(input: String, _should_panic: bool) -> ParseResult {
         }
     }
     let (remains, _) = parse_char('}')(remains, true)?;
-    Ok((remains, Node::TypeInit(TypeInit {
-        ty: Box::new(ty), fields_values
-    })))
-    
+    Ok((
+        remains,
+        Node::TypeInit(TypeInit {
+            ty: Box::new(ty),
+            fields_values,
+        }),
+    ))
 }
 
 fn comparisons(input: String) -> ParseResult {
@@ -1115,17 +1104,23 @@ fn comparisons(input: String) -> ParseResult {
 fn add_minus(input: String) -> ParseResult {
     match comparisons(input.clone()) {
         Ok((remains, p)) => Ok((remains, p)),
-        Err(_) => any_of("+-<>".to_string(), vec![
-            parse_char('+'),
-            parse_char('-'),
-            parse_char('<'),
-            parse_char('>'),
-        ])(input, false),
+        Err(_) => any_of(
+            "+-<>".to_string(),
+            vec![
+                parse_char('+'),
+                parse_char('-'),
+                parse_char('<'),
+                parse_char('>'),
+            ],
+        )(input, false),
     }
 }
 
 fn mul_div_mod(input: String) -> ParseResult {
-    any_of("*/%".to_string(), vec![parse_char('*'), parse_char('/'), parse_char('%')])(input, false)
+    any_of(
+        "*/%".to_string(),
+        vec![parse_char('*'), parse_char('/'), parse_char('%')],
+    )(input, false)
 }
 
 pub fn module(input: String) -> ParseResult {
@@ -1134,10 +1129,11 @@ pub fn module(input: String) -> ParseResult {
     if remains.is_empty() {
         Ok((remains, node))
     } else {
-        Err(Error::unknown("parser did not finish whole file".to_string()))
+        Err(Error::unknown(
+            "parser did not finish whole file".to_string(),
+        ))
     }
 }
-
 
 use super::*;
 // use pretty_assertions::assert_eq;
@@ -1188,7 +1184,8 @@ fn test_decl() {
         "sum = fn() void {
     return 1;
 };"
-            .to_string(), false
+        .to_string(),
+        false,
     );
     assert!(decl_res.is_ok());
     let _none: Box<Option<Node>> = Box::new(None);
@@ -1225,7 +1222,10 @@ fn test_decl() {
         assert!(false);
     }
 
-    let decl_res = decl("f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string(), false);
+    let decl_res = decl(
+        "f = fn() void {\n\tprintln(\"Salam donya!\");\n}".to_string(),
+        false,
+    );
     assert!(decl_res.is_ok());
     let _none: Box<Option<Node>> = Box::new(None);
     if let (_, Node::Decl(name, _none, f)) = decl_res.unwrap() {
@@ -1252,7 +1252,7 @@ fn test_decl() {
 fn test_parse_single_digit() {
     assert_eq!(
         digit()("1AB".to_string(), false),
-        ParseResult::Ok(("AB".to_string(), Node::Char('1'), ))
+        ParseResult::Ok(("AB".to_string(), Node::Char('1'),))
     );
 }
 
@@ -1356,7 +1356,7 @@ fn test_parse_ident() {
     );
     assert_eq!(
         ident("name_str".to_string(), false),
-        ParseResult::Ok(("".to_string(), Node::Ident("name_str".to_string()), ))
+        ParseResult::Ok(("".to_string(), Node::Ident("name_str".to_string()),))
     );
 }
 
@@ -1416,7 +1416,7 @@ fn test_parse_bool() {
     );
     assert_eq!(
         _bool("falsesomeshitaftertrue".to_string(), false),
-        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false), ))
+        ParseResult::Ok(("someshitaftertrue".to_string(), Node::Bool(false),))
     );
 }
 
@@ -1432,7 +1432,8 @@ fn test_block() {
         
         
         "
-                .to_string(), false
+            .to_string(),
+            false
         ),
         Ok((
             "".to_string(),
@@ -1442,7 +1443,7 @@ fn test_block() {
                     Node::Str("salam %d".to_string()),
                     Node::Ident("i".to_string()),
                 ],
-            })), ])
+            })),])
         ))
     )
 }
@@ -1450,7 +1451,10 @@ fn test_block() {
 #[test]
 fn test_parse_for_while() {
     assert_eq!(
-        _for("for i<=10 {\n\tprintf(\"salam %d\", i);\n   }".to_string(), false),
+        _for(
+            "for i<=10 {\n\tprintf(\"salam %d\", i);\n   }".to_string(),
+            false
+        ),
         ParseResult::Ok((
             "".to_string(),
             Node::While(Box::new(While {
@@ -1474,7 +1478,10 @@ fn test_parse_for_while() {
 #[test]
 fn test_parse_for_c() {
     assert_eq!(
-        _for("for i:int = 0;i<=10;inc i {\n\tprintf(\"salam %d\", i);\n}".to_string(), false),
+        _for(
+            "for i:int = 0;i<=10;inc i {\n\tprintf(\"salam %d\", i);\n}".to_string(),
+            false
+        ),
         ParseResult::Ok((
             "".to_string(),
             Node::For(Box::new(For {
@@ -1547,8 +1554,10 @@ fn test_parse_struct() {
 
 #[test]
 fn test_parse_decl_struct() {
-    let decl_res =
-        decl("s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string(), false);
+    let decl_res = decl(
+        "s = struct {name: string, age: int, meta: struct {mature: bool}}".to_string(),
+        false,
+    );
     assert!(decl_res.is_ok());
     let _none: Box<Option<Node>> = Box::new(None);
     if let (_, Node::Decl(name, _none, be)) = decl_res.unwrap() {
@@ -1672,7 +1681,10 @@ fn test_parse_expr() {
         ParseResult::Ok(("".to_string(), Node::Str("name".to_string())))
     );
     assert_eq!(
-        expr("struct {\n\tname: string,\n\tupdated_at: date}".to_string(), false),
+        expr(
+            "struct {\n\tname: string,\n\tupdated_at: date}".to_string(),
+            false
+        ),
         ParseResult::Ok((
             "".to_string(),
             Node::StructTy(vec![
@@ -1689,7 +1701,10 @@ fn test_parse_expr() {
     );
 
     assert_eq!(
-        expr("struct {\n\tname: string,\n\tpayload: struct {created_at: date}}".to_string(), false),
+        expr(
+            "struct {\n\tname: string,\n\tpayload: struct {created_at: date}}".to_string(),
+            false
+        ),
         ParseResult::Ok((
             "".to_string(),
             Node::StructTy(vec![
@@ -1783,7 +1798,10 @@ fn test_parse_expr() {
         ))
     );
     assert_eq!(
-        expr("fn(a: struct { b: string }) void {\n\t print(\"salam\");\n\t}".to_string(), false),
+        expr(
+            "fn(a: struct { b: string }) void {\n\t print(\"salam\");\n\t}".to_string(),
+            false
+        ),
         ParseResult::Ok((
             "".to_string(),
             Node::FnDef(Box::new(FnDef {
@@ -1909,9 +1927,10 @@ fn test_parse_expr() {
             "".to_string(),
             Node::TypeInit(TypeInit {
                 ty: Box::new(Node::Ident("s".to_string())),
-                fields_values: vec![
-                    (Node::Ident("name".to_string()), Node::Str("amirreza".to_string())),
-                ]
+                fields_values: vec![(
+                    Node::Ident("name".to_string()),
+                    Node::Str("amirreza".to_string())
+                ),]
             })
         ))
     );
@@ -1954,7 +1973,7 @@ fn test_parse_import_in_module() {
 main = fn() void {
     printf(\"Hello world\");
 };"
-                .to_string()
+            .to_string()
         ),
         ParseResult::Ok((
             "".to_string(),
@@ -2075,7 +2094,7 @@ main = fn() void {
      println ( \"Hello World\");
      return sum (1, 2);
 };"
-                .to_string()
+            .to_string()
         ),
         Ok((
             "".to_string(),
@@ -2150,7 +2169,6 @@ main = fn() void {
     );
 }
 
-
 #[test]
 fn test_parse_module_with_struct_enum_union() {
     let out = module(
@@ -2169,11 +2187,12 @@ U = union {
     i: int,
     s: string,
 };
-".to_string()
+"
+        .to_string(),
     );
 
     assert_eq!(
-    out    ,
+        out,
         Ok((
             "".to_string(),
             Node::Block(vec![
@@ -2185,21 +2204,39 @@ U = union {
                     Box::new(Node::Ident("Human".to_string())),
                     Box::new(None),
                     Box::new(Node::StructTy(vec![
-                        IdentAndTy { ident: Node::Ident("name".to_string()), ty: Node::StringTy },
-                        IdentAndTy { ident: Node::Ident("age".to_string()), ty: Node::IntTy },
-                    ]))),
+                        IdentAndTy {
+                            ident: Node::Ident("name".to_string()),
+                            ty: Node::StringTy
+                        },
+                        IdentAndTy {
+                            ident: Node::Ident("age".to_string()),
+                            ty: Node::IntTy
+                        },
+                    ]))
+                ),
                 Node::Decl(
                     Box::new(Node::Ident("Kind".to_string())),
                     Box::new(None),
                     Box::new(Node::EnumTy(vec![
                         Node::Ident("Animal".to_string()),
                         Node::Ident("Human".to_string()),
-                    ]))),
+                    ]))
+                ),
                 Node::Decl(
                     Box::new(Node::Ident("U".to_string())),
                     Box::new(None),
                     Box::new(Node::UnionTy(vec![
-                        IdentAndTy { ident: Node::Ident("i".to_string()), ty: Node::IntTy },
-                        IdentAndTy { ident: Node::Ident("s".to_string()), ty: Node::StringTy },
-                    ])))]))))
+                        IdentAndTy {
+                            ident: Node::Ident("i".to_string()),
+                            ty: Node::IntTy
+                        },
+                        IdentAndTy {
+                            ident: Node::Ident("s".to_string()),
+                            ty: Node::StringTy
+                        },
+                    ]))
+                )
+            ])
+        ))
+    )
 }
