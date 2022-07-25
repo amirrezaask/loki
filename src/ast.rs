@@ -235,14 +235,16 @@ impl Parser {
                         let import = self.expect_import()?;
                         top_level.push(import);
                     }
-                    Type::KeywordConst => {
-                        let decl = self.expect_decl(false)?;
-                        top_level.push(decl);
-                    }
-
-                    Type::KeywordVar => {
-                        let decl = self.expect_decl(true)?;
-                        top_level.push(decl);
+                    Type::Identifier => {
+                        self.forward_token();
+                        match self.current_token().ty {
+                            Type::DoubleColon => {
+                                top_level.push(self.expect_decl(false)?);
+                            }
+                            _ => {
+                                return Err(self.err_uexpected(Type::DoubleColon));
+                            }
+                        }
                     }
                     _ => {
                         unreachable!();
@@ -287,21 +289,8 @@ fn import_with_as() -> Result<()> {
     Ok(())
 }
 
-fn const_decl_uint_with_type() -> Result<()> {
-    let mut parser = Parser::new("const i: uint = 8;")?;
-    let ast = parser.get_ast()?;
-    if let Node::Import(import) = &ast.top_level[0] {
-        assert_eq!(import.path, 1);
-        assert_eq!(import._as, Some(3));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-fn const_decl_uint_without_type() -> Result<()> {
-    let mut parser = Parser::new("const i = 8;")?;
+fn const_decl_uint() -> Result<()> {
+    let mut parser = Parser::new("i :: 8;")?;
     let ast = parser.get_ast()?;
     if let Node::Import(import) = &ast.top_level[0] {
         assert_eq!(import.path, 1);
