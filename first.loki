@@ -1,0 +1,37 @@
+a : int8 = 1; // or any int size 16, 32, 64, 128
+
+f :uint8 = 6; // or any uint size same as int
+
+b :: 2; // type infered constant uint
+
+c :: -2; // type infered constant int
+
+f :float32 = 2.2;
+
+f1 :: 2.2; //constant
+f2 := 2.2; // variable
+
+c1 := 'A';
+c2 :: 'B';
+
+s1 :: "amirreza";
+s2 := "comrade";
+
+b1 :: true;
+b2 := false;
+
+S = struct {
+  // field: ty
+  name: string,
+}
+
+State = enum {
+  Start,
+  End
+}
+
+enum : char {
+    A: 'a'
+}
+
+

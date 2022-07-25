@@ -504,6 +504,43 @@ fn keywords() {
         assert_eq!(&keyword[0..keyword.len()], &keyword[tok.loc.0..=tok.loc.1]);
     }
 }
+#[test]
+fn const_decl_with_ti() -> Result<()> {
+    let src = "f :uint32: 12;";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordUint32, tok.ty);
+    assert_eq!("uint32", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
+
+    Ok(())
+}
 
 #[test]
 fn const_decl() {
@@ -720,6 +757,45 @@ fn var_decl() {
     assert_eq!(Type::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
+
+#[test]
+fn var_decl_with_ti() -> Result<()> {
+    let src = "f :uint32 = 12;";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::KeywordUint32, tok.ty);
+    assert_eq!("uint32", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
+
+    Ok(())
+}
+
 
 #[test]
 fn strings() {
