@@ -71,8 +71,21 @@ pub enum Type {
     KeywordStruct,
     KeywordUnion,
     KeywordVoid,
+
     KeywordInt,
+    KeywordInt8,
+    KeywordInt16,
+    KeywordInt32,
+    KeywordInt64,
+    KeywordInt128,
+    
     KeywordUint,
+    KeywordUint8,
+    KeywordUint16,
+    KeywordUint32,
+    KeywordUint64,
+    KeywordUint128,
+
     KeywordString,
     KeywordFloat,
     KeywordChar,
@@ -116,8 +129,21 @@ impl Type {
             "struct" => Self::KeywordStruct,
             "union" => Self::KeywordUnion,
             "void" => Self::KeywordVoid,
+
+            "int8" => Self::KeywordInt8,
+            "int16" => Self::KeywordInt16,
+            "int32" => Self::KeywordInt32,
+            "int64" => Self::KeywordInt64,
+            "int128" => Self::KeywordInt128,
             "int" => Self::KeywordInt,
+            
+            "uint8" => Self::KeywordUint8,
+            "uint16" => Self::KeywordUint16,
+            "uint32" => Self::KeywordUint32,
+            "uint64" => Self::KeywordUint64,
+            "uint128" => Self::KeywordUint128,
             "uint" => Self::KeywordUint,
+
             "string" => Self::StringLiteral,
             "float" => Self::KeywordFloat,
             "char" => Self::KeywordChar,

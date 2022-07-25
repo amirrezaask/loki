@@ -6,8 +6,9 @@ for decls is:
 ```
 ident :: expr;
 // examples
-f :: 2;
+f :: int32(2); // 32-bit integer
 f :: 2; // you can also include a type between colons but it's optional
+
 sum :: fn(a: int, b: int) int {
     return a + b;
 }
