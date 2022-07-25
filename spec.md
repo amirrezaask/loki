@@ -4,11 +4,11 @@
 In loki most of the syntax is around declarations, general syntax
 for decls is:
 ```
-const ident: type? = expr;
+ident :: expr;
 // examples
-const f = 2;
-const f: uint = 2; // you can also include a type between colons but it's optional
-const sum = fn(a: int, b: int) int {
+f :: 2;
+f :: 2; // you can also include a type between colons but it's optional
+sum :: fn(a: int, b: int) int {
     return a + b;
 }
 ```
@@ -16,7 +16,7 @@ Note that all expressions must have a compile-time known type.
 
 ## Variables
 ```
-var ident: type? = expr;
+ident := expr;
 ```
 # Imports
 ```

@@ -34,6 +34,7 @@ pub enum Type {
 
     Equal,
     Colon,
+    ColonEqual,
     DoubleColon,
     DoubleEqual,
     DoublePlus,
@@ -346,6 +347,11 @@ impl Tokenizer {
                         self.forward_char();
                         return Ok(Token::new(Type::DoubleColon, (self.cur - 2, self.cur - 1)));
                     }
+                    '=' => {
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(Token::new(Type::ColonEqual, (self.cur - 2, self.cur - 1)));
+                    }
                     _ => {
                         self.state = State::Start;
                         let tok = Token::new(Type::Colon, (self.cur - 1, self.cur - 1));
@@ -474,68 +480,9 @@ fn keywords() {
 }
 
 #[test]
-fn const_decl_with_type() {
-    let src = "const f: int = 12;";
+fn const_decl() {
+    let src = "f :: 12;";
     let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordConst, tok.ty);
-    assert_eq!("const", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
-    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordInt, tok.ty);
-    assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
-    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
-    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
-    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
-}
-
-#[test]
-fn const_decl_no_type() {
-    let src = "const f = 12;";
-    let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordConst, tok.ty);
-    assert_eq!("const", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -545,8 +492,8 @@ fn const_decl_no_type() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
-    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::DoubleColon, tok.ty);
+    assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -558,13 +505,8 @@ fn const_decl_no_type() {
 
 #[test]
 fn const_decl_fn() {
-    let src = "const main = fn(x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
+    let src = "main :: fn(x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
     let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordConst, tok.ty);
-    assert_eq!("const", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -573,8 +515,8 @@ fn const_decl_fn() {
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
-    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::DoubleColon, tok.ty);
+    assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -728,69 +670,11 @@ fn fn_sign() {
     assert_eq!("void", &src[tok.loc.0..=tok.loc.1]);
 }
 
-#[test]
-fn var_decl_with_type() {
-    let src = "var f: int = 12;";
-    let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordVar, tok.ty);
-    assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
-    assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordInt, tok.ty);
-    assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
-    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
-    assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
-    assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
-}
 
 #[test]
-fn var_decl_no_type() {
-    let src = "var f = 12;";
+fn var_decl() {
+    let src = "f := 12;";
     let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordVar, tok.ty);
-    assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -800,8 +684,8 @@ fn var_decl_no_type() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
-    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::ColonEqual, tok.ty);
+    assert_eq!(":=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 

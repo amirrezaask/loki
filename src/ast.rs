@@ -103,7 +103,7 @@ impl Parser {
             }
         }
         Ok(Self {
-            tokens: tokens,
+            tokens,
             state: State::Start,
             cur: 0,
         })
@@ -159,10 +159,25 @@ impl Parser {
             expr: Box::new(rhs),
         }))
     }
+    /*
+        expr -> A (add_minus A)*
+        A -> B (mul_div_mod B)*
+        B -> C (.C)* // field access
+        C -> D (< <= | >= > D)* // cmp
+        D -> int | unsigned_int | float | string | bool | ident(expr*) | ident | '(' expr ')'
+     */
 
+    // fn expect_add_minus(&mut self) -> Result<Node> {}
+    // fn expect_mul_div_mod(&mut self) -> Result<Node> {}
+    // fn expect_field_access(&mut self) -> Result<Node> {}
+    // fn expect_cmp(&mut self) -> Result<Node> {}
+    // fn expect_vals(&mut self) -> Result<Node> {}
+    
     fn expect_expr(&mut self) -> Result<Node> {
         Ok(Node::True(1))
     }
+
+    // statement is either a decl/if/for/return/switch/break/continue/goto
     fn expect_stmt(&mut self) -> Result<Node> {
         Ok(Node::True(1))
     }
@@ -207,7 +222,7 @@ impl Parser {
             _ => Err(self.err_uexpected(Type::SemiColon)),
         }
     }
-    pub fn get_ast(&mut self) -> Result<AST> {
+    pub fn get_ast(mut self) -> Result<AST> {
         let mut top_level = Vec::<Node>::new();
         println!("tokens: {:?}", self.tokens);
         loop {
