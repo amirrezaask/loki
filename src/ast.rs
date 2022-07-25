@@ -164,7 +164,7 @@ impl Parser {
         A -> B (mul_div_mod B)*
         B -> C (.C)* // field access
         C -> D (< <= | >= > D)* // cmp
-        D -> int | unsigned_int | float | string | bool | ident(expr*) | ident | '(' expr ')'
+        D -> int | unsigned_int | float | string | bool | ident(expr*) | ident | '(' expr ')' | struct_def | enum_def
      */
 
     // fn expect_add_minus(&mut self) -> Result<Node> {}

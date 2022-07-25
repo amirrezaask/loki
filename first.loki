@@ -20,6 +20,10 @@ s2 := "comrade";
 b1 :: true;
 b2 := false;
 
+main :: fn() void {
+    std.fmt.printf("hello world");
+}
+
 S = struct {
   // field: ty
   name: string,
