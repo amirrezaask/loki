@@ -25,8 +25,7 @@ main :: fn() void {
 }
 
 S = struct {
-  // field: ty
-  name: string,
+  name: ^string, // ^ means that this will own the memory and when out of scope it should be removed.
 }
 
 State = enum {
@@ -37,5 +36,13 @@ State = enum {
 enum : char {
     A: 'a'
 }
+
+
+printer :: fn(s: string) void { // caller owns the memory
+          std.fmt.println(s);
+}
+
+printer :: fn(s: ^string) void {} // this function owns s, so when out of scope this will be freed.
+
 
 
