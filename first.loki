@@ -28,7 +28,7 @@ S = struct {
   name: ^string, // ^ means that this will own the memory and when out of scope it should be removed.
 }
 
-State = enum {
+State :: enum {
   Start,
   End
 }
