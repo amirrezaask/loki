@@ -247,7 +247,7 @@ impl Parser {
                 self.forward_token();
                 Ok(Node::Uint(self.cur-1))
             }
-            Type::Float => {
+            Type::Float => { //TODO: handle floats in tokenizer
                 self.forward_token();
                 Ok(Node::Float(self.cur-1))
             }
@@ -263,7 +263,7 @@ impl Parser {
                 self.forward_token();
                 Ok(Node::False(self.cur-1))
             }
-            Type::Char => {
+            Type::Char => { //TODO: handle chars in tokenizer
                 self.forward_token();
                 Ok(Node::Char(self.cur-1))
             }
@@ -465,7 +465,7 @@ fn import_with_as() -> Result<()> {
 }
 
 #[test]
-fn expr_uint() -> Result<()> {
+fn const_decl_expr_uint() -> Result<()> {
     let mut parser = Parser::new("a :: 4;")?;
     let ast = parser.get_ast()?;
     println!("here: {:?}", ast.top_level[0]);
@@ -482,11 +482,15 @@ fn expr_uint() -> Result<()> {
 }
 
 #[test]
-fn expr_bool_true() -> Result<()> {
-    let mut parser = Parser::new("true")?;
-    let node = parser.expect_expr()?;
-    if let Node::True(idx) = node {
-        assert_eq!(idx, 0);
+fn const_decl_expr_bool_true() -> Result<()> {
+    let mut parser = Parser::new("a :: true;")?;
+    let ast = parser.get_ast()?;
+    println!("here: {:?}", ast.top_level[0]);
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(decl.expr, Box::new(Node::True(2)));
     } else {
         panic!()
     }
@@ -495,11 +499,15 @@ fn expr_bool_true() -> Result<()> {
 }
 
 #[test]
-fn expr_bool_false() -> Result<()> {
-    let mut parser = Parser::new("false")?;
-    let node = parser.expect_expr()?;
-    if let Node::False(idx) = node {
-        assert_eq!(idx, 0);
+fn const_decl_expr_bool_false() -> Result<()> {
+    let mut parser = Parser::new("a :: false;")?;
+    let ast = parser.get_ast()?;
+    println!("here: {:?}", ast.top_level[0]);
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(decl.expr, Box::new(Node::False(2)));
     } else {
         panic!()
     }
@@ -507,6 +515,37 @@ fn expr_bool_false() -> Result<()> {
     Ok(())
 }
 
+
+#[test]
+fn const_decl_expr_ident() -> Result<()> {
+    let mut parser = Parser::new("a :: b;")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(decl.expr, Box::new(Node::Ident(2)));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+#[test]
+fn const_decl_expr_string() -> Result<()> {
+    let mut parser = Parser::new("a :: \"Amirreza\";")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(decl.expr, Box::new(Node::StringLiteral(2)));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
 // #[test] //TODO handle chars in tokenizer first
 // fn expr_char() -> Result<()> {
 //     let mut parser = Parser::new("'a'")?;
