@@ -53,8 +53,11 @@ pub enum Node {
     Div(Box<Node>, Box<Node>),
     Mod(Box<Node>, Box<Node>),
     FieldAccess(Box<Node>, Box<Node>),
+    FnDef(Vec<Node>, Box<Node>, Vec<Node>),
 
-    FnCall(Vec<Node>),
+    FnCall(Box<Node>, Vec<Node>),
+    If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
+    Return(Box<Node>),
 }
 
 #[derive(Debug)]
@@ -206,13 +209,16 @@ impl Parser {
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
     B -> C (< <= | >= > C)* // cmp
-    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | field_access | struct_def | enum_def | struct_init | enum_init
+    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | field_access | struct_def | enum_def | struct_init | enum_init | fn_def
     */
 
     fn expect_fn_call(&mut self) -> Result<Node> {
+        let name = Node::Ident(self.cur);
+        self.forward_token();
         if self.current_token().ty == Type::OpenParen {
             return Err(self.err_uexpected(Type::OpenParen));
         }
+
         let mut args = Vec::<Node>::new();
 
         self.forward_token();
@@ -235,7 +241,7 @@ impl Parser {
             self.forward_token();
         }
 
-        Ok(Node::FnCall(args))
+        Ok(Node::FnCall(Box::new(name), args))
     }
     fn expect_expr_C(&mut self) -> Result<Node> {
         println!("self.current_token.ty: {:?}", self.current_token().ty);
@@ -266,19 +272,29 @@ impl Parser {
                 Ok(Node::Char(self.cur - 1))
             }
             Type::KeywordStruct => {
+                //TODO
                 unreachable!();
             }
             Type::KeywordEnum => {
+                //TODO
                 unreachable!();
             }
             Type::OpenParen => {
-                unreachable!();
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                self.forward_token();
+                if self.current_token().ty != Type::CloseParen {
+                    return Err(self.err_uexpected(Type::CloseParen));
+                }
+
+                return Ok(expr);
             }
             Type::Identifier => {
                 self.forward_token();
                 match self.current_token().ty {
                     Type::OpenParen => {
                         //function call
+                        self.backward_token();
                         self.expect_fn_call()
                     }
 
@@ -303,6 +319,11 @@ impl Parser {
                         unreachable!()
                     }
                 }
+            }
+
+            Type::KeywordFn => {
+                //TODO
+                unreachable!()
             }
 
             _ => {
@@ -367,9 +388,83 @@ impl Parser {
         }
     }
 
-    // statement is either a decl/if/for/return/switch/break/continue/goto
+    fn expect_block(&mut self) -> Result<Vec<Node>> {
+        Ok(vec![])
+    }
+
+    // statement is either a decl/if/for/return/switch/break/continue/goto/fn_call
     fn expect_stmt(&mut self) -> Result<Node> {
-        Ok(Node::True(1))
+        match self.current_token().ty {
+            Type::Identifier => {
+                self.forward_token();
+                match self.current_token().ty {
+                    Type::DoubleColon | Type::Colon | Type::Equal => self.expect_decl(),
+                    Type::Dot | Type::OpenParen => self.expect_fn_call(),
+                    _ => Err(self.err_uexpected(Type::OpenParen)),
+                }
+            }
+
+            Type::KeywordIf => {
+                self.forward_token();
+                let cond = self.expect_expr()?;
+                self.forward_token();
+                match self.current_token().ty {
+                    Type::OpenBrace => {
+                        let then = self.expect_block()?;
+                        match self.current_token().ty {
+                            Type::KeywordElse => {
+                                self.forward_token();
+                                let _else = self.expect_block()?;
+                                return Ok(Node::If(Box::new(cond), Box::new(then), Some(_else)));
+                            }
+                            _ => {
+                                return Ok(Node::If(Box::new(cond), Box::new(then), None));
+                            }
+                        }
+                    }
+                    _ => return Err(self.err_uexpected(Type::OpenBrace)),
+                }
+            }
+
+            Type::KeywordFor => {
+                //TODO
+
+                unreachable!();
+            }
+            Type::KeywordReturn => {
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                Ok(Node::Return(Box::new(expr)))
+            }
+
+            Type::KeywordGoto => {
+                //TODO
+
+                unreachable!();
+            }
+
+            Type::KeywordContinue => {
+                //TODO
+
+                unreachable!();
+            }
+
+            Type::KeywordSwitch => {
+                //TODO
+
+                unreachable!();
+            }
+
+            Type::KeywordBreak => {
+                //TODO
+
+                unreachable!();
+            }
+
+            _ => {
+                unreachable!();
+            }
+        }
     }
 
     fn expect_import(&mut self) -> Result<Node> {
@@ -573,6 +668,32 @@ fn const_decl_expr_char() -> Result<()> {
         assert_eq!(decl.mutable, false);
         assert_eq!(decl.name, Box::new(Node::Ident(0)));
         assert_eq!(decl.expr, Box::new(Node::Char(2)));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
+#[test]
+fn const_decl_expr_fn() -> Result<()> {
+    let mut parser = Parser::new("main :: fn() void {\n\tprintf(\"Amirreza\");};")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(
+            decl.expr,
+            Box::new(Node::FnDef(
+                Vec::new(),
+                Box::new(Node::VoidTy(5)),
+                vec![Node::FnCall(
+                    Box::new(Node::Ident(7)),
+                    vec![Node::StringLiteral(9)]
+                )]
+            ))
+        );
     } else {
         panic!()
     }
