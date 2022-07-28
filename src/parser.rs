@@ -108,6 +108,7 @@ impl Parser {
         let mut tokens = Vec::<Token>::new();
         loop {
             let tok = tokenizer.next()?;
+            println!("got token: {:?}", tok);
             match tok.ty {
                 Type::EOF => {
                     break;
@@ -169,7 +170,8 @@ impl Parser {
             Type::Colon => {
                 self.forward_token();
                 ty = Some(self.expect_expr()?);
-                if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Equal {
+                if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Equal
+                {
                     unreachable!();
                 }
                 let mutable = self.current_token().ty == Type::Equal;
@@ -199,17 +201,13 @@ impl Parser {
                 unreachable!();
             }
         }
-
-
-
-
     }
     /*
-     expr -> A (add_minus A)*
-     A -> B (mul_div_mod B)*
-     B -> C (< <= | >= > C)* // cmp
-     C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | IDENT.IDENT | struct_def | enum_def
-     */
+    expr -> A (add_minus A)*
+    A -> B (mul_div_mod B)*
+    B -> C (< <= | >= > C)* // cmp
+    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | field_access | struct_def | enum_def | struct_init | enum_init
+    */
 
     fn expect_fn_call(&mut self) -> Result<Node> {
         if self.current_token().ty == Type::OpenParen {
@@ -237,7 +235,6 @@ impl Parser {
             self.forward_token();
         }
 
-
         Ok(Node::FnCall(args))
     }
     fn expect_expr_C(&mut self) -> Result<Node> {
@@ -245,32 +242,39 @@ impl Parser {
         match self.current_token().ty {
             Type::UnsignedInt => {
                 self.forward_token();
-                Ok(Node::Uint(self.cur-1))
+                Ok(Node::Uint(self.cur - 1))
             }
-            Type::Float => { //TODO: handle floats in tokenizer
+            Type::Float => {
+                //TODO: handle floats in tokenizer
                 self.forward_token();
-                Ok(Node::Float(self.cur-1))
+                Ok(Node::Float(self.cur - 1))
             }
             Type::StringLiteral => {
                 self.forward_token();
-                Ok(Node::StringLiteral(self.cur-1))
+                Ok(Node::StringLiteral(self.cur - 1))
             }
             Type::KeywordTrue => {
                 self.forward_token();
-                Ok(Node::True(self.cur-1))
+                Ok(Node::True(self.cur - 1))
             }
             Type::KeywordFalse => {
                 self.forward_token();
-                Ok(Node::False(self.cur-1))
+                Ok(Node::False(self.cur - 1))
             }
-            Type::Char => { //TODO: handle chars in tokenizer
+            Type::Char => {
                 self.forward_token();
-                Ok(Node::Char(self.cur-1))
+                Ok(Node::Char(self.cur - 1))
             }
-            Type::KeywordStruct => { unreachable!(); }
-            Type::KeywordEnum => { unreachable!(); }
+            Type::KeywordStruct => {
+                unreachable!();
+            }
+            Type::KeywordEnum => {
+                unreachable!();
+            }
+            Type::OpenParen => {
+                unreachable!();
+            }
             Type::Identifier => {
-                let lhs = self.current_token();
                 self.forward_token();
                 match self.current_token().ty {
                     Type::OpenParen => {
@@ -285,8 +289,14 @@ impl Parser {
 
                     Type::Dot => {
                         // field access
+                        let container = self.cur - 1;
                         self.forward_token();
-                        Ok(Node::FieldAccess(Box::new(Node::Ident(self.cur - 2)), Box::new(Node::Ident(self.cur))))
+                        let field = self.cur;
+                        self.forward_token();
+                        Ok(Node::FieldAccess(
+                            Box::new(Node::Ident(container)),
+                            Box::new(Node::Ident(field)),
+                        ))
                     }
 
                     _ => {
@@ -424,7 +434,7 @@ impl Parser {
                             unreachable!();
                         }
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -515,7 +525,6 @@ fn const_decl_expr_bool_false() -> Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn const_decl_expr_ident() -> Result<()> {
     let mut parser = Parser::new("a :: b;")?;
@@ -531,6 +540,46 @@ fn const_decl_expr_ident() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn const_decl_expr_field_access() -> Result<()> {
+    let mut parser = Parser::new("a :: b.c;")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(
+            decl.expr,
+            Box::new(Node::FieldAccess(
+                Box::new(Node::Ident(2)),
+                Box::new(Node::Ident(4))
+            ))
+        );
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
+#[test]
+fn const_decl_expr_char() -> Result<()> {
+    let mut parser = Parser::new("a :: 'a';")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        println!("char node: {:?}", decl.expr);
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(decl.expr, Box::new(Node::Char(2)));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
 #[test]
 fn const_decl_expr_string() -> Result<()> {
     let mut parser = Parser::new("a :: \"Amirreza\";")?;
@@ -546,29 +595,3 @@ fn const_decl_expr_string() -> Result<()> {
 
     Ok(())
 }
-// #[test] //TODO handle chars in tokenizer first
-// fn expr_char() -> Result<()> {
-//     let mut parser = Parser::new("'a'")?;
-//     let node = parser.expect_expr()?;
-//     if let Node::Char(idx) = node {
-//         assert_eq!(idx, 0);
-//     } else {
-//         panic!()
-//     }
-//
-//     Ok(())
-// }
-
-// #[test] // TODO expressions
-// fn const_decl_uint() -> Result<()> {
-//     let mut parser = Parser::new("i :: 8;")?;
-//     let ast = parser.get_ast()?;
-//     if let Node::Import(import) = &ast.top_level[0] {
-//         assert_eq!(import.path, 1);
-//         assert_eq!(import._as, Some(3));
-//     } else {
-//         panic!()
-//     }
-
-//     Ok(())
-// }

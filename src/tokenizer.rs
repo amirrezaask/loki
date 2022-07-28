@@ -306,6 +306,11 @@ impl Tokenizer {
                             self.forward_char();
                             continue;
                         }
+                        '\'' => {
+                            self.state = State::InCharLiteral;
+                            self.forward_char();
+                            continue;
+                        }
                         '=' => {
                             self.state = State::SawEqual;
                             self.forward_char();
@@ -346,6 +351,12 @@ impl Tokenizer {
                             return Ok(Token::new(Type::Comma, (self.cur - 1, self.cur - 1)));
                         }
 
+                        '.' => {
+                            self.state = State::Start;
+                            self.forward_char();
+                            return Ok(Token::new(Type::Dot, (self.cur-1, self.cur-1)));
+                        }
+
                         ':' => {
                             self.state = State::SawColon;
                             self.forward_char();
@@ -366,6 +377,24 @@ impl Tokenizer {
                             continue;
                         }
                     };
+                }
+                State::InCharLiteral => {
+                    match self.current_char() {
+                        '\\' => {
+                            self.forward_char();
+                            continue;
+                        }
+                        _ => {
+                            self.state = State::Start;
+                            let c = self.cur;
+                            self.forward_char();
+                            if self.current_char() != '\'' {
+                                unreachable!();
+                            }
+                            self.forward_char();
+                            return Ok(Token::new(Type::Char, (c-1, c+1)));
+                        }
+                    }
                 }
                 State::SawColon => match self.current_char() {
                     ':' => {
@@ -428,7 +457,7 @@ impl Tokenizer {
                 },
 
                 State::IdentifierOrKeyword(_) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -503,6 +532,33 @@ fn keywords() {
         let tok = tok.unwrap();
         assert_eq!(&keyword[0..keyword.len()], &keyword[tok.loc.0..=tok.loc.1]);
     }
+}
+
+#[test]
+fn const_decl_char() -> Result<()> {
+    let src = "c :: 'c';";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Identifier, tok.ty);
+    assert_eq!("c", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::DoubleColon, tok.ty);
+    assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
+
+    let tok = tokenizer.next();
+    assert!(tok.is_ok());
+    let tok = tok.unwrap();
+    assert_eq!(Type::Char, tok.ty);
+    assert_eq!("'c'", &src[tok.loc.0..=tok.loc.1]);
+
+    Ok(())
+
 }
 #[test]
 fn const_decl_with_ti() -> Result<()> {
