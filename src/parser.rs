@@ -101,7 +101,7 @@ struct Parser {
     cur: usize,
     state: State,
 }
-
+// Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl Parser {
     fn err_uexpected(&self, what: Type) -> anyhow::Error {
         anyhow!(
