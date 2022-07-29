@@ -194,8 +194,6 @@ impl Parser {
             Type::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-
-                self.forward_token();
                 self.expect_tok(Type::SemiColon)?;
                 self.forward_token();
 
@@ -229,7 +227,6 @@ impl Parser {
             Type::ColonEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                self.forward_token();
                 Ok(Node::Decl(Decl {
                     mutable: true,
                     name: Box::new(Node::Ident(name)),
@@ -493,6 +490,7 @@ impl Parser {
             let stmt = self.expect_stmt()?;
             stmts.push(stmt);
         }
+        self.forward_token();
 
         Ok(stmts)
     }
@@ -779,8 +777,8 @@ fn const_decl_expr_char() -> Result<()> {
 }
 
 #[test]
-fn const_decl_expr_fn() -> Result<()> {
-    let mut parser = Parser::new("main :: fn() void {\n\tprintf(\"Amirreza\");};")?;
+fn const_decl_expr_fn_def() -> Result<()> {
+    let mut parser = Parser::new("main :: fn() void {\n\tprintf(\"Hello World\");};")?;
     let ast = parser.get_ast()?;
 
     if let Node::Decl(decl) = &ast.top_level[0] {
@@ -813,36 +811,6 @@ fn const_decl_expr_string() -> Result<()> {
         assert_eq!(decl.mutable, false);
         assert_eq!(decl.name, Box::new(Node::Ident(0)));
         assert_eq!(decl.expr, Box::new(Node::StringLiteral(2)));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-#[test]
-fn const_decl_fn_def() -> Result<()> {
-    let mut parser = Parser::new("main :: fn() void {\n\tprintf(\"Hello\");};")?;
-    let ast = parser.get_ast()?;
-
-    if let Node::Decl(decl) = &ast.top_level[0] {
-        println!("{:?}", decl);
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name, Box::new(Node::Ident(0)));
-
-        if let Node::FnDef(args, ret_ty, body) = decl.expr.deref() {
-            assert_eq!(args[0..args.len()], (vec![])[0..]);
-            assert_eq!(ret_ty.deref(), &Node::VoidTy(5));
-            assert_eq!(
-                body[0..body.len()],
-                vec![Node::FnCall(
-                    Box::new(Node::Ident(7)),
-                    vec![Node::StringLiteral(9)]
-                )]
-            );
-        } else {
-            unreachable!();
-        }
     } else {
         panic!()
     }
