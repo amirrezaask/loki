@@ -10,16 +10,16 @@ pub type TokenIndex = usize;
 #[derive(Debug, PartialEq)]
 pub struct Import {
     // this usize refer to src location.
-    path: TokenIndex,
-    _as: Option<TokenIndex>,
+    pub path: TokenIndex,
+    pub _as: Option<TokenIndex>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Decl {
-    mutable: bool,
-    name: Box<Node>,
-    ty: Box<Option<Node>>,
-    expr: Box<Node>,
+    pub mutable: bool,
+    pub name: Box<Node>,
+    pub ty: Box<Option<Node>>,
+    pub expr: Box<Node>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -76,8 +76,16 @@ pub enum Node {
 
 #[derive(Debug)]
 pub struct AST {
+    src: String,
     tokens: Vec<Token>,
-    top_level: Vec<Node>,
+    pub top_level: Vec<Node>,
+}
+
+impl AST {
+    pub fn get_src_for_token(&self, tok_idx: usize) -> Result<&str> {
+        let src_range = &self.tokens[tok_idx];
+        Ok(&self.src[src_range.loc.0..=src_range.loc.1])
+    }
 }
 
 #[derive(Default, Debug)]
@@ -97,6 +105,7 @@ enum State {
 
 #[derive(Debug, Default)]
 struct Parser {
+    src: String,
     tokens: Vec<Token>,
     cur: usize,
     state: State,
@@ -120,7 +129,15 @@ impl Parser {
     fn backward_token(&mut self) {
         self.cur -= 1;
     }
-    pub fn new(src: &str) -> Result<Self> {
+    pub fn new_with_tokens(src: String, tokens: Vec<Token>) -> Result<Self> {
+        Ok(Self {
+            src,
+            tokens,
+            state: State::Start,
+            cur: 0,
+        })
+    }
+    fn new(src: &'static str) -> Result<Self> {
         let mut tokenizer = Tokenizer::new(src);
         let mut tokens = Vec::<Token>::new();
         loop {
@@ -136,11 +153,13 @@ impl Parser {
             }
         }
         Ok(Self {
+            src: src.to_string(),
             tokens,
             state: State::Start,
             cur: 0,
         })
     }
+
     fn expect_ident(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::Identifier => {
@@ -596,32 +615,29 @@ impl Parser {
     }
     pub fn get_ast(mut self) -> Result<AST> {
         let mut top_level = Vec::<Node>::new();
-        println!("tokens: {:?}", self.tokens);
         loop {
             if self.cur >= self.tokens.len() {
                 break;
             }
             match self.state {
-                State::Start => {
-                    println!("in start current token ty: {:?}", self.current_token().ty);
-                    match self.current_token().ty {
-                        Type::KeywordImport => {
-                            let import = self.expect_import()?;
-                            top_level.push(import);
-                        }
-                        Type::Identifier => {
-                            top_level.push(self.expect_decl()?);
-                        }
-                        _ => {
-                            unreachable!();
-                        }
+                State::Start => match self.current_token().ty {
+                    Type::KeywordImport => {
+                        let import = self.expect_import()?;
+                        top_level.push(import);
                     }
-                }
+                    Type::Identifier => {
+                        top_level.push(self.expect_decl()?);
+                    }
+                    _ => {
+                        unreachable!();
+                    }
+                },
                 _ => {}
             }
         }
 
         Ok(AST {
+            src: self.src,
             tokens: self.tokens,
             top_level,
         })

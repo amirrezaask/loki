@@ -1,6 +1,5 @@
 use anyhow::Result;
-#[derive(Debug)]
-pub struct SrcLocation(usize, usize);
+pub type SrcLocation = (usize, usize);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
@@ -78,7 +77,7 @@ pub enum Type {
     KeywordInt32,
     KeywordInt64,
     KeywordInt128,
-    
+
     KeywordUint,
     KeywordUint8,
     KeywordUint16,
@@ -136,7 +135,7 @@ impl Type {
             "int64" => Self::KeywordInt64,
             "int128" => Self::KeywordInt128,
             "int" => Self::KeywordInt,
-            
+
             "uint8" => Self::KeywordUint8,
             "uint16" => Self::KeywordUint16,
             "uint32" => Self::KeywordUint32,
@@ -161,7 +160,7 @@ impl Token {
     pub fn new(ty: Type, loc: (usize, usize)) -> Self {
         Self {
             ty,
-            loc: SrcLocation(loc.0, loc.1),
+            loc: (loc.0, loc.1),
         }
     }
 }
@@ -247,6 +246,22 @@ impl Tokenizer {
                 unreachable!();
             }
         }
+    }
+
+    pub fn all(&mut self) -> Result<Vec<Token>> {
+        let mut tokens = Vec::<Token>::new();
+        loop {
+            let tok = self.next()?;
+            match tok.ty {
+                Type::EOF => {
+                    break;
+                }
+                _ => {
+                    tokens.push(tok);
+                }
+            }
+        }
+        Ok(tokens)
     }
 
     pub fn next(&mut self) -> Result<Token> {
@@ -354,7 +369,7 @@ impl Tokenizer {
                         '.' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(Type::Dot, (self.cur-1, self.cur-1)));
+                            return Ok(Token::new(Type::Dot, (self.cur - 1, self.cur - 1)));
                         }
 
                         ':' => {
@@ -378,24 +393,22 @@ impl Tokenizer {
                         }
                     };
                 }
-                State::InCharLiteral => {
-                    match self.current_char() {
-                        '\\' => {
-                            self.forward_char();
-                            continue;
-                        }
-                        _ => {
-                            self.state = State::Start;
-                            let c = self.cur;
-                            self.forward_char();
-                            if self.current_char() != '\'' {
-                                unreachable!();
-                            }
-                            self.forward_char();
-                            return Ok(Token::new(Type::Char, (c-1, c+1)));
-                        }
+                State::InCharLiteral => match self.current_char() {
+                    '\\' => {
+                        self.forward_char();
+                        continue;
                     }
-                }
+                    _ => {
+                        self.state = State::Start;
+                        let c = self.cur;
+                        self.forward_char();
+                        if self.current_char() != '\'' {
+                            unreachable!();
+                        }
+                        self.forward_char();
+                        return Ok(Token::new(Type::Char, (c - 1, c + 1)));
+                    }
+                },
                 State::SawColon => match self.current_char() {
                     ':' => {
                         self.state = State::Start;
@@ -558,7 +571,6 @@ fn const_decl_char() -> Result<()> {
     assert_eq!("'c'", &src[tok.loc.0..=tok.loc.1]);
 
     Ok(())
-
 }
 #[test]
 fn const_decl_with_ti() -> Result<()> {
@@ -789,7 +801,6 @@ fn fn_sign() {
     assert_eq!("void", &src[tok.loc.0..=tok.loc.1]);
 }
 
-
 #[test]
 fn var_decl() {
     let src = "f := 12;";
@@ -851,7 +862,6 @@ fn var_decl_with_ti() -> Result<()> {
 
     Ok(())
 }
-
 
 #[test]
 fn strings() {
