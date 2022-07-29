@@ -210,7 +210,33 @@ impl Parser {
     A -> B (mul_div_mod B)*
     B -> C (< <= | >= > C)* // cmp
     C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | field_access | struct_def | enum_def | struct_init | enum_init | fn_def
-    */
+     */
+
+    fn expect_fn_def(&mut self) -> Result<Node> {
+        self.expect_tok(Type::KeywordFn)?;
+        self.forward_token();
+        self.expect_tok(Type::OpenParen)?;
+        let mut args: Vec<(Node, Node)> = vec![];
+        self.forward_token();
+        loop {
+            if self.current_token().ty == Type::CloseParen {
+                break;
+            }
+            let name = self.expect_ident()?;
+            self.expect_tok(Type::Colon)?;
+            let ty = self.expect_expr()?;
+            args.push((name, ty));
+        }
+
+        self.forward_token();
+        let ret_ty = self.expect_expr()?;
+
+        self.expect_tok(Type::OpenBrace)?;
+
+        let body = self.expect_block()?;
+
+        Ok(Node::FnDef(args, Box::new(ret_ty), body))
+    }
 
     fn expect_fn_call(&mut self) -> Result<Node> {
         let name = Node::Ident(self.cur);
