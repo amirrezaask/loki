@@ -18,12 +18,19 @@ impl C {
 
         Ok(output.join("\n\t"))
     }
-    fn repr_vec_node_ty(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
+    fn repr_fn_def_args(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
             output.push(format!("{} {}", self.repr(&node.1)?, self.repr(&node.0)?));
         }
-        Ok(output.join(","))
+        Ok(output.join(", "))
+    }
+    fn repr_struct_fields(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in node_tys {
+            output.push(format!("{} {};", self.repr(&node.1)?, self.repr(&node.0)?));
+        }
+        Ok(output.join("\n"))
     }
     fn repr_vec_node(&self, nodes: &Vec<Node>, sep: &str) -> Result<String> {
         let mut output = Vec::<String>::new();
@@ -44,8 +51,14 @@ impl C {
                     "{} {}({}) {{\n\t{}\n}}",
                     self.repr(&*ret)?,
                     self.repr(&*decl.name)?,
-                    self.repr_vec_node_ty(&args)?,
+                    self.repr_fn_def_args(&args)?,
                     self.repr_block(&block)?,
+                )),
+
+                Node::Struct(fields) => Ok(format!(
+                    "struct {} {{\n\t{}\n}};",
+                    self.repr(&*decl.name)?,
+                    self.repr_struct_fields(&fields)?
                 )),
 
                 _ => {

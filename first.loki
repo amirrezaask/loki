@@ -1,18 +1,23 @@
 import "stdio.h";
 
+// You can define structs like this
+Human :: struct {
+    id: int,
+};
+
 main :: fn() int {
-     b1 :bool: true;
-     b2 :bool: false;
-     
-     if b1 {
+    b1 :bool: true;
+    b2 :bool: false;
+    
+    if b1 {
         printf("b1 is true");
-     }
+    }
 
-     if b2 {
+    if b2 {
         printf("b2 is true");    
-     } else {
+    } else {
         printf("b2 is false");
-     }
+    }
 
-     return 0;
+    return 0;
 };
