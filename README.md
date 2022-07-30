@@ -1,6 +1,6 @@
-# Loki
+\# Loki
 
-Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design. 
+Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design.
 
 ## Installation
 
@@ -15,11 +15,9 @@ cargo install --path .
 
 ```mermaid
 graph TD
-    A[Parser] --> |Produces AST| B[Semantic Analyzer/Type Inference]
-    B --> C[Comptimes]
-    C --> |AST| D[Target Code Generator]
-    D --> |Target Project| E[Target Toolchain]
-                    
+    A[Tokenizer] -> |Produces Tokens| B[Parser]
+    B[Parser] --> |Produces AST| C[Semantic Analyzer/Type Inference]
+    C --> |AST| D[Target Code Generator]                    
 ```
 
 ## [Language Spec](https://github.com/amirrezaask/loki/tree/master/spec.md)
@@ -33,7 +31,7 @@ graph TD
 
 ## Platforms
 
-Loki tries to give same experience on all supported platforms but it's not always possible, so in the standard library and any other loki code there 
+Loki tries to give same experience on all supported platforms but it's not always possible, so in the standard library and any other loki code there
 can be checks(comptime if) so if a certain code cannot be compiled against target compiler just removes it and if you use a code which can not be used
 in your target compiler will emit an error.
 
