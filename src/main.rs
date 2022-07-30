@@ -18,7 +18,7 @@ pub fn main() -> Result<()> {
     //    println!("{:?}", args);
     let command = &args[0];
     match command.as_str() {
-        "emit-c" => {
+        "emit-c" | "emit-cpp" => {
             if args.len() < 2 {
                 panic!("emit-c needs a filename");
             }
@@ -49,16 +49,13 @@ pub fn main() -> Result<()> {
             let out_file_name = format!("{}.cpp", file_name);
             let mut out_file = std::fs::File::create(&out_file_name)?;
             out_file.write_all(code.as_bytes())?;
-            let cpp_output = Command::new("cc").arg(out_file_name).output()?;
-            match cpp_output.status.success() {
-                true => return Ok(()),
-                _ => {
-                    println!(
-                        "C++ compiler error: {}",
-                        String::from_utf8_lossy(&cpp_output.stderr)
-                    );
-                    return Ok(());
-                }
+            let cpp_output = Command::new("cc").arg(&out_file_name).output()?;
+            std::fs::remove_file(out_file_name)?;
+            if !cpp_output.status.success() {
+                println!(
+                    "C++ compiler error: {}",
+                    String::from_utf8_lossy(&cpp_output.stderr)
+                );
             }
         }
 

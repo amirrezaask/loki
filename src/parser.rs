@@ -208,7 +208,6 @@ impl Parser {
             Type::Colon => {
                 self.forward_token();
                 ty = Some(self.expect_expr()?);
-                println!("ty is : {:?}", self.current_token());
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
                     unreachable!();
