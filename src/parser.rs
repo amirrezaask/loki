@@ -7,14 +7,14 @@ use anyhow::{anyhow, Result};
 
 pub type TokenIndex = usize;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Import {
     // this usize refer to src location.
     pub path: TokenIndex,
     pub _as: Option<TokenIndex>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Decl {
     pub mutable: bool,
     pub name: Box<Node>,
@@ -22,7 +22,7 @@ pub struct Decl {
     pub expr: Box<Node>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     //top level items
     Import(Import),
@@ -208,7 +208,8 @@ impl Parser {
             Type::Colon => {
                 self.forward_token();
                 ty = Some(self.expect_expr()?);
-                if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Equal
+                println!("ty is : {:?}", self.current_token());
+                if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
                     unreachable!();
                 }
@@ -254,6 +255,7 @@ impl Parser {
         self.forward_token();
         loop {
             if self.current_token().ty == Type::CloseParen {
+                self.forward_token();
                 break;
             }
             let name = self.expect_ident()?;
@@ -262,9 +264,7 @@ impl Parser {
             args.push((name, ty));
         }
 
-        self.forward_token();
         let ret_ty = self.expect_expr()?;
-        self.forward_token();
 
         self.expect_tok(Type::OpenBrace)?;
 
@@ -377,27 +377,73 @@ impl Parser {
                         ))
                     }
 
-                    _ => {
-                        unreachable!()
-                    }
+                    _ => Ok(Node::Ident(self.cur - 1)),
                 }
             }
-            Type::KeywordVoid => Ok(Node::VoidTy(self.cur)),
-            Type::KeywordInt => Ok(Node::IntTy(self.cur)),
-            Type::KeywordInt8 => Ok(Node::Int8Ty(self.cur)),
-            Type::KeywordInt16 => Ok(Node::Int16Ty(self.cur)),
-            Type::KeywordInt32 => Ok(Node::Int32Ty(self.cur)),
-            Type::KeywordInt64 => Ok(Node::Int64Ty(self.cur)),
-            Type::KeywordInt128 => Ok(Node::Int128Ty(self.cur)),
-            Type::KeywordUint => Ok(Node::Uint(self.cur)),
-            Type::KeywordUint8 => Ok(Node::Uint8Ty(self.cur)),
-            Type::KeywordUint16 => Ok(Node::Uint16Ty(self.cur)),
-            Type::KeywordUint32 => Ok(Node::Uint32Ty(self.cur)),
-            Type::KeywordUint64 => Ok(Node::Uint64Ty(self.cur)),
-            Type::KeywordUint128 => Ok(Node::Uint128Ty(self.cur)),
-            Type::KeywordFloat => Ok(Node::FloatTy(self.cur)),
-            Type::KeywordChar => Ok(Node::CharTy(self.cur)),
-            Type::KeywordBool => Ok(Node::BoolTy(self.cur)),
+            Type::KeywordVoid => {
+                self.forward_token();
+                Ok(Node::VoidTy(self.cur - 1))
+            }
+            Type::KeywordInt => {
+                self.forward_token();
+                Ok(Node::IntTy(self.cur - 1))
+            }
+            Type::KeywordInt8 => {
+                self.forward_token();
+                Ok(Node::Int8Ty(self.cur - 1))
+            }
+            Type::KeywordInt16 => {
+                self.forward_token();
+                Ok(Node::Int16Ty(self.cur - 1))
+            }
+            Type::KeywordInt32 => {
+                self.forward_token();
+                Ok(Node::Int32Ty(self.cur - 1))
+            }
+            Type::KeywordInt64 => {
+                self.forward_token();
+                Ok(Node::Int64Ty(self.cur - 1))
+            }
+            Type::KeywordInt128 => {
+                self.forward_token();
+                Ok(Node::Int128Ty(self.cur - 1))
+            }
+            Type::KeywordUint => {
+                self.forward_token();
+                Ok(Node::Uint(self.cur - 1))
+            }
+            Type::KeywordUint8 => {
+                self.forward_token();
+                Ok(Node::Uint8Ty(self.cur - 1))
+            }
+            Type::KeywordUint16 => {
+                self.forward_token();
+                Ok(Node::Uint16Ty(self.cur - 1))
+            }
+            Type::KeywordUint32 => {
+                self.forward_token();
+                Ok(Node::Uint32Ty(self.cur - 1))
+            }
+            Type::KeywordUint64 => {
+                self.forward_token();
+                Ok(Node::Uint64Ty(self.cur - 1))
+            }
+            Type::KeywordUint128 => {
+                self.forward_token();
+                Ok(Node::Uint128Ty(self.cur - 1))
+            }
+            Type::KeywordFloat => {
+                self.forward_token();
+                Ok(Node::FloatTy(self.cur - 1))
+            }
+            Type::KeywordChar => {
+                self.forward_token();
+                Ok(Node::CharTy(self.cur - 1))
+            }
+            Type::KeywordBool => {
+                self.forward_token();
+                Ok(Node::BoolTy(self.cur - 1))
+            }
 
             Type::KeywordFn => self.expect_fn_def(),
 
@@ -503,22 +549,17 @@ impl Parser {
             Type::KeywordIf => {
                 self.forward_token();
                 let cond = self.expect_expr()?;
-                self.forward_token();
+                self.expect_tok(Type::OpenBrace)?;
+                let then = self.expect_block()?;
                 match self.current_token().ty {
-                    Type::OpenBrace => {
-                        let then = self.expect_block()?;
-                        match self.current_token().ty {
-                            Type::KeywordElse => {
-                                self.forward_token();
-                                let _else = self.expect_block()?;
-                                return Ok(Node::If(Box::new(cond), Box::new(then), Some(_else)));
-                            }
-                            _ => {
-                                return Ok(Node::If(Box::new(cond), Box::new(then), None));
-                            }
-                        }
+                    Type::KeywordElse => {
+                        self.forward_token();
+                        let _else = self.expect_block()?;
+                        return Ok(Node::If(Box::new(cond), Box::new(then), Some(_else)));
                     }
-                    _ => return Err(self.err_uexpected(Type::OpenBrace)),
+                    _ => {
+                        return Ok(Node::If(Box::new(cond), Box::new(then), None));
+                    }
                 }
             }
 
@@ -809,5 +850,23 @@ fn const_decl_expr_string() -> Result<()> {
         panic!()
     }
 
+    Ok(())
+}
+#[test]
+fn const_decl_fn_with_if() -> Result<()> {
+    let mut parser = Parser::new(
+        "main :: fn() int {
+if true {
+\t\tprintf(\"Hello\");
+}
+\treturn 0;
+};",
+    )?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+    } else {
+        panic!()
+    }
     Ok(())
 }
