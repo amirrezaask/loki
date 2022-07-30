@@ -112,12 +112,20 @@ impl C {
                 self.repr_vec_node(args, ",")?
             )),
             Node::If(cond, then, _else) => {
-                Ok(format!(
+                let mut base = format!(
                     "if ({}) {{\n\t{}\n\t}}",
                     self.repr(cond)?,
                     self.repr_block(then)?
-                ))
-                //TODO: else
+                );
+
+                if _else.is_some() {
+                    base += &format!(
+                        " else {{\n\t{}\n}}",
+                        self.repr_block(&_else.clone().unwrap())?
+                    );
+                }
+
+                Ok(base)
             }
             Node::Return(expr) => Ok(format!("return {}", self.repr(expr)?)),
             _ => {
@@ -162,6 +170,8 @@ fn hello_world_with_if() -> Result<()> {
 x :bool: true;
 if x {
 \t\tprintf(\"true\");
+} else {
+\t\tprintf(\"false\");
 }
 };";
     let mut tokenizer = Tokenizer::new(program);
@@ -176,7 +186,9 @@ if x {
 \tbool x = true;
 \tif (x) {
 \tprintf(\"true\");
-\t};
+\t} else {
+\tprintf(\"false\");
+};
 }",
         code
     );
