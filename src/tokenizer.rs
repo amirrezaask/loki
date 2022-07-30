@@ -1,6 +1,10 @@
 use anyhow::Result;
 pub type SrcLocation = (usize, usize);
+/*TODO:
+- handle floats
 
+
+*/
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
     EOF,
@@ -171,9 +175,11 @@ enum State {
     InStringLiteral(usize),
     InCharLiteral,
     Integer(usize),
+    Float(usize),
     IdentifierOrKeyword(usize),
     SawEqual,
     SawBang,
+    InLineComment,
     SawPlus,
     SawMinus,
     SawSlash,
@@ -223,6 +229,10 @@ impl Tokenizer {
             State::Integer(start) => {
                 self.state = State::Start;
                 return Token::new(Type::UnsignedInt, (start, self.cur - 1));
+            }
+            State::Float(start) => {
+                self.state = State::Start;
+                return Token::new(Type::Float, (start, self.cur - 1));
             }
             State::IdentifierOrKeyword(start) => {
                 self.state = State::Start;
@@ -478,9 +488,28 @@ impl Tokenizer {
                         continue;
                     }
                 },
-                State::Integer(_) => match self.current_char() {
+                State::Float(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ';' | ')' | '(' => {
                         return Ok(self.emit_current_token());
+                    }
+                    '.' => {
+                        self.state = State::Float(start);
+                        self.forward_char();
+                        continue;
+                    }
+                    _ => {
+                        self.forward_char();
+                        continue;
+                    }
+                },
+                State::Integer(start) => match self.current_char() {
+                    ' ' | '\t' | '\n' | '\r' | ';' | ')' | '(' => {
+                        return Ok(self.emit_current_token());
+                    }
+                    '.' => {
+                        self.state = State::Float(start);
+                        self.forward_char();
+                        continue;
                     }
                     _ => {
                         self.forward_char();
@@ -494,6 +523,12 @@ impl Tokenizer {
                         self.forward_char();
                         return Ok(tok);
                     }
+                    '=' => {
+                        let tok = Token::new(Type::PlusEqual, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
                     _ => {
                         let tok = Token::new(Type::Plus, (self.cur - 1, self.cur));
                         self.state = State::Start;
@@ -502,14 +537,64 @@ impl Tokenizer {
                 },
 
                 State::SawMinus => match self.current_char() {
-                    '+' => {
+                    '-' => {
                         let tok = Token::new(Type::DoubleMinus, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    '=' => {
+                        let tok = Token::new(Type::MinusEqual, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
                         let tok = Token::new(Type::Minus, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        return Ok(tok);
+                    }
+                },
+                State::SawSlash => match self.current_char() {
+                    '/' => {
+                        self.state = State::InLineComment;
+                        self.forward_char();
+                        continue;
+                    }
+                    '=' => {
+                        let tok = Token::new(Type::DivEqual, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    _ => {
+                        let tok = Token::new(Type::ForwardSlash, (self.cur - 1, self.cur - 1));
+                        self.state = State::Start;
+                        return Ok(tok);
+                    }
+                },
+                State::SawAstrix => match self.current_char() {
+                    '=' => {
+                        let tok = Token::new(Type::MulEqual, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    _ => {
+                        let tok = Token::new(Type::Asterix, (self.cur - 1, self.cur - 1));
+                        self.state = State::Start;
+                        return Ok(tok);
+                    }
+                },
+                State::SawPercent => match self.current_char() {
+                    '=' => {
+                        let tok = Token::new(Type::ModEqual, (self.cur - 1, self.cur));
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    _ => {
+                        let tok = Token::new(Type::Asterix, (self.cur - 1, self.cur - 1));
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -522,6 +607,18 @@ impl Tokenizer {
     }
 }
 
+#[test]
+fn floats() {
+    let src = "123.123";
+    let mut tokenizer = Tokenizer::new(src);
+
+    let num = tokenizer.next();
+
+    assert!(num.is_ok());
+    let num = num.unwrap();
+    assert_eq!("123.123", &src[num.loc.0..=num.loc.1]);
+    assert_eq!(Type::Float, num.ty);
+}
 #[test]
 fn integers() {
     let src = "123";

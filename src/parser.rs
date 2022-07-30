@@ -462,6 +462,7 @@ impl Parser {
             | Type::LessEqual
             | Type::GreaterEqual
             | Type::DoubleEqual => {
+                //TODO
                 // handle !=
                 let op = self.current_token();
                 self.forward_token();
@@ -473,10 +474,11 @@ impl Parser {
             _ => Ok(lhs),
         }
     }
-    fn expect_expr_A(&mut self) -> Result<Node> {
+    fn expect_expr_mul_div_mod(&mut self) -> Result<Node> {
         let lhs = self.expect_expr_B()?;
 
         match self.current_token().ty {
+            //TODO
             Type::Asterix | Type::Percent | Type::ForwardSlash => {
                 let op = self.current_token();
                 self.forward_token();
@@ -489,18 +491,14 @@ impl Parser {
         }
     }
 
-    // fn expect_field_access(&mut self) -> Result<Node> {}
-    // fn expect_cmp(&mut self) -> Result<Node> {}
-    // fn expect_vals(&mut self) -> Result<Node> {}
-
     fn expect_expr(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_A()?;
+        let lhs = self.expect_expr_mul_div_mod()?;
 
         match self.current_token().ty {
             Type::Plus | Type::Minus => {
                 let op = self.current_token();
                 self.forward_token();
-                let rhs = self.expect_expr_A()?;
+                let rhs = self.expect_expr_mul_div_mod()?;
 
                 Ok(Node::Sum(Box::new(lhs), Box::new(rhs)))
             }
