@@ -1,5 +1,6 @@
-import "std.loki";
+import "stdio.h";
 
-main = fn() void {
+main :: fn() int {
     printf("H3ll0 W0r1d");
+    return 0;
 };

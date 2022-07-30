@@ -1,7 +1,7 @@
 use super::parser::{Node, AST};
 use anyhow::Result;
 
-mod c;
+pub mod c;
 
 pub trait Repr {
     fn repr(node: &Node) -> Result<String>;

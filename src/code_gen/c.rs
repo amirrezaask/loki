@@ -1,4 +1,8 @@
+use std::ops::Deref;
+
 use super::{Node, Repr, AST};
+use crate::parser::Parser;
+use crate::tokenizer::Tokenizer;
 use anyhow::Result;
 
 pub struct C {
@@ -6,6 +10,14 @@ pub struct C {
 }
 
 impl C {
+    fn repr_block(&self, nodes: &Vec<Node>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in nodes.iter() {
+            output.push(self.repr(node)? + ";");
+        }
+
+        Ok(output.join("\n\t"))
+    }
     fn repr_vec_node(&self, nodes: &Vec<Node>, sep: &str) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in nodes.iter() {
@@ -16,15 +28,27 @@ impl C {
     }
     fn repr(&self, node: &Node) -> Result<String> {
         match node {
-            Node::Import(import) => Ok(format!("include \"{}\"", import.path)),
-            Node::Decl(decl) => {
-                unimplemented!();
-            }
+            Node::Import(import) => Ok(format!(
+                "#include \"{}\"",
+                self.ast.get_src_for_token(import.path)?
+            )),
+            Node::Decl(decl) => match decl.expr.deref() {
+                Node::FnDef(args, ret, block) => Ok(format!(
+                    "{} {}() {{\n\t{}\n}}", // TODO handle args
+                    self.repr(&*ret)?,
+                    self.repr(&*decl.name)?,
+                    self.repr_block(&block)?,
+                )),
+
+                _ => {
+                    unreachable!()
+                }
+            },
             // primitive types
             Node::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
             Node::Int(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
             Node::StringLiteral(tok_idx) => {
-                Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?))
+                Ok(format!("\"{}\"", self.ast.get_src_for_token(*tok_idx)?))
             }
             Node::Float(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
             Node::True(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
@@ -77,7 +101,7 @@ impl C {
                 Ok(format!(
                     "if ({}) {{\n\t{}\n\t}}",
                     self.repr(cond)?,
-                    self.repr_vec_node(then, ";")?
+                    self.repr_block(then)?
                 ))
                 //TODO: else
             }
@@ -101,4 +125,19 @@ impl C {
 
         Ok(out.join("\n"))
     }
+}
+
+#[test]
+fn hello_world() -> Result<()> {
+    let program = "main :: fn() int {\n\tprintf(\"Hello world\");};";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let mut parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = C::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!("int main() {\n\tprintf(\"Hello world\");\n}", code);
+
+    Ok(())
 }

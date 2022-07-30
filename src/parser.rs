@@ -104,7 +104,7 @@ enum State {
 }
 
 #[derive(Debug, Default)]
-struct Parser {
+pub struct Parser {
     src: String,
     tokens: Vec<Token>,
     cur: usize,
@@ -142,7 +142,7 @@ impl Parser {
         let mut tokens = Vec::<Token>::new();
         loop {
             let tok = tokenizer.next()?;
-            println!("got token: {:?}", tok);
+            // println!("got token: {:?}", tok);
             match tok.ty {
                 Type::EOF => {
                     break;
@@ -281,14 +281,12 @@ impl Parser {
 
         self.forward_token();
         loop {
-            println!("expecting fn_call args:{:?}", self.current_token());
             if self.current_token().ty == Type::CloseParen {
                 self.forward_token();
                 break;
             }
             let arg = self.expect_expr()?;
             args.push(arg);
-            println!("got one arg:{:?}", self.current_token());
             match self.current_token().ty {
                 Type::Comma => {
                     self.forward_token();
@@ -304,14 +302,11 @@ impl Parser {
                 }
             }
         }
-        println!("after fn_call args: {:?}", self.current_token());
         self.expect_tok(Type::SemiColon)?;
         self.forward_token();
-        println!("@*@*@ {:?}", self.current_token());
         Ok(Node::FnCall(Box::new(name), args))
     }
     fn expect_expr_C(&mut self) -> Result<Node> {
-        println!("self.current_token.ty: {:?}", self.current_token().ty);
         match self.current_token().ty {
             Type::UnsignedInt => {
                 self.forward_token();
@@ -454,7 +449,6 @@ impl Parser {
     // fn expect_vals(&mut self) -> Result<Node> {}
 
     fn expect_expr(&mut self) -> Result<Node> {
-        println!("expecting an expression: {:?}", self.current_token());
         let lhs = self.expect_expr_A()?;
 
         match self.current_token().ty {
@@ -483,7 +477,6 @@ impl Parser {
         self.forward_token();
         let mut stmts = Vec::<Node>::new();
         loop {
-            println!("expecting an statement@: {:?}", self.current_token());
             if self.current_token().ty == Type::CloseBrace {
                 break;
             }
@@ -537,6 +530,8 @@ impl Parser {
             Type::KeywordReturn => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
+                self.expect_tok(Type::SemiColon)?;
+                self.forward_token();
                 Ok(Node::Return(Box::new(expr)))
             }
 
@@ -601,7 +596,6 @@ impl Parser {
                 }));
             }
             Type::SemiColon => {
-                println!("inja");
                 self.forward_token();
                 return Ok(Node::Import(Import {
                     path: path_tok_idx,
