@@ -15,7 +15,7 @@ cargo install --path .
 
 ```mermaid
 graph TD
-    A -> |Produces Tokens| B[Parser]
+    A --> |Produces Tokens| B[Parser]
     B --> |Produces AST| C[Semantic Analyzer/Type Inference]
     C --> |AST| D[Target Code Generator]                    
 ```
