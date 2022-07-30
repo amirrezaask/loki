@@ -480,7 +480,8 @@ impl Tokenizer {
                 },
 
                 State::IdentifierOrKeyword(_) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
+                    | '{' | '}' | '[' | ']' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {

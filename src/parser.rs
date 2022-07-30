@@ -72,6 +72,7 @@ pub enum Node {
     FnCall(Box<Node>, Vec<Node>),
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
     Return(Box<Node>),
+    Struct(Vec<(Node, Node)>),
 }
 
 #[derive(Debug)]
@@ -163,7 +164,8 @@ impl Parser {
     fn expect_ident(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::Identifier => {
-                return Ok(Node::Ident(self.cur));
+                self.forward_token();
+                return Ok(Node::Ident(self.cur - 1));
             }
             _ => {
                 return Err(self.err_uexpected(Type::Identifier));
@@ -312,7 +314,6 @@ impl Parser {
                 Ok(Node::Uint(self.cur - 1))
             }
             Type::Float => {
-                //TODO: handle floats in tokenizer
                 self.forward_token();
                 Ok(Node::Float(self.cur - 1))
             }
@@ -333,11 +334,39 @@ impl Parser {
                 Ok(Node::Char(self.cur - 1))
             }
             Type::KeywordStruct => {
-                //TODO
-                unreachable!();
+                self.forward_token();
+                self.expect_tok(Type::OpenBrace)?;
+                self.forward_token();
+                let mut fields = Vec::<(Node, Node)>::new();
+                loop {
+                    if self.current_token().ty == Type::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+                    let name = self.expect_ident()?;
+
+                    self.expect_tok(Type::Colon)?;
+                    self.forward_token();
+                    let ty = self.expect_expr()?;
+                    fields.push((name, ty));
+                    println!("self.current_token : {:?}", self.current_token());
+                    match self.current_token().ty {
+                        Type::Comma => {
+                            self.forward_token();
+                            continue;
+                        }
+                        Type::CloseBrace => {
+                            self.forward_token();
+                            break;
+                        }
+                        _ => return Err(self.err_uexpected(Type::Comma)),
+                    }
+                }
+
+                Ok(Node::Struct(fields))
             }
             Type::KeywordEnum => {
-                //TODO
+                // TODO
                 unreachable!();
             }
             Type::OpenParen => {
@@ -623,10 +652,7 @@ impl Parser {
                 } else {
                     unreachable!()
                 };
-                self.forward_token();
-                if self.current_token().ty != Type::SemiColon {
-                    return Err(self.err_uexpected(Type::SemiColon));
-                }
+                self.expect_tok(Type::SemiColon)?;
                 self.forward_token();
                 return Ok(Node::Import(Import {
                     path: path_tok_idx,
@@ -849,6 +875,45 @@ fn const_decl_expr_string() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn const_decl_expr_struct() -> Result<()> {
+    let mut parser = Parser::new("a :: struct { i: int, f: float };")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(
+            decl.expr,
+            Box::new(Node::Struct(vec![
+                (Node::Ident(4), Node::IntTy(6)),
+                (Node::Ident(8), Node::FloatTy(10))
+            ]))
+        );
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
+#[test]
+fn const_decl_expr_float() -> Result<()> {
+    let mut parser = Parser::new("a :: 2.2;")?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(decl.expr, Box::new(Node::Float(2)));
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
 #[test]
 fn const_decl_fn_with_if() -> Result<()> {
     let mut parser = Parser::new(
