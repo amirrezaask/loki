@@ -18,6 +18,13 @@ impl C {
 
         Ok(output.join("\n\t"))
     }
+    fn repr_vec_node_ty(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in node_tys {
+            output.push(format!("{} {}", self.repr(&node.1)?, self.repr(&node.0)?));
+        }
+        Ok(output.join(","))
+    }
     fn repr_vec_node(&self, nodes: &Vec<Node>, sep: &str) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in nodes.iter() {
@@ -34,14 +41,21 @@ impl C {
             )),
             Node::Decl(decl) => match decl.expr.deref() {
                 Node::FnDef(args, ret, block) => Ok(format!(
-                    "{} {}() {{\n\t{}\n}}", // TODO handle args
+                    "{} {}({}) {{\n\t{}\n}}",
                     self.repr(&*ret)?,
                     self.repr(&*decl.name)?,
+                    self.repr_vec_node_ty(&args)?,
                     self.repr_block(&block)?,
                 )),
 
                 _ => {
-                    unreachable!()
+                    let ty = decl.ty.deref().clone().unwrap();
+                    Ok(format!(
+                        "{} {} = {}",
+                        self.repr(&ty)?,
+                        self.repr(decl.name.deref())?,
+                        self.repr(decl.expr.deref())?
+                    ))
                 }
             },
             // primitive types
@@ -138,6 +152,34 @@ fn hello_world() -> Result<()> {
     let code = code_gen.generate()?;
 
     assert_eq!("int main() {\n\tprintf(\"Hello world\");\n}", code);
+
+    Ok(())
+}
+
+#[test]
+fn hello_world_with_if() -> Result<()> {
+    let program = "main :: fn() int {
+x :bool: true;
+if x {
+\t\tprintf(\"true\");
+}
+};";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let mut parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = C::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!(
+        "int main() {
+\tbool x = true;
+\tif (x) {
+\tprintf(\"true\");
+\t};
+}",
+        code
+    );
 
     Ok(())
 }

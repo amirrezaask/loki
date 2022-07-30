@@ -1,0 +1,9 @@
+import "stdio.h";
+
+main :: fn() int {
+     x :bool: true;
+     if x {
+          printf("Hello");
+     }
+     return 0;
+};
