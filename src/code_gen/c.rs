@@ -10,6 +10,35 @@ pub struct C {
 }
 
 impl C {
+    fn get_decl_ty(&self, node: &Node) -> Result<Node> {
+        match node {
+            Node::Decl(decl) => match decl.ty.deref() {
+                Some(ty) => Ok(ty.clone()),
+                None => match decl.expr.deref() {
+                    Node::Uint(_) => Ok(Node::Uint(0)),
+                    Node::True(_) | Node::False(_) => Ok(Node::BoolTy(0)),
+                    Node::Int(_) => Ok(Node::IntTy(0)),
+                    Node::StringLiteral(_) => Ok(Node::StringTy(0)),
+                    Node::Float(_) => Ok(Node::FloatTy(0)),
+                    Node::Char(_) => Ok(Node::Char(0)),
+                    Node::TypeInit(name, _) => match name {
+                        Some(n) => Ok(n.deref().clone()),
+                        None => {
+                            unreachable!();
+                        }
+                    },
+                    _ => {
+                        println!("cannot infer type for: {:?}", decl.expr);
+                        unreachable!();
+                    }
+                },
+            },
+            _ => {
+                println!("wrong node passed to ty inference : {:?}", node);
+                unreachable!();
+            }
+        }
+    }
     fn repr_block(&self, nodes: &Vec<Node>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in nodes.iter() {
@@ -29,6 +58,13 @@ impl C {
         let mut output = Vec::<String>::new();
         for node in node_tys {
             output.push(format!("{} {};", self.repr(&node.1)?, self.repr(&node.0)?));
+        }
+        Ok(output.join("\n"))
+    }
+    fn repr_struct_init_fields(&self, fields: &Vec<(Node, Node)>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in fields {
+            output.push(format!(".{}={},", self.repr(&node.0)?, self.repr(&node.1)?));
         }
         Ok(output.join("\n"))
     }
@@ -61,26 +97,42 @@ impl C {
                     self.repr_struct_fields(&fields)?
                 )),
 
-                _ => match decl.mutable {
-                    false => {
-                        let ty = decl.ty.deref().clone().unwrap();
-                        Ok(format!(
+                Node::TypeInit(_, fields) => {
+                    let ty = self.get_decl_ty(node)?;
+                    let fields = self.repr_struct_init_fields(fields)?;
+                    match decl.mutable {
+                        false => Ok(format!(
+                            "const {} {} = {{\n{}}}",
+                            self.repr(&ty)?,
+                            self.repr(decl.name.deref())?,
+                            fields
+                        )),
+                        true => Ok(format!(
+                            "{} {} = {{\n{}}}",
+                            self.repr(&ty)?,
+                            self.repr(decl.name.deref())?,
+                            fields,
+                        )),
+                    }
+                }
+
+                _ => {
+                    let ty = self.get_decl_ty(node)?;
+                    match decl.mutable {
+                        false => Ok(format!(
                             "const {} {} = {}",
                             self.repr(&ty)?,
                             self.repr(decl.name.deref())?,
                             self.repr(decl.expr.deref())?
-                        ))
-                    }
-                    true => {
-                        let ty = decl.ty.deref().clone().unwrap();
-                        Ok(format!(
+                        )),
+                        true => Ok(format!(
                             "{} {} = {}",
                             self.repr(&ty)?,
                             self.repr(decl.name.deref())?,
                             self.repr(decl.expr.deref())?
-                        ))
+                        )),
                     }
-                },
+                }
             },
             // primitive types
             Node::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
@@ -115,7 +167,7 @@ impl C {
 
             Node::FloatTy(_) => Ok(format!("long")),
             Node::BoolTy(_) => Ok(format!("bool")),
-            Node::StringTy(_) => Ok(format!("char*")),
+            Node::StringTy(_) => Ok(format!("std::string")),
             Node::CharTy(_) => Ok(format!("char")),
             Node::VoidTy(_) => Ok(format!("void")),
 
@@ -163,7 +215,10 @@ impl C {
     }
 
     pub fn generate(&mut self) -> Result<String> {
-        let mut out = Vec::<String>::new();
+        let mut out: Vec<String> = vec![
+            "#include <string>".to_string(),
+            "#include <cstdio>".to_string(),
+        ];
 
         for node in self.ast.top_level.iter() {
             out.push(self.repr(&node)?);
@@ -191,8 +246,8 @@ fn hello_world() -> Result<()> {
 #[test]
 fn hello_world_with_if() -> Result<()> {
     let program = "main :: fn() int {
-x :bool: true;
-if x {
+x :: true;
+if (x) {
 \t\tprintf(\"true\");
 } else {
 \t\tprintf(\"false\");

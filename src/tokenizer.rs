@@ -147,7 +147,7 @@ impl Type {
             "uint128" => Self::KeywordUint128,
             "uint" => Self::KeywordUint,
 
-            "string" => Self::StringLiteral,
+            "string" => Self::KeywordString,
             "float" => Self::KeywordFloat,
             "char" => Self::KeywordChar,
             _ => Self::Identifier,
@@ -610,7 +610,6 @@ impl Tokenizer {
                     }
                 },
                 _ => {
-                    println!("state is :{:?}", self.state);
                     unreachable!();
                 }
             }

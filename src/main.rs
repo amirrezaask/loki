@@ -49,7 +49,7 @@ pub fn main() -> Result<()> {
             let out_file_name = format!("{}.cpp", file_name);
             let mut out_file = std::fs::File::create(&out_file_name)?;
             out_file.write_all(code.as_bytes())?;
-            let cpp_output = Command::new("cc").arg(&out_file_name).output()?;
+            let cpp_output = Command::new("clang++").arg(&out_file_name).output()?;
             std::fs::remove_file(out_file_name)?;
             if !cpp_output.status.success() {
                 println!(
