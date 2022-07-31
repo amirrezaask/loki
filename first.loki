@@ -4,6 +4,12 @@ Human :: struct {
     name: string,
 };
 
+Sex :: enum {
+    Male,
+    Female,
+    Unknown(int)
+};
+
 main :: fn() int {
     b1 :: true;
     b2 :bool: false;
@@ -18,6 +24,7 @@ main :: fn() int {
         age = 17,
         name = "parsa",
     };
+    
 
     printf("amirreza age is %d\n", amirreza.age);
     printf("parsa age is %d\n", parsa.age);

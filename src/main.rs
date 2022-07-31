@@ -6,7 +6,7 @@ use std::process::Command;
 use std::{env, io::Write};
 const about: &'static str = "loki compiler 0.2";
 const usage: &'static str =
-    "Usage: loki [command] [args]\n\temit-c: emits C code using C code backend.\n";
+    "Usage: loki [command] [args]\n\temit-cpp: emits CPP code using C code backend.\n";
 
 pub fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();

@@ -50,6 +50,7 @@ pub enum Node {
     VoidTy(TokenIndex),
 
     Struct(Vec<(Node, Node)>),
+    Enum(bool, Vec<(Node, Option<Node>)>),
 
     //Expressions
     Uint(TokenIndex),
@@ -362,8 +363,51 @@ impl Parser {
                 Ok(Node::Struct(fields))
             }
             Type::KeywordEnum => {
-                // TODO
-                unreachable!();
+                self.forward_token();
+                self.expect_token(Type::OpenBrace)?;
+                self.forward_token();
+                let mut variants = Vec::<(Node, Option<Node>)>::new();
+                let mut is_union = false;
+                loop {
+                    if self.current_token().ty == Type::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+
+                    if self.current_token().ty == Type::Comma {
+                        self.forward_token();
+                        continue;
+                    }
+
+                    let name = self.expect_ident()?;
+                    match self.current_token().ty {
+                        Type::OpenParen => {
+                            // should be a union
+                            is_union = true;
+                            self.forward_token();
+                            let field_ty = self.expect_expr()?;
+
+                            self.expect_token(Type::CloseParen)?;
+                            self.forward_token();
+                            variants.push((name, Some(field_ty)));
+                        }
+                        Type::Comma => {
+                            variants.push((name, None));
+                            self.forward_token();
+                            continue;
+                        }
+                        Type::CloseBrace => {
+                            variants.push((name, None));
+                            self.forward_token();
+                            break;
+                        }
+                        _ => {
+                            self.expect_token(Type::Comma)?;
+                        }
+                    }
+                }
+
+                Ok(Node::Enum(is_union, variants))
             }
             Type::OpenParen => {
                 self.forward_token();
@@ -1065,5 +1109,62 @@ id = 1,
     } else {
         panic!()
     }
+    Ok(())
+}
+
+#[test]
+fn const_decl_expr_enum() -> Result<()> {
+    let mut parser = Parser::new(
+        "e :: enum {
+a,
+b
+};",
+    )?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(
+            decl.expr,
+            Box::new(Node::Enum(
+                false,
+                vec![(Node::Ident(4), None), (Node::Ident(6), None)]
+            ))
+        )
+    } else {
+        panic!()
+    }
+
+    Ok(())
+}
+
+#[test]
+fn const_decl_expr_union() -> Result<()> {
+    let parser = Parser::new(
+        "e :: enum {
+a,
+b(bool)
+};",
+    )?;
+    let ast = parser.get_ast()?;
+
+    if let Node::Decl(decl) = &ast.top_level[0] {
+        assert_eq!(decl.mutable, false);
+        assert_eq!(decl.name, Box::new(Node::Ident(0)));
+        assert_eq!(
+            decl.expr,
+            Box::new(Node::Enum(
+                true,
+                vec![
+                    (Node::Ident(4), None),
+                    (Node::Ident(6), Some(Node::BoolTy(8)))
+                ]
+            ))
+        )
+    } else {
+        panic!()
+    }
+
     Ok(())
 }

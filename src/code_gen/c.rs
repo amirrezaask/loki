@@ -76,6 +76,31 @@ impl C {
 
         Ok(output.join(sep))
     }
+
+    fn repr_enum_variants(&self, variants: &Vec<(Node, Option<Node>)>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in variants.iter() {
+            output.push(self.repr(&node.0)?);
+        }
+
+        Ok(output.join(",\n"))
+    }
+    fn repr_union_variants(&self, variants: &Vec<(Node, Option<Node>)>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in variants.iter() {
+            match &node.1 {
+                Some(ty) => {
+                    output.push(format!("{} {};", self.repr(&ty)?, self.repr(&node.0)?));
+                }
+                None => {
+                    output.push(format!("{} {};", "void*", self.repr(&node.0)?));
+                }
+            }
+        }
+
+        Ok(output.join("\n"))
+    }
+
     fn repr(&self, node: &Node) -> Result<String> {
         match node {
             Node::Import(import) => Ok(format!(
@@ -96,6 +121,22 @@ impl C {
                     self.repr(&*decl.name)?,
                     self.repr_struct_fields(&fields)?
                 )),
+
+                Node::Enum(is_union, variants) => {
+                    if !is_union {
+                        Ok(format!(
+                            "enum {} {{\n\t{}\n}};",
+                            self.repr(&*decl.name)?,
+                            self.repr_enum_variants(variants)?
+                        ))
+                    } else {
+                        Ok(format!(
+                            "union {} {{\n\t{}\n}};",
+                            self.repr(&*decl.name)?,
+                            self.repr_union_variants(variants)?
+                        ))
+                    }
+                }
 
                 Node::TypeInit(_, fields) => {
                     let ty = self.get_decl_ty(node)?;
@@ -244,6 +285,96 @@ fn hello_world() -> Result<()> {
 }
 
 #[test]
+fn struct_def() -> Result<()> {
+    let program = "S :: struct {
+a: int,
+b: string
+};";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = C::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!(
+        "#include <string>\n#include <cstdio>\nstruct S {
+\tint a;
+std::string b;
+};",
+        code
+    );
+
+    Ok(())
+}
+
+#[test]
+fn struct_init() -> Result<()> {
+    let program = "d :Human: { name = \"amirreza\" };";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = C::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!(
+        "#include <string>\n#include <cstdio>\nconst Human d = {\n.name=\"amirreza\"}",
+        code
+    );
+
+    Ok(())
+}
+
+#[test]
+fn enum_def() -> Result<()> {
+    let program = "e :: enum {
+a,
+b
+};";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = C::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!(
+        "#include <string>\n#include <cstdio>\nenum e {
+\ta,
+b
+};",
+        code
+    );
+
+    Ok(())
+}
+
+#[test]
+fn union_def() -> Result<()> {
+    let program = "e :: enum {
+a(int),
+b
+};";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = C::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!(
+        "#include <string>\n#include <cstdio>\nunion e {
+\tint a;
+void* b;
+};",
+        code
+    );
+
+    Ok(())
+}
+
+#[test]
 fn hello_world_with_if() -> Result<()> {
     let program = "main :: fn() int {
 x :: true;
@@ -255,7 +386,7 @@ if (x) {
 };";
     let mut tokenizer = Tokenizer::new(program);
     let tokens = tokenizer.all()?;
-    let mut parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
     let mut code_gen = C::new(ast);
     let code = code_gen.generate()?;

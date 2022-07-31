@@ -154,7 +154,7 @@ impl Type {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
     pub ty: Type,
     pub loc: SrcLocation,
@@ -1421,4 +1421,53 @@ fn if_stmt() {
     let tok = tok.unwrap();
     assert_eq!(Type::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
+}
+
+#[test]
+fn struct_def() -> Result<()> {
+    let src = "struct { i: int, s: string }";
+    let mut tokenizer = Tokenizer::new(src);
+    let tokens = tokenizer.all()?;
+
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(Type::KeywordStruct, (0, 5)),
+            Token::new(Type::OpenBrace, (7, 7)),
+            Token::new(Type::Identifier, (9, 9)),
+            Token::new(Type::Colon, (10, 10)),
+            Token::new(Type::KeywordInt, (12, 14)),
+            Token::new(Type::Comma, (15, 15)),
+            Token::new(Type::Identifier, (17, 17)),
+            Token::new(Type::Colon, (18, 18)),
+            Token::new(Type::KeywordString, (20, 25)),
+            Token::new(Type::CloseBrace, (27, 27))
+        ]
+    );
+
+    Ok(())
+}
+
+#[test]
+fn struct_init() -> Result<()> {
+    let src = "{ i = 10, s = \"amirreza\" };";
+    let mut tokenizer = Tokenizer::new(src);
+    let tokens = tokenizer.all()?;
+
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(Type::OpenBrace, (0, 0)),
+            Token::new(Type::Identifier, (9, 9)),
+            Token::new(Type::Colon, (10, 10)),
+            Token::new(Type::KeywordInt, (12, 14)),
+            Token::new(Type::Comma, (15, 15)),
+            Token::new(Type::Identifier, (17, 17)),
+            Token::new(Type::Colon, (18, 18)),
+            Token::new(Type::KeywordString, (20, 25)),
+            Token::new(Type::CloseBrace, (27, 27))
+        ]
+    );
+
+    Ok(())
 }
