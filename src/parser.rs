@@ -114,10 +114,10 @@ pub struct Parser {
 impl Parser {
     fn err_uexpected(&self, what: Type) -> anyhow::Error {
         anyhow!(
-            "Expected {:?}, found {:?} at {:?}",
+            "Expected {:?}, found {:?} at \"{}\"",
             what,
-            self.current_token(),
-            self.current_token().loc
+            self.current_token().ty,
+            self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string(),
         )
     }
     fn current_token(&self) -> &Token {
@@ -381,11 +381,9 @@ impl Parser {
                         break;
                     }
                     let name = self.expect_ident()?;
-
                     self.expect_token(Type::Equal)?;
                     self.forward_token();
                     let value = self.expect_expr()?;
-
                     fields.push((name, value));
                     match self.current_token().ty {
                         Type::Comma => {
@@ -1055,12 +1053,15 @@ if (true) {
 fn const_decl_struct_init_program() -> Result<()> {
     let mut parser = Parser::new(
         "main :: fn() int {
-s :: S{};
+s :: S{
+id = 1,
+};
 };",
     )?;
     let ast = parser.get_ast()?;
 
     if let Node::Decl(decl) = &ast.top_level[0] {
+        println!("{:?}", decl)
     } else {
         panic!()
     }

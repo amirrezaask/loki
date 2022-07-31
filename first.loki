@@ -9,17 +9,18 @@ main :: fn() int {
     b2 :bool: false;
     s :: "Amirreza";
 
-    amirreza :Human: {
-        age = 10,
+    amirreza :: Human {
+        age = 24,
         name = "amirreza",
     };
 
-    parsa :: Human {
-        age = 10,
+    parsa :Human: {
+        age = 17,
         name = "parsa",
     };
 
-    printf("age is %d", amirreza.age);
+    printf("amirreza age is %d\n", amirreza.age);
+    printf("parsa age is %d\n", parsa.age);
     
     if (b1) {
         printf("b1 is true\n");

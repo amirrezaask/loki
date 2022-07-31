@@ -64,9 +64,9 @@ impl C {
     fn repr_struct_init_fields(&self, fields: &Vec<(Node, Node)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in fields {
-            output.push(format!(".{}={},", self.repr(&node.0)?, self.repr(&node.1)?));
+            output.push(format!(".{}={}", self.repr(&node.0)?, self.repr(&node.1)?));
         }
-        Ok(output.join("\n"))
+        Ok(output.join(",\n"))
     }
     fn repr_vec_node(&self, nodes: &Vec<Node>, sep: &str) -> Result<String> {
         let mut output = Vec::<String>::new();
