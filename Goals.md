@@ -19,9 +19,9 @@ My problems with Go:<br>
 
 # Solutions
 
-- Enums
+- Enums [x]
 
-- Unions
+- Unions [x]
 
 - Errors should be any kind of value but by practice tagged unions.
 

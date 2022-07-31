@@ -5,11 +5,11 @@ use crate::parser::Parser;
 use crate::tokenizer::Tokenizer;
 use anyhow::Result;
 
-pub struct C {
+pub struct CPP {
     ast: AST,
 }
 
-impl C {
+impl CPP {
     fn get_decl_ty(&self, node: &Node) -> Result<Node> {
         match node {
             Node::Decl(decl) => match decl.ty.deref() {
@@ -276,7 +276,7 @@ fn hello_world() -> Result<()> {
     let tokens = tokenizer.all()?;
     let mut parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
-    let mut code_gen = C::new(ast);
+    let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
     assert_eq!("int main() {\n\tprintf(\"Hello world\");\n}", code);
@@ -294,7 +294,7 @@ b: string
     let tokens = tokenizer.all()?;
     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
-    let mut code_gen = C::new(ast);
+    let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
     assert_eq!(
@@ -315,7 +315,7 @@ fn struct_init() -> Result<()> {
     let tokens = tokenizer.all()?;
     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
-    let mut code_gen = C::new(ast);
+    let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
     assert_eq!(
@@ -336,7 +336,7 @@ b
     let tokens = tokenizer.all()?;
     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
-    let mut code_gen = C::new(ast);
+    let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
     assert_eq!(
@@ -360,7 +360,7 @@ b
     let tokens = tokenizer.all()?;
     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
-    let mut code_gen = C::new(ast);
+    let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
     assert_eq!(
@@ -388,7 +388,7 @@ if (x) {
     let tokens = tokenizer.all()?;
     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
     let ast = parser.get_ast()?;
-    let mut code_gen = C::new(ast);
+    let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
     assert_eq!(

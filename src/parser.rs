@@ -1168,3 +1168,12 @@ b(bool)
 
     Ok(())
 }
+
+#[test]
+fn expr_recursive_field_access() -> Result<()> {
+    let mut parser = Parser::new("a.b.c.d.f()")?;
+    let expr = parser.expect_expr()?;
+    println!("{:?}", expr);
+    panic!();
+    Ok(())
+}

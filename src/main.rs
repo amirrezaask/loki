@@ -28,7 +28,7 @@ pub fn main() -> Result<()> {
             let tokens = tokenizer.all()?;
             let mut parser = crate::parser::Parser::new_with_tokens(program.to_string(), tokens)?;
             let ast = parser.get_ast()?;
-            let mut code_gen = crate::code_gen::c::C::new(ast);
+            let mut code_gen = crate::code_gen::cpp::CPP::new(ast);
             let code = code_gen.generate()?;
 
             println!("{}", code);
@@ -44,7 +44,7 @@ pub fn main() -> Result<()> {
             let tokens = tokenizer.all()?;
             let mut parser = crate::parser::Parser::new_with_tokens(program.to_string(), tokens)?;
             let ast = parser.get_ast()?;
-            let mut code_gen = crate::code_gen::c::C::new(ast);
+            let mut code_gen = crate::code_gen::cpp::CPP::new(ast);
             let code = code_gen.generate()?;
             let out_file_name = format!("{}.cpp", file_name);
             let mut out_file = std::fs::File::create(&out_file_name)?;
