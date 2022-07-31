@@ -490,13 +490,12 @@ impl Tokenizer {
                     }
                 },
                 State::Float(start) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ';' | ')' | '(' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
+                    | '}' | '[' | ']' => {
                         return Ok(self.emit_current_token());
                     }
                     '.' => {
-                        self.state = State::Float(start);
-                        self.forward_char();
-                        continue;
+                        unreachable!();
                     }
                     _ => {
                         self.forward_char();
@@ -504,8 +503,8 @@ impl Tokenizer {
                     }
                 },
                 State::Integer(start) => match self.current_char() {
-                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' => {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
+                    | '}' | '[' | ']' => {
                         return Ok(self.emit_current_token());
                     }
                     '.' => {
