@@ -5,7 +5,7 @@ pub type SrcLocation = (usize, usize);
 
 
 */
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Type {
     EOF,
     OpenBracket,
@@ -34,6 +34,7 @@ pub enum Type {
     MulEqual,
     LessEqual,
     GreaterEqual,
+    NotEqual,
 
     Equal,
     Colon,
@@ -180,6 +181,7 @@ enum State {
     SawEqual,
     SawBang,
     InLineComment,
+    InComment,
     SawPlus,
     SawMinus,
     SawSlash,
@@ -316,6 +318,11 @@ impl Tokenizer {
                                 (self.cur - 1, self.cur - 1),
                             ));
                         }
+                        '!' => {
+                            self.state = State::SawBang;
+                            self.forward_char();
+                            continue;
+                        }
                         '<' => {
                             self.state = State::SawLeftAngleBracket;
                             self.forward_char();
@@ -417,6 +424,17 @@ impl Tokenizer {
                         }
                         self.forward_char();
                         return Ok(Token::new(Type::Char, (c - 1, c + 1)));
+                    }
+                },
+                State::SawBang => match self.current_char() {
+                    '=' => {
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(Token::new(Type::NotEqual, (self.cur - 2, self.cur - 1)));
+                    }
+                    _ => {
+                        self.state = State::Start;
+                        return Ok(Token::new(Type::Bang, (self.cur - 1, self.cur - 1)));
                     }
                 },
                 State::SawColon => match self.current_char() {
@@ -568,10 +586,32 @@ impl Tokenizer {
                         self.forward_char();
                         return Ok(tok);
                     }
+                    '*' => {
+                        self.state = State::InComment;
+                        self.forward_char();
+                        continue;
+                    }
                     _ => {
                         let tok = Token::new(Type::ForwardSlash, (self.cur - 1, self.cur - 1));
                         self.state = State::Start;
                         return Ok(tok);
+                    }
+                },
+                State::InComment => match self.current_char() {
+                    '*' => {
+                        self.forward_char();
+                        match self.current_char() {
+                            '/' => {
+                                self.state = State::Start;
+                                self.forward_char();
+                                continue;
+                            }
+                            _ => continue,
+                        }
+                    }
+                    _ => {
+                        self.forward_char();
+                        continue;
                     }
                 },
                 State::SawAstrix => match self.current_char() {
@@ -1458,16 +1498,31 @@ fn struct_init() -> Result<()> {
         tokens,
         vec![
             Token::new(Type::OpenBrace, (0, 0)),
-            Token::new(Type::Identifier, (9, 9)),
-            Token::new(Type::Colon, (10, 10)),
-            Token::new(Type::KeywordInt, (12, 14)),
-            Token::new(Type::Comma, (15, 15)),
-            Token::new(Type::Identifier, (17, 17)),
-            Token::new(Type::Colon, (18, 18)),
-            Token::new(Type::KeywordString, (20, 25)),
-            Token::new(Type::CloseBrace, (27, 27))
+            Token::new(Type::Identifier, (2, 2)),
+            Token::new(Type::Equal, (4, 4)),
+            Token::new(Type::UnsignedInt, (6, 7)),
+            Token::new(Type::Comma, (8, 8)),
+            Token::new(Type::Identifier, (10, 10)),
+            Token::new(Type::Equal, (12, 12)),
+            Token::new(Type::StringLiteral, (15, 22)),
+            Token::new(Type::CloseBrace, (25, 25)),
+            Token::new(Type::SemiColon, (26, 26))
         ]
     );
+
+    Ok(())
+}
+
+#[test]
+fn comments() -> Result<()> {
+    let src = "
+// first comment
+/* second comment */
+";
+    let mut tokenizer = Tokenizer::new(src);
+    let tokens = tokenizer.all()?;
+
+    assert_eq!(tokens, vec![]);
 
     Ok(())
 }

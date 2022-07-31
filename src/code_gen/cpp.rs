@@ -100,6 +100,14 @@ impl CPP {
 
         Ok(output.join("\n"))
     }
+    fn repr_field_access_path(&self, path: &Vec<Node>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in path.iter() {
+            output.push(self.repr(&node)?);
+        }
+
+        Ok(output.join("."))
+    }
 
     fn repr(&self, node: &Node) -> Result<String> {
         match node {
@@ -218,8 +226,8 @@ impl CPP {
             Node::Multiply(lhs, rhs) => Ok(format!("({} * {})", self.repr(lhs)?, self.repr(rhs)?)),
             Node::Div(lhs, rhs) => Ok(format!("({} / {})", self.repr(lhs)?, self.repr(rhs)?)),
             Node::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::FieldAccess(lhs, rhs) => Ok(format!("{}.{}", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::FnDef(args, ret_ty, block) => {
+            Node::FieldAccess(path) => Ok(format!("{}", self.repr_field_access_path(path)?)),
+            Node::FnDef(_, _, _) => {
                 unreachable!();
             }
 
@@ -279,7 +287,12 @@ fn hello_world() -> Result<()> {
     let mut code_gen = CPP::new(ast);
     let code = code_gen.generate()?;
 
-    assert_eq!("int main() {\n\tprintf(\"Hello world\");\n}", code);
+    assert_eq!(
+        "#include <string>
+#include <cstdio>
+int main() {\n\tprintf(\"Hello world\");\n}",
+        code
+    );
 
     Ok(())
 }
@@ -392,7 +405,9 @@ if (x) {
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "int main() {
+        "#include <string>
+#include <cstdio>
+int main() {
 \tconst bool x = true;
 \tif (x) {
 \tprintf(\"true\");
@@ -400,6 +415,24 @@ if (x) {
 \tprintf(\"false\");
 };
 }",
+        code
+    );
+
+    Ok(())
+}
+
+#[test]
+fn field_access() -> Result<()> {
+    let program = "x :int: a.b.c;";
+    let mut tokenizer = Tokenizer::new(program);
+    let tokens = tokenizer.all()?;
+    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+    let ast = parser.get_ast()?;
+    let mut code_gen = CPP::new(ast);
+    let code = code_gen.generate()?;
+
+    assert_eq!(
+        "#include <string>\n#include <cstdio>\nconst int x = a.b.c",
         code
     );
 

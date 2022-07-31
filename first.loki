@@ -1,12 +1,13 @@
 // You can define structs like this
+
 Human :: struct {
     age: int,
     name: string,
 };
-
-Sex :: enum {
-    Male,
-    Female,
+/* This is an enum */
+Result :: enum {
+    Ok,
+    Ko,
     Unknown(int)
 };
 

@@ -66,11 +66,12 @@ pub enum Node {
     Multiply(Box<Node>, Box<Node>),
     Div(Box<Node>, Box<Node>),
     Mod(Box<Node>, Box<Node>),
-    FieldAccess(Box<Node>, Box<Node>),
+    FieldAccess(Vec<Node>),
     FnDef(Vec<(Node, Node)>, Box<Node>, Vec<Node>),
     FnCall(Box<Node>, Vec<Node>),
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
     TypeInit(Option<Box<Node>>, Vec<(Node, Node)>),
+    Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
 
     Return(Box<Node>),
 }
@@ -459,14 +460,22 @@ impl Parser {
 
                     Type::Dot => {
                         // field access
-                        let container = self.cur - 1;
-                        self.forward_token();
-                        let field = self.cur;
-                        self.forward_token();
-                        Ok(Node::FieldAccess(
-                            Box::new(Node::Ident(container)),
-                            Box::new(Node::Ident(field)),
-                        ))
+                        self.backward_token();
+                        let mut access = Vec::<Node>::new();
+                        loop {
+                            let f = self.expect_ident()?;
+                            access.push(f);
+                            match self.current_token().ty {
+                                Type::Dot => {
+                                    self.forward_token();
+                                }
+                                _ => {
+                                    break;
+                                }
+                            }
+                        }
+
+                        Ok(Node::FieldAccess(access))
                     }
 
                     Type::OpenBrace => {
@@ -590,14 +599,19 @@ impl Parser {
             | Type::RightAngle
             | Type::LessEqual
             | Type::GreaterEqual
-            | Type::DoubleEqual => {
+            | Type::DoubleEqual
+            | Type::NotEqual => {
                 //TODO
                 // handle !=
                 let op = self.current_token();
                 self.forward_token();
                 let rhs = self.expect_expr_C()?;
 
-                Ok(Node::FieldAccess(Box::new(lhs), Box::new(rhs)))
+                Ok(Node::Cmp(
+                    self.current_token().ty.clone(),
+                    Box::new(lhs),
+                    Box::new(rhs),
+                ))
             }
 
             _ => Ok(lhs),
@@ -909,10 +923,7 @@ fn const_decl_expr_field_access() -> Result<()> {
         assert_eq!(decl.name, Box::new(Node::Ident(0)));
         assert_eq!(
             decl.expr,
-            Box::new(Node::FieldAccess(
-                Box::new(Node::Ident(2)),
-                Box::new(Node::Ident(4))
-            ))
+            Box::new(Node::FieldAccess(vec![Node::Ident(2), Node::Ident(4)]))
         );
     } else {
         panic!()
@@ -1171,9 +1182,19 @@ b(bool)
 
 #[test]
 fn expr_recursive_field_access() -> Result<()> {
-    let mut parser = Parser::new("a.b.c.d.f()")?;
+    let mut parser = Parser::new("a.b.c.d.f;")?;
     let expr = parser.expect_expr()?;
-    println!("{:?}", expr);
-    panic!();
+
+    assert_eq!(
+        Node::FieldAccess(vec![
+            Node::Ident(0),
+            Node::Ident(2),
+            Node::Ident(4),
+            Node::Ident(6),
+            Node::Ident(8),
+        ]),
+        expr
+    );
+
     Ok(())
 }
