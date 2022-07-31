@@ -61,15 +61,26 @@ impl C {
                     self.repr_struct_fields(&fields)?
                 )),
 
-                _ => {
-                    let ty = decl.ty.deref().clone().unwrap();
-                    Ok(format!(
-                        "{} {} = {}",
-                        self.repr(&ty)?,
-                        self.repr(decl.name.deref())?,
-                        self.repr(decl.expr.deref())?
-                    ))
-                }
+                _ => match decl.mutable {
+                    false => {
+                        let ty = decl.ty.deref().clone().unwrap();
+                        Ok(format!(
+                            "const {} {} = {}",
+                            self.repr(&ty)?,
+                            self.repr(decl.name.deref())?,
+                            self.repr(decl.expr.deref())?
+                        ))
+                    }
+                    true => {
+                        let ty = decl.ty.deref().clone().unwrap();
+                        Ok(format!(
+                            "{} {} = {}",
+                            self.repr(&ty)?,
+                            self.repr(decl.name.deref())?,
+                            self.repr(decl.expr.deref())?
+                        ))
+                    }
+                },
             },
             // primitive types
             Node::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
@@ -196,7 +207,7 @@ if x {
 
     assert_eq!(
         "int main() {
-\tbool x = true;
+\tconst bool x = true;
 \tif (x) {
 \tprintf(\"true\");
 \t} else {
