@@ -600,7 +600,17 @@ impl Tokenizer {
                         return Ok(tok);
                     }
                 },
+                State::InLineComment => match self.current_char() {
+                    '\n' => {
+                        self.state = State::Start;
+                        self.forward_char();
+                    }
+                    _ => {
+                        self.forward_char();
+                    }
+                },
                 _ => {
+                    println!("state is :{:?}", self.state);
                     unreachable!();
                 }
             }
