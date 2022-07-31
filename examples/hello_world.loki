@@ -1,6 +1,0 @@
-import "stdio.h";
-
-main :: fn() int {
-    printf("H3ll0 W0r1d");
-    return 0;
-};

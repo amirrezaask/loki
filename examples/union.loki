@@ -1,4 +1,0 @@
-Result = union {
-    error_no: int,
-    result: int,
-};

@@ -3,6 +3,10 @@
   - while
   - range
   - c
-- defer
 - else if
-- switch ( pattern matching if no pattern matching switch is not worth it )
+- Generics syntax
+
+# hard ones
+- pattern matching 
+- defer
+- memory stuff :))

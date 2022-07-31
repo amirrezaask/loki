@@ -1,4 +1,0 @@
-Livings = enum {
-    Animal,
-    Human,
-};
