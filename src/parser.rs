@@ -8,13 +8,6 @@ use anyhow::{anyhow, Result};
 pub type TokenIndex = usize;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Import {
-    // this usize refer to src location.
-    pub path: TokenIndex,
-    pub _as: Option<TokenIndex>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
 pub struct Decl {
     pub mutable: bool,
     pub name: Box<Node>,
@@ -25,7 +18,8 @@ pub struct Decl {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     //top level items
-    Import(Import),
+    Load(TokenIndex),
+    Host(TokenIndex),
     Decl(Decl),
 
     // Type defs
@@ -84,6 +78,10 @@ pub struct AST {
 }
 
 impl AST {
+    pub fn load_ast(&mut self, mut ast: AST) {
+        ast.top_level.append(&mut self.top_level);
+        self.top_level = ast.top_level;
+    }
     pub fn get_src_for_token(&self, tok_idx: usize) -> Result<&str> {
         let src_range = &self.tokens[tok_idx];
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])
@@ -751,42 +749,6 @@ impl Parser {
         }
     }
 
-    fn expect_import(&mut self) -> Result<Node> {
-        self.forward_token();
-
-        let path_tok_idx =
-            if let Node::StringLiteral(path_tok_idx) = self.expect_string_literal()? {
-                path_tok_idx
-            } else {
-                unreachable!()
-            };
-
-        self.forward_token();
-        match self.current_token().ty {
-            Type::KeywordAs => {
-                self.forward_token();
-                let as_tok_idx = if let Node::Ident(as_tok_idx) = self.expect_ident()? {
-                    as_tok_idx
-                } else {
-                    unreachable!()
-                };
-                self.expect_token(Type::SemiColon)?;
-                self.forward_token();
-                return Ok(Node::Import(Import {
-                    path: path_tok_idx,
-                    _as: Some(as_tok_idx),
-                }));
-            }
-            Type::SemiColon => {
-                self.forward_token();
-                return Ok(Node::Import(Import {
-                    path: path_tok_idx,
-                    _as: None,
-                }));
-            }
-            _ => Err(self.err_uexpected(Type::SemiColon)),
-        }
-    }
     pub fn get_ast(mut self) -> Result<AST> {
         let mut top_level = Vec::<Node>::new();
         loop {
@@ -795,14 +757,33 @@ impl Parser {
             }
             match self.state {
                 State::Start => match self.current_token().ty {
-                    Type::KeywordImport => {
-                        let import = self.expect_import()?;
-                        top_level.push(import);
+                    Type::LoadDirective => {
+                        self.forward_token();
+                        self.expect_token(Type::StringLiteral)?;
+                        println!("load directive: {:?}", self.current_token());
+                        let path = self.cur;
+                        self.forward_token();
+                        if self.current_token().ty == Type::SemiColon {
+                            self.forward_token();
+                        }
+                        top_level.push(Node::Load(path));
+                    }
+                    Type::HostDirective => {
+                        self.forward_token();
+                        self.expect_token(Type::StringLiteral)?;
+                        println!("host directive: {:?}", self.current_token());
+                        let path = self.cur;
+                        self.forward_token();
+                        if self.current_token().ty == Type::SemiColon {
+                            self.forward_token();
+                        }
+                        top_level.push(Node::Host(path));
                     }
                     Type::Identifier => {
                         top_level.push(self.expect_decl()?);
                     }
                     _ => {
+                        println!("don't know what to do with: {:?}", self.current_token());
                         unreachable!();
                     }
                 },
@@ -819,12 +800,11 @@ impl Parser {
 }
 
 #[test]
-fn import_no_as() -> Result<()> {
-    let mut parser = Parser::new("import \"stdio.h\";")?;
+fn load_directive() -> Result<()> {
+    let parser = Parser::new("#load \"base.loki\";")?;
     let ast = parser.get_ast()?;
-    if let Node::Import(import) = &ast.top_level[0] {
-        assert_eq!(import.path, 1);
-        assert_eq!(import._as, None);
+    if let Node::Load(path) = &ast.top_level[0] {
+        assert_eq!(*path, 1);
     } else {
         panic!()
     }
@@ -833,12 +813,11 @@ fn import_no_as() -> Result<()> {
 }
 
 #[test]
-fn import_with_as() -> Result<()> {
-    let mut parser = Parser::new("import \"stdio.h\" as std;")?;
+fn host_directive() -> Result<()> {
+    let parser = Parser::new("#host \"net/http\";")?;
     let ast = parser.get_ast()?;
-    if let Node::Import(import) = &ast.top_level[0] {
-        assert_eq!(import.path, 1);
-        assert_eq!(import._as, Some(3));
+    if let Node::Host(path) = &ast.top_level[0] {
+        assert_eq!(*path, 1);
     } else {
         panic!()
     }

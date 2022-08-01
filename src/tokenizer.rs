@@ -54,6 +54,9 @@ pub enum Type {
     Pipe,
     Identifier,
 
+    LoadDirective,
+    HostDirective,
+
     KeywordConst,
     KeywordVar,
     KeywordIf,
@@ -64,7 +67,6 @@ pub enum Type {
     KeywordWhile,
     KeywordContinue,
     KeywordBreak,
-    KeywordImport,
     KeywordFn,
     KeywordReturn,
     KeywordTrue,
@@ -104,13 +106,16 @@ pub enum Type {
 impl Type {
     fn to_vec_str() -> Vec<&'static str> {
         vec![
-            "in", "as", "var", "const", "if", "switch", "goto", "for", "while", "continue",
-            "break", "import", "fn", "return", "true", "false", "enum", "else", "bool", "struct",
+            "#load", "in", "as", "var", "const", "if", "switch", "goto", "for", "while",
+            "continue", "break", "fn", "return", "true", "false", "enum", "else", "bool", "struct",
             "union", "void", "int", "uint", "string", "float", "char",
         ]
     }
     fn from_str(s: &str) -> Self {
         match s {
+            "#load" => Self::LoadDirective,
+            "#host" => Self::HostDirective,
+
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,
             "if" => Self::KeywordIf,
@@ -124,7 +129,6 @@ impl Type {
             "while" => Self::KeywordWhile,
             "continue" => Self::KeywordContinue,
             "break" => Self::KeywordBreak,
-            "import" => Self::KeywordImport,
             "fn" => Self::KeywordFn,
             "return" => Self::KeywordReturn,
             "enum" => Self::KeywordEnum,
@@ -191,6 +195,7 @@ enum State {
     SawHat,
     SawLeftAngleBracket,
     SawRightAngleBracket,
+    SawSharp(usize),
 }
 
 pub struct Tokenizer {
@@ -228,6 +233,14 @@ impl Tokenizer {
         //     self.cur, self.state
         // );
         match self.state {
+            State::SawSharp(start) => {
+                self.state = State::Start;
+                let ident_or_keyword: String =
+                    self.src[start..self.cur].to_vec().into_iter().collect();
+                let tok = Token::new(Type::from_str(&ident_or_keyword), (start, self.cur - 1));
+                return tok;
+            }
+
             State::Integer(start) => {
                 self.state = State::Start;
                 return Token::new(Type::UnsignedInt, (start, self.cur - 1));
@@ -403,6 +416,10 @@ impl Tokenizer {
                             self.forward_char();
                             continue;
                         }
+                        '#' => {
+                            self.state = State::SawSharp(self.cur);
+                            continue;
+                        }
                         _ => {
                             self.state = State::IdentifierOrKeyword(self.cur);
                             self.forward_char();
@@ -410,6 +427,16 @@ impl Tokenizer {
                         }
                     };
                 }
+                State::SawSharp(start) => match self.current_char() {
+                    ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
+                    | '{' | '}' | '[' | ']' => {
+                        return Ok(self.emit_current_token());
+                    }
+
+                    _ => {
+                        self.forward_char();
+                    }
+                },
                 State::InCharLiteral => match self.current_char() {
                     '\\' => {
                         self.forward_char();
@@ -1022,33 +1049,21 @@ fn strings() {
     assert_eq!("amirreza", &src[tok.loc.0..=tok.loc.1]);
 }
 #[test]
-fn import_with_as() {
-    let src = "import \"stdio.h\" as std;";
+fn load_directive() {
+    let src = "#load \"stdio\";";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordImport, tok.ty);
-    assert_eq!("import", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::LoadDirective, tok.ty);
+    assert_eq!("#load", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::StringLiteral, tok.ty);
-    assert_eq!("stdio.h", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordAs, tok.ty);
-    assert_eq!("as", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
-    assert_eq!(Type::Identifier, tok.ty);
-    assert_eq!("std", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!("stdio", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1058,21 +1073,21 @@ fn import_with_as() {
 }
 
 #[test]
-fn import_no_as() {
-    let src = "import \"stdio.h\";";
+fn host_directive() {
+    let src = "#host \"cstdio\";";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordImport, tok.ty);
-    assert_eq!("import", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(Type::HostDirective, tok.ty);
+    assert_eq!("#host", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(Type::StringLiteral, tok.ty);
-    assert_eq!("stdio.h", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!("cstdio", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1080,7 +1095,6 @@ fn import_no_as() {
     assert_eq!(Type::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
-
 #[test]
 fn for_c() {
     let src = "for (var i = 0; i < 10; i++) {\n\tprint(i);\n}";

@@ -4,7 +4,6 @@
   - range
   - c
 - else if
-- Generics syntax
 
 # hard ones
 - pattern matching 

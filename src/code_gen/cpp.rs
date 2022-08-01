@@ -111,10 +111,14 @@ impl CPP {
 
     fn repr(&self, node: &Node) -> Result<String> {
         match node {
-            Node::Import(import) => Ok(format!(
-                "#include \"{}\"",
-                self.ast.get_src_for_token(import.path)?
-            )),
+            Node::Host(import) => {
+                println!("host : {:?}", self.ast.get_src_for_token(import.clone())?);
+                Ok(format!(
+                    "#include \"{}\"",
+                    self.ast.get_src_for_token(import.clone())?
+                ))
+            }
+            Node::Load(_) => Ok("".to_string()),
             Node::Decl(decl) => match decl.expr.deref() {
                 Node::FnDef(args, ret, block) => Ok(format!(
                     "{} {}({}) {{\n\t{}\n}}",
@@ -265,8 +269,8 @@ impl CPP {
 
     pub fn generate(&mut self) -> Result<String> {
         let mut out: Vec<String> = vec![
-            "#include <string>".to_string(),
-            "#include <cstdio>".to_string(),
+            // "#include <string>".to_string(),
+            // "#include <cstdio>".to_string(),
         ];
 
         for node in self.ast.top_level.iter() {
