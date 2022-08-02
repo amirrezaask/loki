@@ -29,6 +29,18 @@ impl<'a> CPP<'a> {
                             unreachable!();
                         }
                     },
+                    Node::Ident(ident) => {
+                        let ident_text = self.ast.get_src_for_token(*ident)?;
+                        match self.st.lookup(ident_text) {
+                            Some(md) => {
+                                unreachable!();
+                            }
+                            None => {
+                                println!("unknown ident: {}", ident_text);
+                                unreachable!();
+                            }
+                        }
+                    }
                     _ => {
                         println!("cannot infer type for: {:?}", decl.expr);
                         unreachable!();

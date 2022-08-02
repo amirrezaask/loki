@@ -13,6 +13,12 @@ int main() {
 	const bool b1 = true;
 	const bool b2 = false;
 	const std::string s = "Amirreza";
+	const Human amirreza = {
+.age=24,
+.name="amirreza"};
+	const Human parsa = {
+.age=17,
+.name="parsa"};
 	printf("amirreza age is %d\n",amirreza.age);
 	printf("parsa age is %d\n",parsa.age);
 	if (b1) {

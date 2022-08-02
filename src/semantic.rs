@@ -19,6 +19,24 @@ enum SymbolType {
     String,
     Type,
 }
+impl SymbolType {
+    pub fn to_node(&self) -> Node {
+        match self {
+            SymbolType::Uint => Node::UintTy(0),
+            SymbolType::Int => Node::IntTy(0),
+            SymbolType::Float => Node::FloatTy(0),
+            SymbolType::Bool => Node::BoolTy(0),
+            SymbolType::Char => Node::CharTy(0),
+            SymbolType::String => Node::StringTy(0),
+            SymbolType::Index(si) => {
+                unreachable!();
+            },
+            _ => {
+                unreachable!();
+            }
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct SymbolMetadata {
     index: SymbolIndex,
@@ -48,6 +66,8 @@ impl SymbolIndex {
 impl<'a> SymbolTable<'a> {
 
     pub fn lookup(&self, sym: &str) -> Option<&SymbolMetadata> {
+        //TODO: This should handle shadowed variables, choose closest one to the current scope.
+        
         for (name, md) in self.symbols.iter() {
             if name == sym {
                 return Some(md);
@@ -55,7 +75,7 @@ impl<'a> SymbolTable<'a> {
         }
         None
     }
-    
+
     fn fill_for_block(&self, ast: &'a AST, path: &mut SymbolIndex, block: &Vec<Node>) -> Result<Vec<(Symbol, SymbolMetadata)>> {
         let mut symbols = Vec::<(Symbol, SymbolMetadata)>::new();
 
@@ -63,7 +83,7 @@ impl<'a> SymbolTable<'a> {
             match stmt {
                 Node::Decl(decl) => {
                     let mut new_path = path.new_index_with_push(idx);
-                    self.fill_for_decl(ast, &mut new_path, decl)?;
+                    symbols.append(&mut self.fill_for_decl(ast, &mut new_path, decl)?);
                 }
 
                 
@@ -86,7 +106,7 @@ impl<'a> SymbolTable<'a> {
         
         match decl.expr.deref() {
             Node::FnDef(_, _, block) => {
-                self.fill_for_block(ast, path, block);
+                symbols.append(&mut self.fill_for_block(ast, path, block)?);
             }
 
             Node::Uint(_) => {
@@ -128,7 +148,8 @@ impl<'a> SymbolTable<'a> {
             }
             
             Node::Ident(ident) => {
-                let md = self.lookup(ast.get_src_for_token(*ident)?).unwrap(); // TODO this will crash on unknown ident
+                let md = self.lookup(ast.get_src_for_token(*ident)?).unwrap();
+                // TODO this will crash on unknown ident
                 symbols.push((name, SymbolMetadata {
                     index: path.clone(),
                     ty: md.ty.clone(),
@@ -140,6 +161,36 @@ impl<'a> SymbolTable<'a> {
                     index: path.clone(),
                     ty: SymbolType::String,
                 }));
+            }
+            Node::TypeInit(op_ty, _) => {
+                if op_ty.is_none() && decl.ty.is_none() {
+                    println!("need either a type hint or type name in rhs of decl.");
+                    unreachable!();
+                }
+                // if op_ty.is_some() && decl.ty.is_some() && *(op_ty.unwrap().clone()) != decl.ty.unwrap() {
+                //     println!("type hint and rhs type are not similar.");
+                //     unreachable!();
+                // } // TODO
+                let ty: Node = if op_ty.is_some() {
+                    op_ty.clone().unwrap().deref().clone()
+                } else {
+                    decl.ty.clone().unwrap().clone()
+                };
+
+                match ty {
+                    Node::Ident(ident) => {
+                        let md = self.lookup(ast.get_src_for_token(ident)?).unwrap(); // TODO this will crash on unknown ident
+                        symbols.push((name, SymbolMetadata {
+                            index: path.clone(),
+                            ty: SymbolType::Index(md.index.clone()),
+                        }))
+                    }
+
+                    _ => {
+                        println!("cannot get type info for: {:?}", ty);
+                        unreachable!();
+                    }
+                }
             }
             Node::Enum(_, _) |
             Node::Struct(_) |
@@ -195,8 +246,8 @@ impl<'a> SymbolTable<'a> {
     }
 
     pub fn new(asts: &'a Vec<AST>) -> Result<Self> {
-        let symbols = Vec::<(String, SymbolMetadata)>::new();
-        let st = Self {
+        let mut symbols = Vec::<(String, SymbolMetadata)>::new();
+        let mut st = Self {
             asts, symbols
         };
         for ast in st.asts.iter() {
@@ -204,7 +255,8 @@ impl<'a> SymbolTable<'a> {
                 match node {
                     Node::Decl(decl) => {
                         let mut path = SymbolIndex::new(vec![top_level_idx]);
-                        st.fill_for_decl(ast, &mut path, decl)?;
+                        let mut syms = st.fill_for_decl(ast, &mut path, decl)?;
+                        st.symbols.append(&mut syms);
                     }
 
                     _ => {}

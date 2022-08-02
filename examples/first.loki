@@ -22,16 +22,16 @@ main :: fn() int {
     b2 :bool: false;
     s :: "Amirreza";
 
-    /* amirreza :: Human { // 4 body 3 */
-    /*     age = 24, */
-    /*     name = "amirreza", */
-    /* }; */
+    amirreza :: Human { // 4 body 3
+        age = 24,
+        name = "amirreza",
+    };
 
 
-    /* parsa :Human: { */
-    /*     age = 17, */
-    /*     name = "parsa", */
-    /* }; */
+    parsa :Human: {
+        age = 17,
+        name = "parsa",
+    };
 
     printf("amirreza age is %d\n", amirreza.age);
     printf("parsa age is %d\n", parsa.age);

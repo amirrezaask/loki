@@ -64,7 +64,7 @@ impl Compiler {
     pub fn compile_file_cpp(&self, path: &str) -> Result<()> {
         let asts = self.get_ast_for(path)?;
         let st = SymbolTable::new(&asts)?;
-        println!("symbol table: {:?}", st.symbols);
+        // println!("symbol table: {:?}", st.symbols);
         let mut codes = Vec::<String>::new();
 
         for ast in asts.iter() {
