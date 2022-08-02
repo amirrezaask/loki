@@ -52,11 +52,8 @@ impl Compiler {
 
     pub fn compile_file(&self, path: &str, backend: Backend) -> Result<()> {
         match backend {
-            CPP => {
+            Backend::CPP => {
                 return self.compile_file_cpp(path);
-            }
-            _ => {
-                panic!("just cpp backend is supported now.");
             }
         }
     }
@@ -67,7 +64,7 @@ impl Compiler {
         let mut out_file = std::fs::File::create(&out_file_name)?;
         out_file.write_all(code.as_bytes())?;
         let cpp_output = Command::new("clang++").arg(&out_file_name).output()?;
-        // std::fs::remove_file(out_file_name)?;
+        std::fs::remove_file(out_file_name)?;
         if !cpp_output.status.success() {
             println!(
                 "C++ compiler error:\n{}",

@@ -9,9 +9,6 @@ pub trait Repr {
 
 pub enum Backend {
     CPP,
-    Go,
-    JS,
-    Loki,
 }
 
 pub fn generate(backend: Backend, ast: AST) -> Result<String> {
