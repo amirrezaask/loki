@@ -10,16 +10,3 @@ pub trait Repr {
 pub enum Backend {
     CPP,
 }
-
-pub fn generate(backend: Backend, ast: AST) -> Result<String> {
-    match backend {
-        Backend::CPP => {
-            let mut c_code_gen = cpp::CPP::new(ast);
-            c_code_gen.generate()
-        }
-
-        _ => {
-            panic!("not implemented yet");
-        }
-    }
-}

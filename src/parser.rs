@@ -17,6 +17,7 @@ pub struct Decl {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
+    NULL,
     //top level items
     Load(TokenIndex),
     Host(TokenIndex),
@@ -76,7 +77,7 @@ pub enum Node {
 pub struct AST {
     pub src: String,
     pub tokens: Vec<Token>,
-    pub top_level: Vec<Node>,
+    pub top_level: Vec<Node>, // 2
 }
 
 impl AST {
@@ -84,6 +85,7 @@ impl AST {
         let src_range = &self.tokens[tok_idx];
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])
     }
+
 }
 
 #[derive(Debug, Default)]
@@ -223,7 +225,7 @@ impl Parser {
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
     B -> C (< <= | >= > C)* // cmp
-    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: &expr | ref: *expr
+    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: *expr | ref: &expr
     | field_access | struct_def | enum_def | struct_init | enum_init | fn_def | types(int, uint, void, string, bool, char, float
     */
 

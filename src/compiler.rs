@@ -1,4 +1,6 @@
 use crate::code_gen::Backend;
+use crate::code_gen::cpp::CPP;
+use crate::semantic::SymbolTable;
 
 // compiler that glue all parts together
 use super::parser::Node;
@@ -16,6 +18,7 @@ impl Compiler {
     }
 
     pub fn parse_file(&self, path: &str) -> Result<AST> {
+        println!("parsing {}", path);
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
@@ -24,12 +27,12 @@ impl Compiler {
         Ok(ast)
     }
 
-    pub fn do_file(&self, path: &str) -> Result<String> {
-        println!("compiling: {}", path);
+    pub fn get_ast_for(&self, path: &str) -> Result<Vec<AST>> {
+        println!("generating ast for {}", path);
         let main_ast = self.parse_file(path)?;
         let mut loads = Vec::<String>::new();
-        let mut outputs = Vec::<String>::new();
-
+        let mut asts = Vec::<AST>::new();
+        
         for node in main_ast.top_level.iter() {
             match node {
                 Node::Load(path_idx) => {
@@ -40,14 +43,14 @@ impl Compiler {
                 }
             }
         }
-        let mut code_gen = crate::code_gen::cpp::CPP::new(main_ast);
-        let code = code_gen.generate()?;
-        outputs.push(code);
+        asts.push(main_ast);
         for file in loads {
-            let file_code = self.do_file(&file)?;
-            outputs.insert(0, file_code);
+            let mut file_ast = self.get_ast_for(&file)?;
+            asts.append(&mut file_ast)
         }
-        Ok(outputs.join("\n"))
+
+        Ok(asts)
+
     }
 
     pub fn compile_file(&self, path: &str, backend: Backend) -> Result<()> {
@@ -59,12 +62,25 @@ impl Compiler {
     }
 
     pub fn compile_file_cpp(&self, path: &str) -> Result<()> {
-        let code = self.do_file(path)?;
+        let asts = self.get_ast_for(path)?;
+        let st = SymbolTable::new(&asts)?;
+        println!("symbol table: {:?}", st.symbols);
+        let mut codes = Vec::<String>::new();
+
+        for ast in asts.iter() {
+            let mut codegen = CPP::new(&st, &ast);
+            let code = codegen.generate()?;
+            codes.push(code);
+        }
+
+        
+        let final_code = codes.join("\n");
+        
         let out_file_name = format!("{}.cpp", path);
         let mut out_file = std::fs::File::create(&out_file_name)?;
-        out_file.write_all(code.as_bytes())?;
+        out_file.write_all(final_code.as_bytes())?;
         let cpp_output = Command::new("clang++").arg(&out_file_name).output()?;
-        std::fs::remove_file(out_file_name)?;
+        // std::fs::remove_file(out_file_name)?;
         if !cpp_output.status.success() {
             println!(
                 "C++ compiler error:\n{}",

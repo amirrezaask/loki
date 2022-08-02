@@ -12,7 +12,6 @@ const usage: &'static str =
 
 pub fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
-    
     if args.len() < 2 {
         println!("{}\n{}", about, usage);
         return Ok(());
