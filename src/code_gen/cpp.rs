@@ -292,9 +292,7 @@ fn hello_world() -> Result<()> {
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>
-#include <cstdio>
-int main() {\n\tprintf(\"Hello world\");\n}",
+        "int main() {\n\tprintf(\"Hello world\");\n}",
         code
     );
 
@@ -315,7 +313,7 @@ b: string
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>\n#include <cstdio>\nstruct S {
+        "struct S {
 \tint a;
 std::string b;
 };",
@@ -336,7 +334,7 @@ fn struct_init() -> Result<()> {
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>\n#include <cstdio>\nconst Human d = {\n.name=\"amirreza\"}",
+        "const Human d = {\n.name=\"amirreza\"}",
         code
     );
 
@@ -357,7 +355,7 @@ b
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>\n#include <cstdio>\nenum e {
+        "enum e {
 \ta,
 b
 };",
@@ -381,7 +379,7 @@ b
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>\n#include <cstdio>\nunion e {
+        "union e {
 \tint a;
 void* b;
 };",
@@ -409,9 +407,7 @@ if (x) {
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>
-#include <cstdio>
-int main() {
+        "int main() {
 \tconst bool x = true;
 \tif (x) {
 \tprintf(\"true\");
@@ -436,7 +432,7 @@ fn field_access() -> Result<()> {
     let code = code_gen.generate()?;
 
     assert_eq!(
-        "#include <string>\n#include <cstdio>\nconst int x = a.b.c",
+        "const int x = a.b.c",
         code
     );
 
