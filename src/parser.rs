@@ -80,29 +80,10 @@ pub struct AST {
 }
 
 impl AST {
-    pub fn load_ast(&mut self, mut ast: AST) {
-        ast.top_level.append(&mut self.top_level);
-        self.top_level = ast.top_level;
-    }
     pub fn get_src_for_token(&self, tok_idx: usize) -> Result<&str> {
         let src_range = &self.tokens[tok_idx];
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])
     }
-}
-
-#[derive(Default, Debug)]
-enum State {
-    #[default]
-    Start,
-    Block,
-    Import,
-    ImportWaitingForString,
-    WaitingForExpr,
-    SawIdentifier,
-    VarDecl,
-    ConstDecl,
-    SawIf,
-    SawFn,
 }
 
 #[derive(Debug, Default)]
@@ -110,7 +91,6 @@ pub struct Parser {
     src: String,
     tokens: Vec<Token>,
     cur: usize,
-    state: State,
 }
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl Parser {
@@ -135,7 +115,6 @@ impl Parser {
         Ok(Self {
             src,
             tokens,
-            state: State::Start,
             cur: 0,
         })
     }
@@ -157,7 +136,6 @@ impl Parser {
         Ok(Self {
             src: src.to_string(),
             tokens,
-            state: State::Start,
             cur: 0,
         })
     }
@@ -245,7 +223,8 @@ impl Parser {
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
     B -> C (< <= | >= > C)* // cmp
-    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: &expr | ref: *expr | field_access | struct_def | enum_def | struct_init | enum_init | fn_def | types(int, uint, void, string, bool, char, float
+    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: &expr | ref: *expr
+    | field_access | struct_def | enum_def | struct_init | enum_init | fn_def | types(int, uint, void, string, bool, char, float
     */
 
     fn expect_fn_def(&mut self) -> Result<Node> {
@@ -630,15 +609,21 @@ impl Parser {
         let lhs = self.expect_expr_B()?;
 
         match self.current_token().ty {
-            //TODO
-            Type::Asterix | Type::Percent | Type::ForwardSlash => {
-                let op = self.current_token();
+            Type::Asterix => {
                 self.forward_token();
                 let rhs = self.expect_expr_B()?;
-
-                Ok(Node::Subtract(Box::new(lhs), Box::new(rhs)))
+                Ok(Node::Multiply(Box::new(lhs), Box::new(rhs)))
             }
-
+            Type::Percent => {
+                self.forward_token();
+                let rhs = self.expect_expr_B()?;
+                Ok(Node::Mod(Box::new(lhs), Box::new(rhs)))
+            }
+            Type::ForwardSlash => {
+                self.forward_token();
+                let rhs = self.expect_expr_B()?;
+                Ok(Node::Div(Box::new(lhs), Box::new(rhs)))
+            }
             _ => Ok(lhs),
         }
     }
@@ -647,14 +632,16 @@ impl Parser {
         let lhs = self.expect_expr_mul_div_mod()?;
 
         match self.current_token().ty {
-            Type::Plus | Type::Minus => {
-                let op = self.current_token();
+            Type::Minus => {
                 self.forward_token();
                 let rhs = self.expect_expr_mul_div_mod()?;
-
+                Ok(Node::Subtract(Box::new(lhs), Box::new(rhs)))
+            }
+            Type::Plus => {
+                self.forward_token();
+                let rhs = self.expect_expr_mul_div_mod()?;
                 Ok(Node::Sum(Box::new(lhs), Box::new(rhs)))
             }
-
             _ => Ok(lhs),
         }
     }
@@ -683,7 +670,6 @@ impl Parser {
         Ok(stmts)
     }
 
-    // statement is either a decl/if/for/return/switch/break/continue/goto/fn_call
     fn expect_stmt(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
@@ -766,40 +752,36 @@ impl Parser {
             if self.cur >= self.tokens.len() {
                 break;
             }
-            match self.state {
-                State::Start => match self.current_token().ty {
-                    Type::LoadDirective => {
+            match self.current_token().ty {
+                Type::LoadDirective => {
+                    self.forward_token();
+                    self.expect_token(Type::StringLiteral)?;
+                    let path = self.cur;
+                    self.forward_token();
+                    if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
-                        self.expect_token(Type::StringLiteral)?;
-                        let path = self.cur;
+                    }
+                    top_level.push(Node::Load(path));
+                }
+                Type::HostDirective => {
+                    self.forward_token();
+                    self.expect_token(Type::StringLiteral)?;
+                    let path = self.cur;
+                    self.forward_token();
+                    if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
-                        if self.current_token().ty == Type::SemiColon {
-                            self.forward_token();
-                        }
-                        top_level.push(Node::Load(path));
                     }
-                    Type::HostDirective => {
-                        self.forward_token();
-                        self.expect_token(Type::StringLiteral)?;
-                        let path = self.cur;
-                        self.forward_token();
-                        if self.current_token().ty == Type::SemiColon {
-                            self.forward_token();
-                        }
-                        top_level.push(Node::Host(path));
-                    }
-                    Type::Ident => {
-                        top_level.push(self.expect_decl()?);
-                    }
-                    _ => {
-                        println!("don't know what to do with: {:?}", self.current_token());
-                        unreachable!();
-                    }
-                },
-                _ => {}
+                    top_level.push(Node::Host(path));
+                }
+                Type::Ident => {
+                    top_level.push(self.expect_decl()?);
+                }
+                _ => {
+                    println!("don't know what to do with: {:?}", self.current_token());
+                    unreachable!();
+                }
             }
         }
-
         Ok(AST {
             src: self.src,
             tokens: self.tokens,
