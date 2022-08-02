@@ -112,7 +112,6 @@ impl CPP {
     fn repr(&self, node: &Node) -> Result<String> {
         match node {
             Node::Host(import) => {
-                println!("host : {:?}", self.ast.get_src_for_token(import.clone())?);
                 Ok(format!(
                     "#include \"{}\"",
                     self.ast.get_src_for_token(import.clone())?

@@ -16,7 +16,6 @@ impl Compiler {
     }
 
     pub fn parse_file(&self, path: &str) -> Result<AST> {
-        println!("parsing file: {}", path);
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
@@ -26,7 +25,8 @@ impl Compiler {
     }
 
     pub fn do_file(&self, path: &str) -> Result<String> {
-        let mut main_ast = self.parse_file(path)?;
+        println!("compiling: {}", path);
+        let main_ast = self.parse_file(path)?;
         let mut loads = Vec::<String>::new();
         let mut outputs = Vec::<String>::new();
 
@@ -44,7 +44,6 @@ impl Compiler {
         let code = code_gen.generate()?;
         outputs.push(code);
         for file in loads {
-            println!("loading {}", file);
             let file_code = self.do_file(&file)?;
             outputs.insert(0, file_code);
         }

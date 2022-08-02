@@ -66,14 +66,16 @@ pub enum Node {
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
     TypeInit(Option<Box<Node>>, Vec<(Node, Node)>),
     Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
+    Ref(Box<Node>),
+    Deref(Box<Node>),
 
     Return(Box<Node>),
 }
 
 #[derive(Debug)]
 pub struct AST {
-    src: String,
-    tokens: Vec<Token>,
+    pub src: String,
+    pub tokens: Vec<Token>,
     pub top_level: Vec<Node>,
 }
 
@@ -162,12 +164,12 @@ impl Parser {
 
     fn expect_ident(&mut self) -> Result<Node> {
         match self.current_token().ty {
-            Type::Identifier => {
+            Type::Ident => {
                 self.forward_token();
                 return Ok(Node::Ident(self.cur - 1));
             }
             _ => {
-                return Err(self.err_uexpected(Type::Identifier));
+                return Err(self.err_uexpected(Type::Ident));
             }
         }
     }
@@ -184,7 +186,7 @@ impl Parser {
     fn expect_decl(&mut self) -> Result<Node> {
         let mut ty: Option<Node> = None;
 
-        self.expect_token(Type::Identifier)?;
+        self.expect_token(Type::Ident)?;
 
         let name = self.cur;
 
@@ -243,7 +245,7 @@ impl Parser {
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
     B -> C (< <= | >= > C)* // cmp
-    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | field_access | struct_def | enum_def | struct_init | enum_init | fn_def | types(int, uint, void, string, bool, char, float
+    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: &expr | ref: *expr | field_access | struct_def | enum_def | struct_init | enum_init | fn_def | types(int, uint, void, string, bool, char, float
     */
 
     fn expect_fn_def(&mut self) -> Result<Node> {
@@ -411,9 +413,18 @@ impl Parser {
             Type::OpenParen => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                self.forward_token();
                 self.expect_token(Type::CloseParen)?;
                 Ok(expr)
+            }
+            Type::Asterix => {
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                return Ok(Node::Deref(Box::new(expr)));
+            }
+            Type::Ampersand => {
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                return Ok(Node::Ref(Box::new(expr)));
             }
             Type::OpenBrace => {
                 self.forward_token();
@@ -442,7 +453,7 @@ impl Parser {
 
                 return Ok(Node::TypeInit(None, fields));
             }
-            Type::Identifier => {
+            Type::Ident => {
                 self.forward_token();
                 match self.current_token().ty {
                     Type::OpenParen => {
@@ -675,7 +686,7 @@ impl Parser {
     // statement is either a decl/if/for/return/switch/break/continue/goto/fn_call
     fn expect_stmt(&mut self) -> Result<Node> {
         match self.current_token().ty {
-            Type::Identifier => {
+            Type::Ident => {
                 let next_tok = self.cur + 1;
                 match self.tokens[next_tok].ty {
                     Type::DoubleColon | Type::Colon | Type::Equal => self.expect_decl(),
@@ -760,7 +771,6 @@ impl Parser {
                     Type::LoadDirective => {
                         self.forward_token();
                         self.expect_token(Type::StringLiteral)?;
-                        println!("load directive: {:?}", self.current_token());
                         let path = self.cur;
                         self.forward_token();
                         if self.current_token().ty == Type::SemiColon {
@@ -771,7 +781,6 @@ impl Parser {
                     Type::HostDirective => {
                         self.forward_token();
                         self.expect_token(Type::StringLiteral)?;
-                        println!("host directive: {:?}", self.current_token());
                         let path = self.cur;
                         self.forward_token();
                         if self.current_token().ty == Type::SemiColon {
@@ -779,7 +788,7 @@ impl Parser {
                         }
                         top_level.push(Node::Host(path));
                     }
-                    Type::Identifier => {
+                    Type::Ident => {
                         top_level.push(self.expect_decl()?);
                     }
                     _ => {
@@ -1174,6 +1183,27 @@ fn expr_recursive_field_access() -> Result<()> {
         ]),
         expr
     );
+
+    Ok(())
+}
+
+#[test]
+fn expr_ref() -> Result<()> {
+    let mut parser = Parser::new("&a;")?;
+    let expr = parser.expect_expr()?;
+
+    assert_eq!(Node::Ref(Box::new(Node::Ident(1))), expr);
+
+    Ok(())
+}
+
+
+#[test]
+fn expr_deref() -> Result<()> {
+    let mut parser = Parser::new("*a;")?;
+    let expr = parser.expect_expr()?;
+
+    assert_eq!(Node::Deref(Box::new(Node::Ident(1))), expr);
 
     Ok(())
 }

@@ -1,3 +1,4 @@
+- arrays and dynamic arrays
 - enum/union initialization sytnax
 - for
   - while

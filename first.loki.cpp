@@ -1,6 +1,7 @@
 #include "cstdio"
 #include "string"
 
+#include "iostream"
 struct Human {
 	int age;
 std::string name;

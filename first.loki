@@ -1,13 +1,16 @@
-#load "base.loki";
+#load "base.loki"; // Load directive loads a loki file as a part of compilation
+#host "iostream"; // host directive is for when you want to import something from your target platform. 
 
-
-// You can define structs like this
+// This is a comment
+/*
+This is also a comment
+*/
 
 Human :: struct {
     age: int,
     name: string,
 };
-/* This is an enum */
+
 Result :: enum {
     Ok,
     Ko,
@@ -28,7 +31,8 @@ main :: fn() int {
         age = 17,
         name = "parsa",
     };
-    
+
+//    ok :: Result.Ok;
 
     printf("amirreza age is %d\n", amirreza.age);
     printf("parsa age is %d\n", parsa.age);
