@@ -1,55 +1,25 @@
 use std::ops::Deref;
 
-use super::{Node, Repr, AST};
-use crate::parser::Parser;
-use crate::semantic::SymbolTable;
+use super::{Node, NodeData, Repr, AST};
+use crate::symbol_table::SymbolTable;
 use crate::tokenizer::Tokenizer;
+use crate::parser::Parser;
 use anyhow::Result;
 
 pub struct CPP<'a> {
     ast: &'a AST,
-    st: &'a SymbolTable<'a>,
+    st: &'a SymbolTable,
 }
 
 impl<'a> CPP<'a> {
     fn get_decl_ty(&self, node: &Node) -> Result<Node> {
-        match node {
-            Node::Decl(decl) => match decl.ty.deref() {
+        match &node.data {
+            NodeData::Decl(decl) => match decl.ty.deref() {
                 Some(ty) => Ok(ty.clone()),
                 None => {
                     println!("type inference shit the bed. {:?}", decl);
                     unreachable!();
                 }
-                // None => match decl.expr.deref() {
-                //     Node::Uint(_) => Ok(Node::Uint(0)),
-                //     Node::True(_) | Node::False(_) => Ok(Node::BoolTy(0)),
-                //     Node::Int(_) => Ok(Node::IntTy(0)),
-                //     Node::StringLiteral(_) => Ok(Node::StringTy(0)),
-                //     Node::Float(_) => Ok(Node::FloatTy(0)),
-                //     Node::Char(_) => Ok(Node::Char(0)),
-                //     Node::TypeInit(name, _) => match name {
-                //         Some(n) => Ok(n.deref().clone()),
-                //         None => {
-                //             unreachable!();
-                //         }
-                //     },
-                //     Node::Ident(ident) => {
-                //         let ident_text = self.ast.get_src_for_token(*ident)?;
-                //         match self.st.lookup(ident_text) {
-                //             Some(md) => {
-                //                 unreachable!();
-                //             }
-                //             None => {
-                //                 println!("unknown ident: {}", ident_text);
-                //                 unreachable!();
-                //             }
-                //         }
-                //     }
-                //     _ => {
-                //         println!("cannot infer type for: {:?}", decl.expr);
-                //         unreachable!();
-                //     }
-                // },
             },
             _ => {
                 println!("wrong node passed to ty inference : {:?}", node);
@@ -128,16 +98,16 @@ impl<'a> CPP<'a> {
     }
 
     fn repr(&self, node: &Node) -> Result<String> {
-        match node {
-            Node::Host(import) => {
+        match &node.data {
+            NodeData::Host(import) => {
                 Ok(format!(
                     "#include \"{}\"",
                     self.ast.get_src_for_token(import.clone())?
                 ))
             }
-            Node::Load(_) => Ok("".to_string()),
-            Node::Decl(decl) => match decl.expr.deref() {
-                Node::FnDef(args, ret, block) => Ok(format!(
+            NodeData::Load(_) => Ok("".to_string()),
+            NodeData::Decl(decl) => match &decl.expr.deref().data {
+                NodeData::FnDef(args, ret, block) => Ok(format!(
                     "{} {}({}) {{\n\t{}\n}}",
                     self.repr(&*ret)?,
                     self.repr(&*decl.name)?,
@@ -145,31 +115,31 @@ impl<'a> CPP<'a> {
                     self.repr_block(&block)?,
                 )),
 
-                Node::Struct(fields) => Ok(format!(
+                NodeData::Struct(fields) => Ok(format!(
                     "struct {} {{\n\t{}\n}};",
                     self.repr(&*decl.name)?,
                     self.repr_struct_fields(&fields)?
                 )),
 
-                Node::Enum(is_union, variants) => {
+                NodeData::Enum(is_union, variants) => {
                     if !is_union {
                         Ok(format!(
                             "enum {} {{\n\t{}\n}};",
                             self.repr(&*decl.name)?,
-                            self.repr_enum_variants(variants)?
+                            self.repr_enum_variants(&variants)?
                         ))
                     } else {
                         Ok(format!(
                             "union {} {{\n\t{}\n}};",
                             self.repr(&*decl.name)?,
-                            self.repr_union_variants(variants)?
+                            self.repr_union_variants(&variants)?
                         ))
                     }
                 }
 
-                Node::TypeInit(_, fields) => {
+                NodeData::TypeInit(_, fields) => {
                     let ty = self.get_decl_ty(node)?;
-                    let fields = self.repr_struct_init_fields(fields)?;
+                    let fields = self.repr_struct_init_fields(&fields)?;
                     match decl.mutable {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
@@ -205,63 +175,64 @@ impl<'a> CPP<'a> {
                 }
             },
             // primitive types
-            Node::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            Node::Int(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            Node::StringLiteral(tok_idx) => {
+            NodeData::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::Int(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::StringLiteral(tok_idx) => {
                 Ok(format!("\"{}\"", self.ast.get_src_for_token(*tok_idx)?))
             }
-            Node::Float(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            Node::True(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            Node::False(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            Node::Char(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            Node::Ident(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::Float(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::True(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::False(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::Char(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::Ident(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::TEXT(s) => Ok(format!("{}", s)),
 
             // keywords
-            Node::IntTy(_) => Ok(format!("int")),
-            Node::Int8Ty(_) => Ok(format!("int8_t")),
-            Node::Int16Ty(_) => Ok(format!("int16_t")),
-            Node::Int32Ty(_) => Ok(format!("int32_t")),
-            Node::Int64Ty(_) => Ok(format!("int64_t")),
-            Node::Int128Ty(_) => {
+            NodeData::IntTy(_) => Ok(format!("int")),
+            NodeData::Int8Ty(_) => Ok(format!("int8_t")),
+            NodeData::Int16Ty(_) => Ok(format!("int16_t")),
+            NodeData::Int32Ty(_) => Ok(format!("int32_t")),
+            NodeData::Int64Ty(_) => Ok(format!("int64_t")),
+            NodeData::Int128Ty(_) => {
                 unimplemented!()
             }
 
-            Node::UintTy(_) => Ok(format!("unsigned int")),
-            Node::Uint8Ty(_) => Ok(format!("uint8_t")),
-            Node::Uint16Ty(_) => Ok(format!("uint16_t")),
-            Node::Uint32Ty(_) => Ok(format!("uint32_t")),
-            Node::Uint64Ty(_) => Ok(format!("uint64_t")),
-            Node::Uint128Ty(_) => {
+            NodeData::UintTy(_) => Ok(format!("unsigned int")),
+            NodeData::Uint8Ty(_) => Ok(format!("uint8_t")),
+            NodeData::Uint16Ty(_) => Ok(format!("uint16_t")),
+            NodeData::Uint32Ty(_) => Ok(format!("uint32_t")),
+            NodeData::Uint64Ty(_) => Ok(format!("uint64_t")),
+            NodeData::Uint128Ty(_) => {
                 unimplemented!();
             }
 
-            Node::FloatTy(_) => Ok(format!("long")),
-            Node::BoolTy(_) => Ok(format!("bool")),
-            Node::StringTy(_) => Ok(format!("std::string")),
-            Node::CharTy(_) => Ok(format!("char")),
-            Node::VoidTy(_) => Ok(format!("void")),
+            NodeData::FloatTy(_) => Ok(format!("long")),
+            NodeData::BoolTy(_) => Ok(format!("bool")),
+            NodeData::StringTy(_) => Ok(format!("std::string")),
+            NodeData::CharTy(_) => Ok(format!("char")),
+            NodeData::VoidTy(_) => Ok(format!("void")),
 
             //Expressions
-            Node::Sum(lhs, rhs) => Ok(format!("({} + {})", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::Subtract(lhs, rhs) => Ok(format!("({} - {})", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::Multiply(lhs, rhs) => Ok(format!("({} * {})", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::Div(lhs, rhs) => Ok(format!("({} / {})", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(lhs)?, self.repr(rhs)?)),
-            Node::FieldAccess(path) => Ok(format!("{}", self.repr_field_access_path(path)?)),
-            Node::FnDef(_, _, _) => {
+            NodeData::Sum(lhs, rhs) => Ok(format!("({} + {})", self.repr(&lhs)?, self.repr(&rhs)?)),
+            NodeData::Subtract(lhs, rhs) => Ok(format!("({} - {})", self.repr(&lhs)?, self.repr(&rhs)?)),
+            NodeData::Multiply(lhs, rhs) => Ok(format!("({} * {})", self.repr(&lhs)?, self.repr(&rhs)?)),
+            NodeData::Div(lhs, rhs) => Ok(format!("({} / {})", self.repr(&lhs)?, self.repr(&rhs)?)),
+            NodeData::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(&lhs)?, self.repr(&rhs)?)),
+            NodeData::FieldAccess(path) => Ok(format!("{}", self.repr_field_access_path(&path)?)),
+            NodeData::FnDef(_, _, _) => {
                 unreachable!();
             }
 
-            Node::FnCall(name, args) => Ok(format!(
+            NodeData::FnCall(name, args) => Ok(format!(
                 "{}({})",
-                self.repr(name)?,
-                self.repr_vec_node(args, ",")?
+                self.repr(&name)?,
+                self.repr_vec_node(&args, ",")?
             )),
-            Node::If(cond, then, _else) => {
+            NodeData::If(cond, then, _else) => {
                 let mut base = format!(
                     "if ({}) {{\n\t{}\n\t}}",
-                    self.repr(cond)?,
-                    self.repr_block(then)?
+                    self.repr(&cond)?,
+                    self.repr_block(&then)?
                 );
 
                 if _else.is_some() {
@@ -273,9 +244,9 @@ impl<'a> CPP<'a> {
 
                 Ok(base)
             }
-            Node::Return(expr) => Ok(format!("return {}", self.repr(expr)?)),
+            NodeData::Return(expr) => Ok(format!("return {}", self.repr(&expr)?)),
             _ => {
-                println!("{:?}", node);
+                println!("unhandled in cpp codegen {:?}", node);
                 unreachable!()
             }
         }
@@ -419,8 +390,14 @@ if (x) {
     let mut tokenizer = Tokenizer::new(program);
     let tokens = tokenizer.all()?;
     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-    let asts = vec![parser.get_ast()?];
+    let mut asts = vec![parser.get_ast()?];
     let st = SymbolTable::new(&asts)?;
+    println!("symbol table: {:?}", st.symbols_by_name);
+    for ast in asts.iter_mut() {
+        ast.infer_types(&st)?;
+    }
+
+    println!("{:?}", asts[0].top_level);
     let mut code_gen = CPP::new(&st, &asts[0]);
     let code = code_gen.generate()?;
 

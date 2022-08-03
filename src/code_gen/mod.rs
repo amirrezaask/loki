@@ -1,5 +1,5 @@
-use super::parser::{Node, AST};
 use anyhow::Result;
+use crate::ast::*;
 
 pub mod cpp;
 

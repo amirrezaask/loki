@@ -2,7 +2,8 @@ mod code_gen;
 mod parser;
 mod tokenizer;
 mod compiler;
-mod semantic;
+mod ast;
+mod symbol_table;
 use anyhow::Result;
 use std::env;
 
