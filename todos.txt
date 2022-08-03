@@ -2,7 +2,7 @@
 - enum/union initialization sytnax
 - for
   - while
-  - range
+  - range (with implicit 'it' iterator)
   - c
 - else if
 

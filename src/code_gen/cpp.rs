@@ -16,36 +16,40 @@ impl<'a> CPP<'a> {
         match node {
             Node::Decl(decl) => match decl.ty.deref() {
                 Some(ty) => Ok(ty.clone()),
-                None => match decl.expr.deref() {
-                    Node::Uint(_) => Ok(Node::Uint(0)),
-                    Node::True(_) | Node::False(_) => Ok(Node::BoolTy(0)),
-                    Node::Int(_) => Ok(Node::IntTy(0)),
-                    Node::StringLiteral(_) => Ok(Node::StringTy(0)),
-                    Node::Float(_) => Ok(Node::FloatTy(0)),
-                    Node::Char(_) => Ok(Node::Char(0)),
-                    Node::TypeInit(name, _) => match name {
-                        Some(n) => Ok(n.deref().clone()),
-                        None => {
-                            unreachable!();
-                        }
-                    },
-                    Node::Ident(ident) => {
-                        let ident_text = self.ast.get_src_for_token(*ident)?;
-                        match self.st.lookup(ident_text) {
-                            Some(md) => {
-                                unreachable!();
-                            }
-                            None => {
-                                println!("unknown ident: {}", ident_text);
-                                unreachable!();
-                            }
-                        }
-                    }
-                    _ => {
-                        println!("cannot infer type for: {:?}", decl.expr);
-                        unreachable!();
-                    }
-                },
+                None => {
+                    println!("type inference shit the bed. {:?}", decl);
+                    unreachable!();
+                }
+                // None => match decl.expr.deref() {
+                //     Node::Uint(_) => Ok(Node::Uint(0)),
+                //     Node::True(_) | Node::False(_) => Ok(Node::BoolTy(0)),
+                //     Node::Int(_) => Ok(Node::IntTy(0)),
+                //     Node::StringLiteral(_) => Ok(Node::StringTy(0)),
+                //     Node::Float(_) => Ok(Node::FloatTy(0)),
+                //     Node::Char(_) => Ok(Node::Char(0)),
+                //     Node::TypeInit(name, _) => match name {
+                //         Some(n) => Ok(n.deref().clone()),
+                //         None => {
+                //             unreachable!();
+                //         }
+                //     },
+                //     Node::Ident(ident) => {
+                //         let ident_text = self.ast.get_src_for_token(*ident)?;
+                //         match self.st.lookup(ident_text) {
+                //             Some(md) => {
+                //                 unreachable!();
+                //             }
+                //             None => {
+                //                 println!("unknown ident: {}", ident_text);
+                //                 unreachable!();
+                //             }
+                //         }
+                //     }
+                //     _ => {
+                //         println!("cannot infer type for: {:?}", decl.expr);
+                //         unreachable!();
+                //     }
+                // },
             },
             _ => {
                 println!("wrong node passed to ty inference : {:?}", node);

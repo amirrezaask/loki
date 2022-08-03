@@ -17,7 +17,6 @@ pub struct Decl {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
-    NULL,
     //top level items
     Load(TokenIndex),
     Host(TokenIndex),

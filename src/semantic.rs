@@ -6,11 +6,11 @@ use super::parser::{ Node, AST , Decl };
 #[derive(Debug, Clone)]
 pub struct SymbolTable<'a> {
     pub asts: &'a Vec<AST>,
-    pub symbols: Vec<(String, SymbolMetadata)>,
+    pub symbols: HashMap<String, Vec<SymbolMetadata>>,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum SymbolType {
-    Index(SymbolIndex),
+    Name(String), // points to a symbol name that can be a type def. we should find closest one to our current scope
     Uint,
     Int,
     Float,
@@ -19,31 +19,12 @@ enum SymbolType {
     String,
     Type,
 }
-impl SymbolType {
-    pub fn to_node(&self) -> Node {
-        match self {
-            SymbolType::Uint => Node::UintTy(0),
-            SymbolType::Int => Node::IntTy(0),
-            SymbolType::Float => Node::FloatTy(0),
-            SymbolType::Bool => Node::BoolTy(0),
-            SymbolType::Char => Node::CharTy(0),
-            SymbolType::String => Node::StringTy(0),
-            SymbolType::Index(si) => {
-                unreachable!();
-            },
-            _ => {
-                unreachable!();
-            }
-        }
-    }
-}
+
 #[derive(Debug, Clone)]
 pub struct SymbolMetadata {
     index: SymbolIndex,
     ty: SymbolType
 }
-
-type Symbol = String;
 
 #[derive(Clone, Debug)]
 struct SymbolIndex {
@@ -64,104 +45,167 @@ impl SymbolIndex {
 }
 
 impl<'a> SymbolTable<'a> {
-
-    pub fn lookup(&self, sym: &str) -> Option<&SymbolMetadata> {
-        //TODO: This should handle shadowed variables, choose closest one to the current scope.
-        
-        for (name, md) in self.symbols.iter() {
-            if name == sym {
-                return Some(md);
-            }
+    fn add_sym(&mut self, sym: String, md: SymbolMetadata) {
+        if !self.symbols.contains_key(&sym) {
+            self.symbols.insert(sym, vec![md]);
         }
-        None
+        else {
+            self.symbols.get_mut(&sym).unwrap().push(md);
+        }
     }
 
-    fn fill_for_block(&self, ast: &'a AST, path: &mut SymbolIndex, block: &Vec<Node>) -> Result<Vec<(Symbol, SymbolMetadata)>> {
-        let mut symbols = Vec::<(Symbol, SymbolMetadata)>::new();
+    pub fn lookup(&self, sym: &str, idx: &SymbolIndex) -> Option<&SymbolMetadata> {
+        let mds = self.symbols.get(sym)?;
+        let scores = Vec::<usize>::new();
+
+        for md in mds {
+            let score: usize = 0;
+            for i in 0..idx.v.len() {
+                if i >= md.index.v.len() {
+                    break;
+                }
+                if md.index.v[i] == idx.v[i] {
+                    score+=1;
+                }
+            }
+            scores.push(score);
+        }
+        let max_score_idx = 0;
+        for (idx, score) in scores.iter().enumerate() {
+            if *score >= scores[max_score_idx] {
+                max_score_idx = idx;
+            }
+        }
+
+        return Some(&mds[max_score_idx]);
+    }
+
+    fn fill_for_block(&self, ast: &'a AST, path: &mut SymbolIndex, block: &Vec<Node>) -> Result<()> {
+        let mut symbols = Vec::<(String, SymbolMetadata)>::new();
 
         for (idx, stmt) in block.iter().enumerate() {
             match stmt {
                 Node::Decl(decl) => {
                     let mut new_path = path.new_index_with_push(idx);
-                    symbols.append(&mut self.fill_for_decl(ast, &mut new_path, decl)?);
+                    self.fill_for_decl(ast, &mut new_path, &mut decl)?;
                 }
 
                 
                 _ => {
-
+                    unreachable!();
                 }
             }
         }
 
-        Ok(symbols)
+        Ok(())
     }
 
-    fn fill_for_decl(&self, ast: &'a AST, path: &mut SymbolIndex, decl: &Decl) -> Result<Vec<(Symbol, SymbolMetadata)>> {
-        let mut symbols = Vec::<(Symbol, SymbolMetadata)>::new();
+    fn fill_for_decl(&self, mut ast: &'a AST, path: &mut SymbolIndex, decl: &mut Decl) -> Result<()> {
         let name: String = if let Node::Ident(name_idx) = *decl.name {
             ast.get_src_for_token(name_idx)?.to_string()
         } else {
             unreachable!();
         };
-        
+        // Sum(Box<Node>, Box<Node>),
+        // Subtract(Box<Node>, Box<Node>),
+        // Multiply(Box<Node>, Box<Node>),
+        // Div(Box<Node>, Box<Node>),
+        // Mod(Box<Node>, Box<Node>),
+        // FieldAccess(Vec<Node>),
+        // FnCall(Box<Node>, Vec<Node>),
+        // If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
+        // TypeInit(Option<Box<Node>>, Vec<(Node, Node)>),
+        // Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
+        // Ref(Box<Node>),
+        // Deref(Box<Node>),
+
+        // Return(Box<Node>),
         match decl.expr.deref() {
             Node::FnDef(_, _, block) => {
-                symbols.append(&mut self.fill_for_block(ast, path, block)?);
+                //TODO: store return type in symbols table as the "type" of the function ?
+                self.fill_for_block(ast, path, block)?;
             }
 
             Node::Uint(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Uint,
-                }));
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::UintTy(0)));
+                }
             }
             Node::Int(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Int,
-                }));
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::IntTy(0)));
+                }
+
             }
  
             Node::Float(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Float,
-                }));
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::FloatTy(0)));
+                }
             }
             Node::True(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Bool,
-                }));
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::BoolTy(0)));
+                }
             }
             Node::False(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Bool,
-                }));
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::BoolTy(0)));
+                }
             }
             Node::Char(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Char,
-                }));
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::CharTy(0)));
+                }
             }
-            
-            Node::Ident(ident) => {
-                let md = self.lookup(ast.get_src_for_token(*ident)?).unwrap();
-                // TODO this will crash on unknown ident
-                symbols.push((name, SymbolMetadata {
-                    index: path.clone(),
-                    ty: md.ty.clone(),
-                }));
-            }
-
             Node::StringLiteral(_) => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::String,
-                }));
+                });
+                
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::StringTy(0)));
+                }
             }
+            Node::Ident(ident) => { // user expression is an ident so we should get it's type
+                let name = ast.get_src_for_token(*ident)?;
+                let md = self.lookup(name, path).unwrap();
+                // TODO this will crash on unknown ident
+                self.add_sym(name.to_string(), SymbolMetadata {
+                    index: path.clone(),
+                    ty: md.ty.clone(),
+                });
+                if decl.ty.is_none() {
+                    decl.ty = Box::new(Some(Node::Ident(*ident)));
+                }
+   
+            }
+
             Node::TypeInit(op_ty, _) => {
                 if op_ty.is_none() && decl.ty.is_none() {
                     println!("need either a type hint or type name in rhs of decl.");
@@ -179,11 +223,18 @@ impl<'a> SymbolTable<'a> {
 
                 match ty {
                     Node::Ident(ident) => {
-                        let md = self.lookup(ast.get_src_for_token(ident)?).unwrap(); // TODO this will crash on unknown ident
-                        symbols.push((name, SymbolMetadata {
-                            index: path.clone(),
-                            ty: SymbolType::Index(md.index.clone()),
-                        }))
+                        let name = ast.get_src_for_token(ident)?;
+                        let md = self.lookup(name, path).unwrap(); // TODO this will crash on unknown ident
+                        if md.ty == SymbolType::Type {
+                            self.add_sym(name.to_string(), SymbolMetadata {
+                                index: path.clone(),
+                                ty: SymbolType::Name(name.to_string()),
+                            })
+
+                        }
+                        if decl.ty.is_none() {
+                            decl.ty = Box::new(Some(Node::Ident(ident)));
+                        }
                     }
 
                     _ => {
@@ -212,10 +263,10 @@ impl<'a> SymbolTable<'a> {
             Node::CharTy(_) |
             Node::VoidTy(_)
                 => {
-                symbols.push((name, SymbolMetadata {
+                self.add_sym(name, SymbolMetadata {
                     index: path.clone(),
                     ty: SymbolType::Type,
-                }));
+                });
 
                 }
 
@@ -226,37 +277,23 @@ impl<'a> SymbolTable<'a> {
 
 
             
-    // Sum(Box<Node>, Box<Node>),
-    // Subtract(Box<Node>, Box<Node>),
-    // Multiply(Box<Node>, Box<Node>),
-    // Div(Box<Node>, Box<Node>),
-    // Mod(Box<Node>, Box<Node>),
-    // FieldAccess(Vec<Node>),
-    // FnCall(Box<Node>, Vec<Node>),
-    // If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
-    // TypeInit(Option<Box<Node>>, Vec<(Node, Node)>),
-    // Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
-    // Ref(Box<Node>),
-    // Deref(Box<Node>),
-
-    // Return(Box<Node>),
+ 
         }
 
-        Ok(symbols)
+        Ok(())
     }
 
-    pub fn new(asts: &'a Vec<AST>) -> Result<Self> {
-        let mut symbols = Vec::<(String, SymbolMetadata)>::new();
+    pub fn new(asts: &'a mut Vec<AST>) -> Result<Self> {
+        let symbols = HashMap::<String, Vec<SymbolMetadata>>::new();
         let mut st = Self {
             asts, symbols
         };
         for ast in st.asts.iter() {
-            for (top_level_idx, node) in ast.top_level.iter().enumerate() {
+            for (top_level_idx, node) in ast.top_level.iter_mut().enumerate() {
                 match node {
                     Node::Decl(decl) => {
                         let mut path = SymbolIndex::new(vec![top_level_idx]);
                         let mut syms = st.fill_for_decl(ast, &mut path, decl)?;
-                        st.symbols.append(&mut syms);
                     }
 
                     _ => {}
@@ -268,7 +305,6 @@ impl<'a> SymbolTable<'a> {
         Ok(st)
 
     }
-   
+
+    
 }
-
-
