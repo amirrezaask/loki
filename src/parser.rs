@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
+use crate::ast::{Decl, Node, NodeData, NodeID, AST};
 use crate::tokenizer::Token;
-use crate::ast::{AST, Node, Decl, NodeData, NodeID};
 use crate::tokenizer::Tokenizer;
 use crate::tokenizer::Type;
 use anyhow::{anyhow, Result};
@@ -24,7 +24,7 @@ impl Parser {
         )
     }
     fn new_node(&mut self, data: NodeData) -> Node {
-        self.node_counter+=1;
+        self.node_counter += 1;
         Node {
             id: self.node_counter,
             data,
@@ -52,7 +52,7 @@ impl Parser {
         let mut tokens = Vec::<Token>::new();
         loop {
             let tok = tokenizer.next()?;
-            // println!("got token: {:?}", tok);
+
             match tok.ty {
                 Type::EOF => {
                     break;
@@ -74,7 +74,7 @@ impl Parser {
         match self.current_token().ty {
             Type::Ident => {
                 self.forward_token();
-                return Ok(self.new_node(NodeData::Ident(self.cur-1)));
+                return Ok(self.new_node(NodeData::Ident(self.cur - 1)));
             }
             _ => {
                 return Err(self.err_uexpected(Type::Ident));
@@ -109,20 +109,20 @@ impl Parser {
             NodeData::Float(_) => {
                 return Some(self.new_node(NodeData::FloatTy(0)));
             }
-            
+
             NodeData::StringLiteral(_) => {
                 return Some(self.new_node(NodeData::StringTy(0)));
             }
-            
+
             NodeData::Initialize(op_ty, _) => {
                 if op_ty.is_some() {
-                    
-                    let type_name = if let NodeData::Ident(ident_tok_idx) = op_ty.clone().unwrap().data {
-                        let loc = self.tokens[ident_tok_idx].loc;
-                        self.src[loc.0..=loc.1].to_string()
-                    } else {
-                        unreachable!()
-                    };
+                    let type_name =
+                        if let NodeData::Ident(ident_tok_idx) = op_ty.clone().unwrap().data {
+                            let loc = self.tokens[ident_tok_idx].loc;
+                            self.src[loc.0..=loc.1].to_string()
+                        } else {
+                            unreachable!()
+                        };
                     return Some(self.new_node(NodeData::TEXT(type_name)));
                 } else {
                     return None;
@@ -132,9 +132,7 @@ impl Parser {
             _ => {
                 return None;
             }
-
         }
-
     }
     fn expect_decl(&mut self) -> Result<Node> {
         self.expect_token(Type::Ident)?;
@@ -206,7 +204,6 @@ impl Parser {
                     ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
                 })))
-
             }
             _ => {
                 unreachable!();
@@ -488,7 +485,9 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
-                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(name)), fields)));
+                        return Ok(
+                            self.new_node(NodeData::Initialize(Some(Box::new(name)), fields))
+                        );
                     }
 
                     _ => Ok(self.new_node(NodeData::Ident(self.cur - 1))),
@@ -573,7 +572,7 @@ impl Parser {
         }
     }
 
-    fn expect_expr_B(&mut self) -> Result<Node> {
+    fn expect_expr_b(&mut self) -> Result<Node> {
         let lhs = self.expect_expr_C()?;
 
         match self.current_token().ty {
@@ -583,39 +582,33 @@ impl Parser {
             | Type::GreaterEqual
             | Type::DoubleEqual
             | Type::NotEqual => {
-                //TODO
-                // handle !=
-                let op = self.current_token();
+                let op = self.current_token().ty.clone();
                 self.forward_token();
                 let rhs = self.expect_expr_C()?;
 
-                Ok(self.new_node(NodeData::Cmp(
-                    self.current_token().ty.clone(),
-                    Box::new(lhs),
-                    Box::new(rhs),
-                )))
+                Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs))))
             }
 
             _ => Ok(lhs),
         }
     }
     fn expect_expr_mul_div_mod(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_B()?;
+        let lhs = self.expect_expr_b()?;
 
         match self.current_token().ty {
             Type::Asterix => {
                 self.forward_token();
-                let rhs = self.expect_expr_B()?;
+                let rhs = self.expect_expr_b()?;
                 Ok(self.new_node(NodeData::Multiply(Box::new(lhs), Box::new(rhs))))
             }
             Type::Percent => {
                 self.forward_token();
-                let rhs = self.expect_expr_B()?;
+                let rhs = self.expect_expr_b()?;
                 Ok(self.new_node(NodeData::Mod(Box::new(lhs), Box::new(rhs))))
             }
             Type::ForwardSlash => {
                 self.forward_token();
-                let rhs = self.expect_expr_B()?;
+                let rhs = self.expect_expr_b()?;
                 Ok(self.new_node(NodeData::Div(Box::new(lhs), Box::new(rhs))))
             }
             _ => Ok(lhs),
@@ -665,12 +658,82 @@ impl Parser {
     }
 
     fn expect_stmt(&mut self) -> Result<Node> {
+
         match self.current_token().ty {
             Type::Ident => {
                 let next_tok = self.cur + 1;
                 match self.tokens[next_tok].ty {
-                    Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => self.expect_decl(),
-                    Type::Dot | Type::OpenParen => self.expect_fn_call(),
+                    Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => {
+                        self.expect_decl()
+                    }
+                    Type::OpenParen => self.expect_fn_call(),
+                    Type::PlusEqual => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        let rhs = self.expect_expr()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+                        let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
+                    Type::MinusEqual => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        let rhs = self.expect_expr()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+
+                        let inner = self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
+                    Type::ModEqual => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        let rhs = self.expect_expr()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+
+                        let inner = self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
+                    Type::MulEqual => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        let rhs = self.expect_expr()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+
+                        let inner = self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
+                    Type::DivEqual => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        let rhs = self.expect_expr()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+
+                        let inner = self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
+                    Type::DoublePlus => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+                        let rhs = self.new_node(NodeData::TEXT("1".to_string()));
+                        let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
+                    Type::DoubleMinus => {
+                        let lhs = self.expect_ident()?;
+                        self.forward_token();
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+                        let rhs = self.new_node(NodeData::TEXT("1".to_string()));
+                        let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
+                    }
                     _ => Err(self.err_uexpected(Type::OpenParen)),
                 }
             }
@@ -688,17 +751,88 @@ impl Parser {
                     Type::KeywordElse => {
                         self.forward_token();
                         let _else = self.expect_block()?;
-                        return Ok(self.new_node(NodeData::If(Box::new(cond), Box::new(then), Some(_else))));
+                        return Ok(self.new_node(NodeData::If(
+                            Box::new(cond),
+                            Box::new(then),
+                            Some(_else),
+                        )));
                     }
                     _ => {
-                        return Ok(self.new_node(NodeData::If(Box::new(cond), Box::new(then), None)));
+                        return Ok(self.new_node(NodeData::If(
+                            Box::new(cond),
+                            Box::new(then),
+                            None,
+                        )));
                     }
                 }
             }
+            Type::KeywordWhile => {
+                self.forward_token();
+                self.expect_token(Type::OpenParen)?;
+                self.forward_token();
+                let cond = self.expect_expr()?;
+                self.forward_token();
+                self.expect_token(Type::OpenBrace)?;
+                let body = self.expect_block()?;
+
+                return Ok(self.new_node(NodeData::While(Box::new(cond), body)));
+            }
 
             Type::KeywordFor => {
-                //TODO
+                self.forward_token();
+                self.expect_token(Type::OpenParen)?;
+                self.forward_token();
 
+                self.forward_token();
+                match self.current_token().ty {
+                    Type::KeywordIn => {
+                        self.backward_token();
+                        let iterator = self.expect_ident()?;
+                        self.forward_token(); // in
+                        self.forward_token();
+                        let iterable = self.expect_expr()?;
+                        self.expect_token(Type::CloseParen)?;
+                        self.forward_token();
+                        self.expect_token(Type::OpenBrace)?;
+                        let body = self.expect_block()?;
+                        return Ok(self.new_node(NodeData::ForIn(
+                            Some(Box::new(iterator)),
+                            Box::new(iterable),
+                            body,
+                        )));
+                    }
+
+                    Type::CloseParen => {
+                        self.backward_token();
+                        let iterable = self.expect_expr()?;
+                        self.expect_token(Type::CloseParen)?;
+                        self.forward_token();
+                        self.expect_token(Type::OpenBrace)?;
+                        let body = self.expect_block()?;
+                        return Ok(self.new_node(NodeData::ForIn(None, Box::new(iterable), body)));
+                    }
+
+                    _ => {
+                        self.backward_token();
+                        let start = self.expect_decl()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+                        let cond = self.expect_expr()?;
+                        self.expect_token(Type::SemiColon)?;
+                        self.forward_token();
+                        let cont = self.expect_stmt()?;
+                        self.expect_token(Type::CloseParen)?;
+                        self.forward_token();
+                        let body = self.expect_block()?;
+
+                        return Ok(self.new_node(NodeData::For(
+                            Box::new(start),
+                            Box::new(cond),
+                            Box::new(cont),
+                            body,
+                        )));
+                    }
+                }
                 unreachable!();
             }
             Type::KeywordReturn => {
@@ -716,9 +850,7 @@ impl Parser {
             }
 
             Type::KeywordContinue => {
-                //TODO
-
-                unreachable!();
+                return Ok(self.new_node(NodeData::Break));
             }
 
             Type::KeywordSwitch => {
@@ -728,9 +860,7 @@ impl Parser {
             }
 
             Type::KeywordBreak => {
-                //TODO
-
-                unreachable!();
+                return Ok(self.new_node(NodeData::Break));
             }
 
             _ => {
@@ -1023,7 +1153,6 @@ fn const_decl_expr_float() -> Result<()> {
 //     Ok(())
 // }
 
-
 // #[test] TODO FIXME
 // fn const_decl_struct_init_infer() -> Result<()> {
 //     let mut parser = Parser::new(
@@ -1064,9 +1193,7 @@ a := true;
         panic!()
     }
     Ok(())
-
 }
-
 
 #[test]
 fn const_decl_fn_with_if() -> Result<()> {
@@ -1191,7 +1318,6 @@ id = 1,
 
 //     Ok(())
 // }
-
 
 // #[test]
 // fn expr_deref() -> Result<()> {

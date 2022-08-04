@@ -1,9 +1,5 @@
-- arrays and dynamic arrays
 - enum/union initialization sytnax
-- for
-  - while
-  - range (with implicit 'it' iterator)
-  - c
+- arrays and dynamic arrays
 - else if
 
 # hard ones

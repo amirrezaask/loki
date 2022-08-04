@@ -438,7 +438,7 @@ impl Tokenizer {
                 }
                 State::SawSharp(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' => {
+                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' => {
                         return Ok(self.emit_current_token());
                     }
 
@@ -535,7 +535,7 @@ impl Tokenizer {
 
                 State::IdentOrKeyword(_) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' => {
+                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -545,7 +545,7 @@ impl Tokenizer {
                 },
                 State::Float(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
-                    | '}' | '[' | ']' | '^'| '*' | '&'  => {
+                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%' => {
                         return Ok(self.emit_current_token());
                     }
                     '.' => {
@@ -558,7 +558,7 @@ impl Tokenizer {
                 },
                 State::Integer(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
-                    | '}' | '[' | ']' | '^'| '*' | '&'  => {
+                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%' => {
                         return Ok(self.emit_current_token());
                     }
                     '.' => {
@@ -1575,6 +1575,22 @@ fn ident_ref() -> Result<()> {
     assert_eq!(tokens, vec![
         Token::new(Type::Ampersand, (0, 0)),
         Token::new(Type::Ident, (1,1))
+    ]);
+
+    Ok(())
+}
+
+#[test]
+fn div_equal_ref() -> Result<()> {
+    let src = "number/=3";
+    let mut tokenizer = Tokenizer::new(src);
+    let tokens = tokenizer.all()?;
+
+    assert_eq!(tokens, vec![
+        Token::new(Type::Ident, (0, 5)),
+        Token::new(Type::DivEqual, (6,7)),
+        Token::new(Type::UnsignedInt, (8,8))
+
     ]);
 
     Ok(())

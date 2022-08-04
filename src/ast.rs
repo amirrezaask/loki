@@ -79,6 +79,11 @@ pub enum NodeData {
     Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
     Ref(Box<Node>),
     Deref(Box<Node>),
+    For(Box<Node>, Box<Node>, Box<Node>, Vec<Node>),
+    ForIn(Option<Box<Node>>, Box<Node>, Vec<Node>),
+    While(Box<Node>, Vec<Node>),
+    Break,
+    Continue,
 
     Return(Box<Node>),
 }

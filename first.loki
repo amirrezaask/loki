@@ -1,9 +1,11 @@
 #load "base.loki"; // Load directive loads a loki file as a part of compilation
+
 #host "iostream"; // host directive is for when you want to import something from your target platform. 
 
 // This is a comment
+
 /*
-This is also a comment
+   This is also a comment
 */
 
 Human :: struct {
@@ -18,14 +20,27 @@ Result :: enum {
 };
 
 main :: fn() int {
-    b := true;
-    c :: 'c';
-    s :: "Amirreza";
-    a: bool;
+    number := 0;
 
+    number++;
+    number--;
+
+    number+=10;
+    number-=3;
+    number*=2;
+    number/=3;
+    number%=1;
+    
+    b := true;
+    
+    c :: 'c';
+    
+    s :: "Amirreza";
+
+    a: bool;
     a = true;
 
-    amirreza :: Human { // 4 body 3
+    amirreza :: Human {
         age = 24,
         name = "amirreza",
     };
@@ -35,6 +50,12 @@ main :: fn() int {
         age = 17,
         name = "parsa",
     };
+
+    counter := 0;
+    while (counter < 10) {
+        printf("while loop using counter: %d\n", counter);
+        counter++;
+    }
 
     printf("amirreza age is %d\n", amirreza.age);
     printf("parsa age is %d\n", parsa.age);

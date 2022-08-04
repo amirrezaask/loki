@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use super::{Node, NodeData, Repr, AST};
 use crate::symbol_table::SymbolTable;
-use crate::tokenizer::Tokenizer;
+use crate::tokenizer::{Tokenizer, Type};
 use crate::parser::Parser;
 use anyhow::Result;
 
@@ -97,6 +97,20 @@ impl<'a> CPP<'a> {
         Ok(output.join("."))
     }
 
+    fn repr_operator(&self, op: &Type) -> Result<String> {
+        match op {
+            Type::LeftAngle => Ok("<".to_string()),
+            Type::RightAngle => Ok(">".to_string()),
+            Type::LessEqual => Ok("<=".to_string()),
+            Type::GreaterEqual => Ok(">=".to_string()),
+            Type::DoubleEqual => Ok("==".to_string()),
+            Type::NotEqual => Ok("!=".to_string()),
+            _ => {
+                panic!("unsupported operator: {:?}", op);
+            }
+        }
+    }
+
     fn repr(&self, node: &Node) -> Result<String> {
         match &node.data {
             NodeData::Host(import) => {
@@ -111,6 +125,25 @@ impl<'a> CPP<'a> {
             }
             NodeData::Def(name, ty) => {
                 Ok(format!("{} {}", self.repr(ty)?, self.repr(name)?))
+            }
+
+            NodeData::ForIn(op_name, list, body) => {
+                let mut op_name = op_name.clone();
+                if op_name.is_none() {
+                    op_name = Some(Box::new(Node {
+                        id: -1,
+                        data: NodeData::TEXT("it".to_string()),
+                    }));
+                }
+                Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr(&op_name.unwrap())?, self.repr(list)?, self.repr_block(body)?))
+            }
+
+            NodeData::For(start, cond, cont, body) => {
+                Ok(format!("for ({};{};{}) {{\n{}\n}}", self.repr(start)?, self.repr(cond)?, self.repr(cont)?, self.repr_block(body)?))
+            }
+
+            NodeData::While(cond, body) => {
+                Ok(format!("while ({}) {{\n{}\n}}",  self.repr(cond)?, self.repr_block(body)?))
             }
 
             NodeData::Decl(decl) => match &decl.expr.deref().data {
@@ -226,6 +259,7 @@ impl<'a> CPP<'a> {
             NodeData::Div(lhs, rhs) => Ok(format!("({} / {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::FieldAccess(path) => Ok(format!("{}", self.repr_field_access_path(&path)?)),
+            NodeData::Cmp(op, lhs, rhs) => Ok(format!("{} {} {}", self.repr(lhs)?, self.repr_operator(op)?, self.repr(rhs)?)),
             NodeData::FnDef(_, _, _) => {
                 unreachable!();
             }
