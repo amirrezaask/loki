@@ -91,6 +91,51 @@ impl Parser {
             }
         }
     }
+
+    fn naive_ty_infer(&mut self, expr: &Node) -> Option<Node> {
+        match &expr.data {
+            NodeData::True(_) | NodeData::False(_) => {
+                return Some(self.new_node(NodeData::BoolTy(0)));
+            }
+            NodeData::Char(_) => {
+                return Some(self.new_node(NodeData::CharTy(0)));
+            }
+            NodeData::Uint(_) => {
+                return Some(self.new_node(NodeData::UintTy(0)));
+            }
+            NodeData::Int(_) => {
+                return Some(self.new_node(NodeData::IntTy(0)));
+            }
+            NodeData::Float(_) => {
+                return Some(self.new_node(NodeData::FloatTy(0)));
+            }
+            
+            NodeData::StringLiteral(_) => {
+                return Some(self.new_node(NodeData::StringTy(0)));
+            }
+            
+            NodeData::Initialize(op_ty, _) => {
+                if op_ty.is_some() {
+                    
+                    let type_name = if let NodeData::Ident(ident_tok_idx) = op_ty.clone().unwrap().data {
+                        let loc = self.tokens[ident_tok_idx].loc;
+                        self.src[loc.0..=loc.1].to_string()
+                    } else {
+                        unreachable!()
+                    };
+                    return Some(self.new_node(NodeData::TEXT(type_name)));
+                } else {
+                    return None;
+                }
+            }
+
+            _ => {
+                return None;
+            }
+
+        }
+
+    }
     fn expect_decl(&mut self) -> Result<Node> {
         let mut ty: Option<Node> = None;
 
@@ -363,7 +408,7 @@ impl Parser {
                     }
                 }
 
-                return Ok(self.new_node(NodeData::TypeInit(None, fields)));
+                return Ok(self.new_node(NodeData::Initialize(None, fields)));
             }
             Type::Ident => {
                 self.forward_token();
@@ -427,7 +472,7 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
-                        return Ok(self.new_node(NodeData::TypeInit(Some(Box::new(name)), fields)));
+                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(name)), fields)));
                     }
 
                     _ => Ok(self.new_node(NodeData::Ident(self.cur - 1))),

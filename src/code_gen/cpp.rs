@@ -137,7 +137,7 @@ impl<'a> CPP<'a> {
                     }
                 }
 
-                NodeData::TypeInit(_, fields) => {
+                NodeData::Initialize(_, fields) => {
                     let ty = self.get_decl_ty(node)?;
                     let fields = self.repr_struct_init_fields(&fields)?;
                     match decl.mutable {

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::{
     collections::HashMap,
-    ops::{Deref, DerefMut},
+    ops::Deref,
 };
 
 use crate::ast::NodeID;
@@ -125,7 +125,6 @@ impl SymbolTable {
                     self.fill_for_decl(ast, &mut new_path, &decl)?;
                 }
                 NodeData::If(_, then, _else) => {
-                    println!("inja if");
                     let mut new_path = path.new_index_with_push(idx);
                     self.fill_for_block(ast, &mut new_path, then)?;
                     // if _else.is_some() { // TODO
@@ -189,20 +188,14 @@ impl SymbolTable {
                     ty: SymbolType::Float,
                 });
             }
-            NodeData::True(_) => {
+            NodeData::True(_) | NodeData::False(_) => {
                 self.add_sym(SymbolMetadata {
                     name, id,
                     location: path.clone(),
                     ty: SymbolType::Bool,
                 });
             }
-            NodeData::False(_) => {
-                self.add_sym(SymbolMetadata {
-                    name, id,
-                    location: path.clone(),
-                    ty: SymbolType::Bool,
-                });
-            }
+            
             NodeData::Char(_) => {
                 self.add_sym(SymbolMetadata {
                     name, id,
@@ -228,7 +221,7 @@ impl SymbolTable {
                 });
             }
 
-            NodeData::TypeInit(op_ty, _) => {
+            NodeData::Initialize(op_ty, _) => {
                 if op_ty.is_none() && decl.ty.is_none() {
                     println!("need either a type hint or type name in rhs of decl.");
                     unreachable!();

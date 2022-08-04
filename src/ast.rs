@@ -73,7 +73,7 @@ pub enum NodeData {
     FnDef(Vec<(Node, Node)>, Box<Node>, Vec<Node>),
     FnCall(Box<Node>, Vec<Node>),
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
-    TypeInit(Option<Box<Node>>, Vec<(Node, Node)>),
+    Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
     Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
     Ref(Box<Node>),
     Deref(Box<Node>),
