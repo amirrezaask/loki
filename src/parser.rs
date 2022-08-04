@@ -152,10 +152,11 @@ impl Parser {
                 self.expect_token(Type::SemiColon)?;
                 self.forward_token();
                 let name = self.new_node(NodeData::Ident(name));
+                let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Decl(Decl {
                     mutable: false,
                     name: Box::new(name),
-                    ty: Box::new(None),
+                    ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
                 })))
             }
@@ -184,10 +185,12 @@ impl Parser {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let name = self.new_node(NodeData::Ident(name));
+                let ty_infer = self.naive_ty_infer(&rhs);
+
                 Ok(self.new_node(NodeData::Decl(Decl {
                     mutable: true,
                     name: Box::new(name),
-                    ty: Box::new(None),
+                    ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
                 })))
 
