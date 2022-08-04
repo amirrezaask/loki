@@ -106,6 +106,13 @@ impl<'a> CPP<'a> {
                 ))
             }
             NodeData::Load(_) => Ok("".to_string()),
+            NodeData::Assign(name, val) => {
+                Ok(format!("{} = {}", self.repr(name)?, self.repr(val)?))
+            }
+            NodeData::Def(name, ty) => {
+                Ok(format!("{} {}", self.repr(ty)?, self.repr(name)?))
+            }
+
             NodeData::Decl(decl) => match &decl.expr.deref().data {
                 NodeData::FnDef(args, ret, block) => Ok(format!(
                     "{} {}({}) {{\n{}\n}}",

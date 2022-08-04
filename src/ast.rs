@@ -29,6 +29,8 @@ pub enum NodeData {
     Load(TokenIndex),
     Host(TokenIndex),
     Decl(Decl),
+    Def(Box<Node>, Box<Node>),
+    Assign(Box<Node>, Box<Node>),
 
     // Type defs
     IntTy(TokenIndex),

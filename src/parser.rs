@@ -144,6 +144,14 @@ impl Parser {
         self.forward_token();
 
         match self.current_token().ty {
+            Type::Equal => {
+                self.forward_token();
+                let rhs = self.expect_expr()?;
+                self.expect_token(Type::SemiColon)?;
+                self.forward_token();
+                let name = self.new_node(NodeData::Ident(name));
+                Ok(self.new_node(NodeData::Assign(Box::new(name), Box::new(rhs))))
+            }
             Type::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
@@ -161,16 +169,22 @@ impl Parser {
 
             Type::Colon => {
                 self.forward_token();
+                let name = self.new_node(NodeData::Ident(name));
                 let ty = Some(self.expect_expr()?);
+                if ty.is_none() {
+                    panic!("need a valid type after colon");
+                }
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
-                    unreachable!();
+                    self.expect_token(Type::SemiColon)?;
+                    self.forward_token(); // skip semicolon
+                    return Ok(self.new_node(NodeData::Def(Box::new(name), Box::new(ty.unwrap()))));
                 }
                 let mutable = self.current_token().ty == Type::Equal;
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 self.forward_token();
-                let name = self.new_node(NodeData::Ident(name));
+
                 Ok(self.new_node(NodeData::Decl(Decl {
                     mutable,
                     name: Box::new(name),

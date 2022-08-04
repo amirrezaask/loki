@@ -20,7 +20,10 @@ Result :: enum {
 main :: fn() int {
     b := true;
     c :: 'c';
-    s := "Amirreza";
+    s :: "Amirreza";
+    a: bool;
+
+    a = true;
 
     amirreza :: Human { // 4 body 3
         age = 24,
