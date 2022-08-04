@@ -1,6 +1,6 @@
 #load "base.loki"; // Load directive loads a loki file as a part of compilation
 
-#host "iostream"; // host directive is for when you want to import something from your target platform.
+/* #host "iostream"; // host directive is for when you want to import something from your target platform. */
 
 // This is a comment
 
@@ -13,11 +13,11 @@ Human :: struct {
     name: string,
 };
 
-Result :: enum {
-    Ok,
-    Ko,
-    Unknown(int)
-};
+/* Result :: enum { */
+/*     Ok, */
+/*     Ko, */
+/*     Unknown(int) */
+/* }; */
 
 main :: fn() int {
     number := 0;
@@ -69,6 +69,11 @@ main :: fn() int {
         printf("for each syntax: %d\n", num);
     }
 
+    humans := [2]Human {amirreza, parsa};
+    for (humans) {
+        printf("for each syntax: %d\n", it.age);
+    }
+    
     for (numbers) {
         printf("for each syntax: %d\n", it);
     }

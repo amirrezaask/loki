@@ -1,6 +1,6 @@
-- arrays and dynamic arrays
 - enum/union initialization sytnax
 - else if
+- slicing arrays
 
 # hard ones
 - pattern matching 

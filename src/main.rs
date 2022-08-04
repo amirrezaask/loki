@@ -7,14 +7,14 @@ mod symbol_table;
 use anyhow::Result;
 use std::env;
 
-const about: &'static str = "loki compiler 0.2";
-const usage: &'static str =
+const ABOUT: &'static str = "loki compiler 0.2";
+const USAGE: &'static str =
     "Usage: loki [filename] [flags]\n\t--emit-cpp: emits CPP code using C code backend.\n";
 
 pub fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        println!("{}\n{}", about, usage);
+        println!("{}\n{}", ABOUT, USAGE);
         return Ok(());
     }
     let args = args[1..].to_vec();

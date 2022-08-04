@@ -41,6 +41,7 @@ impl Parser {
         self.cur -= 1;
     }
     pub fn new_with_tokens(src: String, tokens: Vec<Token>) -> Result<Self> {
+//        println!("tokens: {:?}", tokens);
         Ok(Self {
             src,
             tokens,
@@ -316,6 +317,8 @@ impl Parser {
                             is_struct_init = true;
                             self.backward_token();
                             self.backward_token();
+                        } else {
+                            self.backward_token();
                         }
                     }
 
@@ -366,6 +369,7 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
+
                         return Ok(
                             self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields))
                         );
@@ -747,6 +751,49 @@ impl Parser {
         }
     }
 
+    fn expect_for_c(&mut self) -> Result<Node> {
+        self.backward_token();
+        let start = self.expect_decl()?;
+        self.expect_semicolon_and_forward()?;
+        let cond = self.expect_expr()?;
+        self.expect_semicolon_and_forward()?;
+        let cont = self.expect_stmt()?;
+        self.expect_token(Type::CloseParen)?;
+        self.forward_token();
+        let body = self.expect_block()?;
+
+        return Ok(self.new_node(NodeData::For(
+            Box::new(start),
+            Box::new(cond),
+            Box::new(cont),
+            body,
+        )));
+    }
+    fn expect_for_each(&mut self) -> Result<Node> {
+        self.backward_token();
+        let iterator = self.expect_ident()?;
+        self.forward_token();
+        let iterable = self.expect_expr()?;
+        self.expect_token(Type::CloseParen)?;
+        self.forward_token();
+        self.expect_token(Type::OpenBrace)?;
+        let body = self.expect_block()?;
+        return Ok(self.new_node(NodeData::ForIn(
+            Some(Box::new(iterator)),
+            Box::new(iterable),
+            body,
+        )));
+    }
+    fn expect_for_each_implicit_iterator(&mut self) -> Result<Node> {
+        self.backward_token();
+        let iterable = self.expect_ident()?;
+        self.expect_token(Type::CloseParen)?;
+        self.forward_token();
+        self.expect_token(Type::OpenBrace)?;
+        let body = self.expect_block()?;
+        let iterator = self.new_node(NodeData::TEXT("it".to_string()));
+        return Ok(self.new_node(NodeData::ForIn(Some(Box::new(iterator)), Box::new(iterable), body))); //TODO: we should handle any expression here now we just handle ident
+    }
     fn expect_stmt(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
@@ -867,55 +914,39 @@ impl Parser {
                 self.expect_token(Type::OpenParen)?;
                 self.forward_token();
 
+                // let starting_inside_paren = self.cur;
+
+                // if self.expect_decl().is_ok() {
+                //     // it's for c
+                //     return self.expect_for_c();
+
+                // } else {
+                //     self.cur = starting_inside_paren;
+                // }
+
+                // if self.expect_expr().is_ok() {
+                //     if self.expect_token(Type::Ident).is_ok() {
+                //         // for in 
+                //     } else {
+                //         // for with implicit
+                //     }
+                // }
+
+                
                 self.forward_token();
                 match self.current_token().ty {
                     Type::KeywordIn => {
-                        self.backward_token();
-                        let iterator = self.expect_ident()?;
-                        self.forward_token();
-                        let iterable = self.expect_expr()?;
-                        self.expect_token(Type::CloseParen)?;
-                        self.forward_token();
-                        self.expect_token(Type::OpenBrace)?;
-                        let body = self.expect_block()?;
-                        return Ok(self.new_node(NodeData::ForIn(
-                            Some(Box::new(iterator)),
-                            Box::new(iterable),
-                            body,
-                        )));
+                        return self.expect_for_each();
                     }
 
                     Type::CloseParen => {
-                        self.backward_token();
-                        let iterable = self.expect_ident()?;
-                        self.expect_token(Type::CloseParen)?;
-                        self.forward_token();
-                        self.expect_token(Type::OpenBrace)?;
-                        let body = self.expect_block()?;
-                        let iterator = self.new_node(NodeData::TEXT("it".to_string()));
-                        return Ok(self.new_node(NodeData::ForIn(Some(Box::new(iterator)), Box::new(iterable), body))); //TODO: we should handle any expression here now we just handle ident
+                        return self.expect_for_each_implicit_iterator();
                     }
 
                     _ => {
-                        self.backward_token();
-                        let start = self.expect_decl()?;
-                        self.expect_semicolon_and_forward()?;
-                        let cond = self.expect_expr()?;
-                        self.expect_semicolon_and_forward()?;
-                        let cont = self.expect_stmt()?;
-                        self.expect_token(Type::CloseParen)?;
-                        self.forward_token();
-                        let body = self.expect_block()?;
-
-                        return Ok(self.new_node(NodeData::For(
-                            Box::new(start),
-                            Box::new(cond),
-                            Box::new(cont),
-                            body,
-                        )));
+                        return self.expect_for_c();
                     }
                 }
-                unreachable!();
             }
             Type::KeywordReturn => {
                 self.forward_token();
