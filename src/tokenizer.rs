@@ -438,7 +438,7 @@ impl Tokenizer {
                 }
                 State::SawSharp(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' => {
+                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '=' | '!' => {
                         return Ok(self.emit_current_token());
                     }
 
@@ -535,7 +535,7 @@ impl Tokenizer {
 
                 State::IdentOrKeyword(_) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' => {
+                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
                         return Ok(self.emit_current_token());
                     }
                     _ => {
@@ -545,7 +545,7 @@ impl Tokenizer {
                 },
                 State::Float(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
-                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%' => {
+                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
                         return Ok(self.emit_current_token());
                     }
                     '.' => {
@@ -558,7 +558,7 @@ impl Tokenizer {
                 },
                 State::Integer(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
-                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%' => {
+                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
                         return Ok(self.emit_current_token());
                     }
                     '.' => {

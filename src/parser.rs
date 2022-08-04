@@ -20,7 +20,7 @@ impl Parser {
             "Expected {:?}, found {:?} at \"{}\"",
             what,
             self.current_token().ty,
-            self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string(),
+            self.src[self.current_token().loc.0-2..=self.current_token().loc.1+2].to_string(),
         )
     }
     fn new_node(&mut self, data: NodeData) -> Node {
@@ -50,6 +50,7 @@ impl Parser {
     fn new(src: &'static str) -> Result<Self> {
         let mut tokenizer = Tokenizer::new(src);
         let mut tokens = Vec::<Token>::new();
+
         loop {
             let tok = tokenizer.next()?;
 
@@ -62,6 +63,7 @@ impl Parser {
                 }
             }
         }
+        println!("tokens: {:?}", tokens);
         Ok(Self {
             src: src.to_string(),
             tokens,
@@ -134,6 +136,12 @@ impl Parser {
             }
         }
     }
+    fn expect_semicolon_and_forward(&mut self) -> Result<()> {
+        self.expect_token(Type::SemiColon)?;
+        self.forward_token();
+
+        Ok(())
+    }
     fn expect_decl(&mut self) -> Result<Node> {
         self.expect_token(Type::Ident)?;
 
@@ -145,16 +153,12 @@ impl Parser {
             Type::Equal => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                self.expect_token(Type::SemiColon)?;
-                self.forward_token();
                 let name = self.new_node(NodeData::Ident(name));
                 Ok(self.new_node(NodeData::Assign(Box::new(name), Box::new(rhs))))
             }
             Type::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                self.expect_token(Type::SemiColon)?;
-                self.forward_token();
                 let name = self.new_node(NodeData::Ident(name));
                 let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Decl(Decl {
@@ -174,15 +178,11 @@ impl Parser {
                 }
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
-                    self.expect_token(Type::SemiColon)?;
-                    self.forward_token(); // skip semicolon
                     return Ok(self.new_node(NodeData::Def(Box::new(name), Box::new(ty.unwrap()))));
                 }
                 let mutable = self.current_token().ty == Type::Equal;
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                self.forward_token();
-
                 Ok(self.new_node(NodeData::Decl(Decl {
                     mutable,
                     name: Box::new(name),
@@ -194,8 +194,6 @@ impl Parser {
             Type::ColonEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                self.expect_token(Type::SemiColon)?;
-                self.forward_token();
                 let name = self.new_node(NodeData::Ident(name));
                 let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Decl(Decl {
@@ -272,8 +270,6 @@ impl Parser {
                 }
             }
         }
-        self.expect_token(Type::SemiColon)?;
-        self.forward_token();
         Ok(self.new_node(NodeData::FnCall(Box::new(name), args)))
     }
     fn expect_expr_C(&mut self) -> Result<Node> {
@@ -629,6 +625,7 @@ impl Parser {
                 let rhs = self.expect_expr_mul_div_mod()?;
                 Ok(self.new_node(NodeData::Sum(Box::new(lhs), Box::new(rhs))))
             }
+            
             _ => Ok(lhs),
         }
     }
@@ -650,11 +647,18 @@ impl Parser {
                 break;
             }
             let stmt = self.expect_stmt()?;
+            self.if_semicolon_forward();
             stmts.push(stmt);
         }
         self.forward_token();
 
         Ok(stmts)
+    }
+
+    fn if_semicolon_forward(&mut self) {
+        if self.current_token().ty == Type::SemiColon {
+            self.forward_token();
+        }
     }
 
     fn expect_stmt(&mut self) -> Result<Node> {
@@ -664,15 +668,15 @@ impl Parser {
                 let next_tok = self.cur + 1;
                 match self.tokens[next_tok].ty {
                     Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => {
-                        self.expect_decl()
+                        let decl = self.expect_decl()?;
+                        self.expect_semicolon_and_forward()?;
+                        return Ok(decl);
                     }
                     Type::OpenParen => self.expect_fn_call(),
                     Type::PlusEqual => {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
                         let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
@@ -680,8 +684,6 @@ impl Parser {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
 
                         let inner = self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
@@ -690,8 +692,6 @@ impl Parser {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
 
                         let inner = self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
@@ -700,8 +700,6 @@ impl Parser {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
 
                         let inner = self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
@@ -710,8 +708,6 @@ impl Parser {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
 
                         let inner = self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
@@ -719,16 +715,12 @@ impl Parser {
                     Type::DoublePlus => {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
                         let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DoubleMinus => {
                         let lhs = self.expect_ident()?;
-                        self.forward_token();
-                        self.expect_token(Type::SemiColon)?;
                         self.forward_token();
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
                         let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
@@ -815,11 +807,9 @@ impl Parser {
                     _ => {
                         self.backward_token();
                         let start = self.expect_decl()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
+                        self.expect_semicolon_and_forward()?;
                         let cond = self.expect_expr()?;
-                        self.expect_token(Type::SemiColon)?;
-                        self.forward_token();
+                        self.expect_semicolon_and_forward()?;
                         let cont = self.expect_stmt()?;
                         self.expect_token(Type::CloseParen)?;
                         self.forward_token();
@@ -898,7 +888,9 @@ impl Parser {
                     top_level.push(self.new_node(NodeData::Host(path)));
                 }
                 Type::Ident => {
-                    top_level.push(self.expect_decl()?);
+                    let decl = self.expect_decl()?;
+                    self.expect_semicolon_and_forward()?;
+                    top_level.push(decl);
                 }
                 _ => {
                     println!("don't know what to do with: {:?}", self.current_token());
@@ -1068,6 +1060,15 @@ fn const_decl_expr_char() -> Result<()> {
 
 //     Ok(())
 // }
+
+#[test]
+fn for_c() -> Result<()> {
+    let mut parser = Parser::new("for (i:=0;i<10;i++)")?;
+    let ast = parser.expect_stmt()?;
+    println!("{:?}", ast);
+    panic!("");
+    Ok(())
+}
 
 #[test]
 fn const_decl_expr_string() -> Result<()> {

@@ -57,6 +57,10 @@ main :: fn() int {
         counter++;
     }
 
+    for (i:=0;i<10;i++) {
+        printf("for c syntax: %d\n", i);
+    }
+
     printf("amirreza age is %d\n", amirreza.age);
     printf("parsa age is %d\n", parsa.age);
     
