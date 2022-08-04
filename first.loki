@@ -68,7 +68,11 @@ main :: fn() int {
     for (num in numbers) {
         printf("for each syntax: %d\n", num);
     }
-    
+
+    for (numbers) {
+        printf("for each syntax: %d\n", it);
+    }
+
     if (b) {
         printf("b1 is true\n");
     }

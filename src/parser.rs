@@ -887,12 +887,13 @@ impl Parser {
 
                     Type::CloseParen => {
                         self.backward_token();
-                        let iterable = self.expect_expr()?;
+                        let iterable = self.expect_ident()?;
                         self.expect_token(Type::CloseParen)?;
                         self.forward_token();
                         self.expect_token(Type::OpenBrace)?;
                         let body = self.expect_block()?;
-                        return Ok(self.new_node(NodeData::ForIn(None, Box::new(iterable), body)));
+                        let iterator = self.new_node(NodeData::TEXT("it".to_string()));
+                        return Ok(self.new_node(NodeData::ForIn(Some(Box::new(iterator)), Box::new(iterable), body))); //TODO: we should handle any expression here now we just handle ident
                     }
 
                     _ => {
