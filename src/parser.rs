@@ -41,7 +41,6 @@ impl Parser {
         self.cur -= 1;
     }
     pub fn new_with_tokens(src: String, tokens: Vec<Token>) -> Result<Self> {
-        println!("\ntokens: {:?}\n", tokens);
         Ok(Self {
             src,
             tokens,
@@ -65,7 +64,6 @@ impl Parser {
                 }
             }
         }
-        println!("tokens: {:?}", tokens);
         Ok(Self {
             src: src.to_string(),
             tokens,
@@ -306,7 +304,6 @@ impl Parser {
                 | NodeData::StringTy(_)
                 | NodeData::FloatTy(_)
                     | NodeData::VoidTy(_) => {
-                        println!("sdsd");
                     return Ok(ty);
                 }
 
@@ -322,7 +319,6 @@ impl Parser {
                         }
                     }
 
-                    println!("is struct :{} {:?}", is_struct_init, self.current_token());
                     if is_struct_init {
                         self.forward_token();
                         let mut fields = Vec::<(Node, Node)>::new();
@@ -370,7 +366,6 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
-                        println!("array ty is : {:?}", ty);
                         return Ok(
                             self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields))
                         );
@@ -496,13 +491,11 @@ impl Parser {
 
             Type::OpenBracket => {
                 // array type
-                println!("parsing array type");
                 self.forward_token();
                 let len = self.expect_expr()?;
                 self.expect_token(Type::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
-                println!("len is {:?}, ty is {:?}", len , ty);
                 return Ok(self.new_node(NodeData::ArrayTy(Box::new(len), Box::new(ty))));
             }
 
@@ -879,7 +872,6 @@ impl Parser {
                     Type::KeywordIn => {
                         self.backward_token();
                         let iterator = self.expect_ident()?;
-                        self.forward_token(); // in
                         self.forward_token();
                         let iterable = self.expect_expr()?;
                         self.expect_token(Type::CloseParen)?;

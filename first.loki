@@ -65,9 +65,9 @@ main :: fn() int {
     }
 
     numbers := [10]uint{1, 2, 3, 4};
-    /* for (num in numbers) { */
-    /*     printf("for each syntax: %d\n", num); */
-    /* } */
+    for (num in numbers) {
+        printf("for each syntax: %d\n", num);
+    }
     
     if (b) {
         printf("b1 is true\n");
