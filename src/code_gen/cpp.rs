@@ -111,6 +111,15 @@ impl<'a> CPP<'a> {
         }
     }
 
+    fn repr_array_elems(&self, elems: &Vec<Node>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for node in elems.iter() {
+            output.push(format!("{}", self.repr(&node)?));
+        }
+
+        Ok(output.join(","))
+    }
+
     fn repr(&self, node: &Node) -> Result<String> {
         match &node.data {
             NodeData::Host(import) => {
@@ -154,6 +163,33 @@ impl<'a> CPP<'a> {
                     self.repr_fn_def_args(&args)?,
                     self.repr_block(&block)?,
                 )),
+
+                NodeData::InitializeArray(ty, elems) => {
+                    if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
+                        match decl.mutable {
+                            true => {
+                                Ok(format!("const {} {}[{}] = {{{}}}",
+                                           self.repr(&elem_ty)?,
+                                           self.repr(&decl.name)?,
+                                           self.repr(&size)?,
+                                           self.repr_array_elems(elems)?
+                                ))
+                            }
+                            false => {
+                                Ok(format!("{} {}[{}] = {{{}}}",
+                                           self.repr(&elem_ty)?,
+                                           self.repr(&decl.name)?,
+                                           self.repr(&size)?,
+                                           self.repr_array_elems(elems)?
+                                ))
+                            }
+                        }
+
+                    } else {
+                        unreachable!();
+                    }
+
+                }
 
                 NodeData::Struct(fields) => Ok(format!(
                     "struct {} {{\n{}\n}};",

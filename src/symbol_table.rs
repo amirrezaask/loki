@@ -24,6 +24,7 @@ pub enum SymbolType {
     Bool,
     Char,
     String,
+    Array(usize, Box<SymbolType>),
     Type,
 }
 
@@ -221,6 +222,24 @@ impl SymbolTable {
                 });
             }
 
+            NodeData::InitializeArray(op_ty, _) => {
+                if op_ty.is_none() {
+                    unreachable!();
+                }
+                if let NodeData::ArrayTy(size, _) = op_ty.clone().unwrap().data {
+                    if let NodeData::Uint(s) = size.data {
+                        self.add_sym(SymbolMetadata {
+                            name: name.to_string(), id,
+                            location: path.clone(),
+                            ty: SymbolType::Array(s, Box::new(SymbolType::Uint)), //TODO fixme
+                        })
+
+                    }
+
+                }
+
+            }
+
             NodeData::Initialize(op_ty, _) => {
                 if op_ty.is_none() && decl.ty.is_none() {
                     println!("need either a type hint or type name in rhs of decl.");
@@ -285,7 +304,7 @@ impl SymbolTable {
                 }
 
             _ => {
-                println!("cannot infer type for {:?}", decl.expr);
+                println!("cannot understand type for {:?}", decl.expr);
                 unreachable!();
             }
 
@@ -325,3 +344,9 @@ impl SymbolTable {
 
     
 }
+
+
+/*
+
+Node { id: 9, data: ArrayTy(Node { id: 2, data: Uint(10) }, Node { id: 8, data: InitializeArray(Some(Node { id: 3, data: Uint(12) }), [Node { id: 4, data: Uint(14) }, Node { id: 5, data: Uint(16) }, Node { id: 6, data: Uint(18) }, Node { id: 7, data: Uint(20) }]) }) }
+ */

@@ -16,11 +16,12 @@ pub struct Parser {
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl Parser {
     fn err_uexpected(&self, what: Type) -> anyhow::Error {
+        
         anyhow!(
             "Expected {:?}, found {:?} at \"{}\"",
             what,
             self.current_token().ty,
-            self.src[self.current_token().loc.0-2..=self.current_token().loc.1+2].to_string(),
+            self.src[self.tokens[self.cur].loc.0..=self.tokens[self.cur].loc.1].to_string(),
         )
     }
     fn new_node(&mut self, data: NodeData) -> Node {
@@ -40,6 +41,7 @@ impl Parser {
         self.cur -= 1;
     }
     pub fn new_with_tokens(src: String, tokens: Vec<Token>) -> Result<Self> {
+        println!("\ntokens: {:?}\n", tokens);
         Ok(Self {
             src,
             tokens,
@@ -115,7 +117,18 @@ impl Parser {
             NodeData::StringLiteral(_) => {
                 return Some(self.new_node(NodeData::StringTy(0)));
             }
+            NodeData::InitializeArray(op_ty, _) => {
+                if op_ty.is_some() {
+                    if let NodeData::ArrayTy(len, ty) = op_ty.clone().unwrap().data {
+                        return Some(self.new_node(op_ty.clone().unwrap().data));
+                    } else {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
 
+            }
             NodeData::Initialize(op_ty, _) => {
                 if op_ty.is_some() {
                     let type_name =
@@ -211,9 +224,10 @@ impl Parser {
     /*
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
-    B -> C (< <= | >= > C)* // cmp
-    C -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: *expr | ref: &expr
-    | field_access | struct_def | enum_def | struct_init | enum_init | fn_def | types(int, uint, void, string, bool, char, float
+    B -> initialize (< <= | >= > initialize)* // cmp
+    initialize -> exact_expr ({})*
+    exact_expr -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: *expr | ref: &expr
+        | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
     */
 
     fn expect_fn_def(&mut self) -> Result<Node> {
@@ -272,7 +286,104 @@ impl Parser {
         }
         Ok(self.new_node(NodeData::FnCall(Box::new(name), args)))
     }
-    fn expect_expr_C(&mut self) -> Result<Node> {
+    fn expect_expr_initialize(&mut self) -> Result<Node> {
+        let ty = self.expect_expr_exact_expr()?;
+        match self.current_token().ty {
+            Type::OpenBrace => match ty.data {
+                NodeData::IntTy(_)
+                | NodeData::Int8Ty(_)
+                | NodeData::Int32Ty(_)
+                | NodeData::Int64Ty(_)
+                | NodeData::Int128Ty(_)
+                | NodeData::UintTy(_)
+                | NodeData::Uint8Ty(_)
+                | NodeData::Uint16Ty(_)
+                | NodeData::Uint32Ty(_)
+                | NodeData::Uint64Ty(_)
+                | NodeData::Uint128Ty(_)
+                | NodeData::CharTy(_)
+                | NodeData::BoolTy(_)
+                | NodeData::StringTy(_)
+                | NodeData::FloatTy(_)
+                    | NodeData::VoidTy(_) => {
+                        println!("sdsd");
+                    return Ok(ty);
+                }
+
+                _ => {
+                    let mut is_struct_init = false;
+                    self.forward_token();
+                    if self.current_token().ty == Type::Ident {
+                        self.forward_token();
+                        if self.current_token().ty == Type::Equal {
+                            is_struct_init = true;
+                            self.backward_token();
+                            self.backward_token();
+                        }
+                    }
+
+                    println!("is struct :{} {:?}", is_struct_init, self.current_token());
+                    if is_struct_init {
+                        self.forward_token();
+                        let mut fields = Vec::<(Node, Node)>::new();
+                        loop {
+                            if self.current_token().ty == Type::CloseBrace {
+                                self.forward_token();
+                                break;
+                            }
+
+                            let name = self.expect_ident()?;
+                            self.expect_token(Type::Equal)?;
+                            self.forward_token();
+                            let value = self.expect_expr()?;
+                            fields.push((name, value));
+                            match self.current_token().ty {
+                                Type::Comma => {
+                                    self.forward_token();
+                                }
+                                Type::CloseBrace => {
+                                    self.forward_token();
+                                    break;
+                                }
+                                _ => return Err(self.err_uexpected(Type::Comma)),
+                            }
+                        }
+                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(ty)), fields)));
+                    } else {
+                        let mut fields = Vec::<Node>::new();
+                        loop {
+                            if self.current_token().ty == Type::CloseBrace {
+                                self.forward_token();
+                                break;
+                            }
+
+                            let val = self.expect_expr()?;
+                            fields.push(val);
+                            match self.current_token().ty {
+                                Type::Comma => {
+                                    self.forward_token();
+                                }
+                                Type::CloseBrace => {
+                                    self.forward_token();
+                                    break;
+                                }
+                                _ => return Err(self.err_uexpected(Type::Comma)),
+                            }
+                        }
+                        println!("array ty is : {:?}", ty);
+                        return Ok(
+                            self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields))
+                        );
+                    }
+                }
+            },
+            _ => {
+                return Ok(ty);
+            }
+        }
+    }
+
+    fn expect_expr_exact_expr(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::UnsignedInt => {
                 self.forward_token();
@@ -382,6 +493,19 @@ impl Parser {
                 self.expect_token(Type::CloseParen)?;
                 Ok(expr)
             }
+
+            Type::OpenBracket => {
+                // array type
+                println!("parsing array type");
+                self.forward_token();
+                let len = self.expect_expr()?;
+                self.expect_token(Type::CloseBracket)?;
+                self.forward_token();
+                let ty = self.expect_expr_exact_expr()?;
+                println!("len is {:?}, ty is {:?}", len , ty);
+                return Ok(self.new_node(NodeData::ArrayTy(Box::new(len), Box::new(ty))));
+            }
+
             Type::Asterix => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
@@ -392,7 +516,9 @@ impl Parser {
                 let expr = self.expect_expr()?;
                 return Ok(self.new_node(NodeData::Ref(Box::new(expr))));
             }
-            Type::OpenBrace => {
+            Type::Dot => {
+                self.forward_token();
+                self.expect_token(Type::OpenBrace)?;
                 self.forward_token();
                 let mut fields = Vec::<(Node, Node)>::new();
                 loop {
@@ -453,39 +579,6 @@ impl Parser {
                         Ok(self.new_node(NodeData::FieldAccess(access)))
                     }
 
-                    Type::OpenBrace => {
-                        self.backward_token();
-                        let name = self.expect_ident()?;
-                        self.expect_token(Type::OpenBrace)?;
-                        self.forward_token();
-                        let mut fields = Vec::<(Node, Node)>::new();
-                        loop {
-                            if self.current_token().ty == Type::CloseBrace {
-                                self.forward_token();
-                                break;
-                            }
-
-                            let name = self.expect_ident()?;
-                            self.expect_token(Type::Equal)?;
-                            self.forward_token();
-                            let value = self.expect_expr()?;
-                            fields.push((name, value));
-                            match self.current_token().ty {
-                                Type::Comma => {
-                                    self.forward_token();
-                                }
-                                Type::CloseBrace => {
-                                    self.forward_token();
-                                    break;
-                                }
-                                _ => return Err(self.err_uexpected(Type::Comma)),
-                            }
-                        }
-                        return Ok(
-                            self.new_node(NodeData::Initialize(Some(Box::new(name)), fields))
-                        );
-                    }
-
                     _ => Ok(self.new_node(NodeData::Ident(self.cur - 1))),
                 }
             }
@@ -519,7 +612,7 @@ impl Parser {
             }
             Type::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint(self.cur - 1)))
+                Ok(self.new_node(NodeData::UintTy(self.cur - 1)))
             }
             Type::KeywordUint8 => {
                 self.forward_token();
@@ -569,7 +662,7 @@ impl Parser {
     }
 
     fn expect_expr_b(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_C()?;
+        let lhs = self.expect_expr_initialize()?;
 
         match self.current_token().ty {
             Type::LeftAngle
@@ -580,7 +673,7 @@ impl Parser {
             | Type::NotEqual => {
                 let op = self.current_token().ty.clone();
                 self.forward_token();
-                let rhs = self.expect_expr_C()?;
+                let rhs = self.expect_expr_initialize()?;
 
                 Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs))))
             }
@@ -625,7 +718,7 @@ impl Parser {
                 let rhs = self.expect_expr_mul_div_mod()?;
                 Ok(self.new_node(NodeData::Sum(Box::new(lhs), Box::new(rhs))))
             }
-            
+
             _ => Ok(lhs),
         }
     }
@@ -662,7 +755,6 @@ impl Parser {
     }
 
     fn expect_stmt(&mut self) -> Result<Node> {
-
         match self.current_token().ty {
             Type::Ident => {
                 let next_tok = self.cur + 1;
@@ -677,7 +769,8 @@ impl Parser {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
-                        let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::MinusEqual => {
@@ -685,7 +778,8 @@ impl Parser {
                         self.forward_token();
                         let rhs = self.expect_expr()?;
 
-                        let inner = self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::ModEqual => {
@@ -693,7 +787,8 @@ impl Parser {
                         self.forward_token();
                         let rhs = self.expect_expr()?;
 
-                        let inner = self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::MulEqual => {
@@ -701,7 +796,8 @@ impl Parser {
                         self.forward_token();
                         let rhs = self.expect_expr()?;
 
-                        let inner = self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DivEqual => {
@@ -709,21 +805,24 @@ impl Parser {
                         self.forward_token();
                         let rhs = self.expect_expr()?;
 
-                        let inner = self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DoublePlus => {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
-                        let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DoubleMinus => {
                         let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
-                        let inner = self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
+                        let inner =
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     _ => Err(self.err_uexpected(Type::OpenParen)),

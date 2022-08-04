@@ -52,6 +52,7 @@ pub enum NodeData {
     StringTy(TokenIndex),
     CharTy(TokenIndex),
     VoidTy(TokenIndex),
+    ArrayTy(Box<Node>, Box<Node>), // len ty
 
     Struct(Vec<(Node, Node)>),
     Enum(bool, Vec<(Node, Option<Node>)>),
@@ -76,6 +77,7 @@ pub enum NodeData {
     FnCall(Box<Node>, Vec<Node>),
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
     Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
+    InitializeArray(Option<Box<Node>>, Vec<Node>),
     Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
     Ref(Box<Node>),
     Deref(Box<Node>),
@@ -146,6 +148,21 @@ impl AST {
                     }
                     let infered_ty = infered_ty.unwrap();
                     match &infered_ty.ty {
+                        SymbolType::Array(size, elem_ty) => {
+                            let size = Node {
+                                id: -1, data: NodeData::Uint(0),
+                            };
+
+                            let elem_ty = Node {
+                                id: -1, data: NodeData::Uint(0), //TODO Fixme
+                            };
+                            
+                            decl.ty = Box::new(Some(Node {
+                                id: -1,
+                                data: NodeData::ArrayTy(Box::new(size), Box::new(elem_ty)),
+                            }));
+                            return Ok(decl);
+                        }
                         SymbolType::Name(name) => {
                             decl.ty = Box::new(Some(Node {
                                 id: -1,

@@ -1,5 +1,5 @@
-- enum/union initialization sytnax
 - arrays and dynamic arrays
+- enum/union initialization sytnax
 - else if
 
 # hard ones

@@ -1,6 +1,6 @@
 #load "base.loki"; // Load directive loads a loki file as a part of compilation
 
-#host "iostream"; // host directive is for when you want to import something from your target platform. 
+#host "iostream"; // host directive is for when you want to import something from your target platform.
 
 // This is a comment
 
@@ -45,11 +45,14 @@ main :: fn() int {
         name = "amirreza",
     };
 
-
-    parsa :Human: {
+    parsa : Human : .{
         age = 17,
         name = "parsa",
     };
+
+    printf("amirreza age is %d\n", amirreza.age);
+    printf("parsa age is %d\n", parsa.age);
+
 
     counter := 0;
     while (counter < 10) {
@@ -61,8 +64,10 @@ main :: fn() int {
         printf("for c syntax: %d\n", i);
     }
 
-    printf("amirreza age is %d\n", amirreza.age);
-    printf("parsa age is %d\n", parsa.age);
+    numbers := [10]uint{1, 2, 3, 4};
+    /* for (num in numbers) { */
+    /*     printf("for each syntax: %d\n", num); */
+    /* } */
     
     if (b) {
         printf("b1 is true\n");
