@@ -1,6 +1,8 @@
 use crate::code_gen::Backend;
 use crate::code_gen::cpp::CPP;
 use crate::symbol_table::SymbolTable;
+use std::ffi::OsStr;
+use std::path::Path;
 use std::time::Instant;
 
 // compiler that glue all parts together
@@ -68,6 +70,7 @@ impl Compiler {
     }
 
     pub fn compile_file_cpp(&mut self, path: &str) -> Result<()> {
+        let bin_name: String = Path::new(path).file_stem().unwrap_or(OsStr::new("main")).to_string_lossy().to_string();
         let frontend_time_start = Instant::now();
 
         let mut asts = self.get_ast_for(path)?;
@@ -104,7 +107,7 @@ impl Compiler {
         let writing_output_elapsed = writing_output_time_start.elapsed();
         let calling_c_compiler_time_start = Instant::now();
 
-        let cpp_output = Command::new("clang++").arg(&out_file_name).output()?;
+        let cpp_output = Command::new("clang++").arg("-o").arg(bin_name).arg(&out_file_name).output()?;
         // std::fs::remove_file(out_file_name)?;
         if !cpp_output.status.success() {
             println!(
