@@ -113,7 +113,10 @@ impl AST {
                     let new_decl = Self::infer_decl_types(st, decl.clone())?;
                     stmt.data = NodeData::Decl(new_decl);
                 }
-
+                NodeData::If(args, then, _else) => { //TODO handle else
+                    let new_then = Self::infer_block_types(st, *then.clone())?;
+                    stmt.data = NodeData::If(args.clone(), Box::new(new_then), _else.clone());
+                }
                 _ => {}
             }
         }
@@ -206,7 +209,7 @@ impl AST {
                     let infered_decl = Self::infer_decl_types(st, decl.clone())?;
                     node.data = NodeData::Decl(infered_decl);
                 }
-
+            
                 _ => {}
             }
         }

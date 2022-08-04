@@ -37,6 +37,7 @@ main :: fn() int {
     printf("parsa age is %d\n", parsa.age);
     
     if (b1) {
+        c :: false;
         printf("b1 is true\n");
     }
 

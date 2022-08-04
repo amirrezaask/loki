@@ -11,7 +11,9 @@ use crate::ast::{ Node, NodeData, AST , Decl };
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
     pub symbols_by_id: HashMap<NodeID, SymbolMetadata>,
-    pub symbols_by_name: HashMap<String, Vec<SymbolMetadata>>
+    pub symbols_by_name: HashMap<String, Vec<SymbolMetadata>>,
+    pub symbols_by_scope: HashMap<SymbolLocation, SymbolMetadata>,
+        
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolType {
@@ -34,8 +36,8 @@ pub struct SymbolMetadata {
     pub ty: SymbolType
 }
 
-#[derive(Clone, Debug)]
-struct SymbolLocation {
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct SymbolLocation {
     // filename: String,// TODO to handle multiple files correctly
     v: Vec<usize>,
 }
@@ -71,7 +73,11 @@ impl SymbolTable {
         }
 
     }
+    fn add_sym_by_location(&mut self, md: &SymbolMetadata) {
+        self.symbols_by_scope.insert(md.location.clone(), md.clone());
+    }
     fn add_sym(&mut self, md: SymbolMetadata) {
+        self.add_sym_by_location(&md);
         self.add_sym_by_id(&md);
         self.add_sym_by_name(&md);
     }
@@ -117,6 +123,15 @@ impl SymbolTable {
                 NodeData::Decl(decl) => {
                     let mut new_path = path.new_index_with_push(idx);
                     self.fill_for_decl(ast, &mut new_path, &decl)?;
+                }
+                NodeData::If(_, then, _else) => {
+                    println!("inja if");
+                    let mut new_path = path.new_index_with_push(idx);
+                    self.fill_for_block(ast, &mut new_path, then)?;
+                    // if _else.is_some() { // TODO
+                    //     let mut new_path = path.new_index_with_push(idx);
+                    //     self.fill_for_block(ast, &mut new_path, &_else.unwrap())?;
+                    // }
                 }
 
                 
@@ -292,8 +307,10 @@ impl SymbolTable {
     pub fn new(asts: &Vec<AST>) -> Result<Self> {
         let symbols_by_name = HashMap::<String, Vec<SymbolMetadata>>::new();
         let symbols_by_id = HashMap::<NodeID, SymbolMetadata>::new();
+        let symbols_by_scope = HashMap::<SymbolLocation, SymbolMetadata>::new();
+
         let mut st = Self {
-            symbols_by_id, symbols_by_name,
+            symbols_by_id, symbols_by_name, symbols_by_scope
         };
         for ast in asts.iter() {
             for (top_level_idx, node) in ast.top_level.iter().enumerate() {

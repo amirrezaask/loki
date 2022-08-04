@@ -75,6 +75,9 @@ impl Compiler {
 
         let mut asts = self.get_ast_for(path)?;
         let st = SymbolTable::new(&asts)?;
+        // println!("scoped symbols: {:?}", st.symbols_by_scope);
+        // println!("symbols by name: {:?}", st.symbols_by_name);
+
         println!("Total Symbols processed: {}", st.symbols_by_id.len());
         let mut codes = Vec::<String>::new();
 
