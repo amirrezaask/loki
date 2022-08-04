@@ -30,10 +30,10 @@ impl<'a> CPP<'a> {
     fn repr_block(&self, nodes: &Vec<Node>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in nodes.iter() {
-            output.push(self.repr(node)? + ";");
+            output.push(format!("\t{};", self.repr(node)?));
         }
 
-        Ok(output.join("\n\t"))
+        Ok(output.join("\n"))
     }
     fn repr_fn_def_args(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
         let mut output = Vec::<String>::new();
@@ -45,14 +45,14 @@ impl<'a> CPP<'a> {
     fn repr_struct_fields(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
-            output.push(format!("{} {};", self.repr(&node.1)?, self.repr(&node.0)?));
+            output.push(format!("\t{} {};", self.repr(&node.1)?, self.repr(&node.0)?));
         }
         Ok(output.join("\n"))
     }
     fn repr_struct_init_fields(&self, fields: &Vec<(Node, Node)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in fields {
-            output.push(format!(".{}={}", self.repr(&node.0)?, self.repr(&node.1)?));
+            output.push(format!("\t.{}={}", self.repr(&node.0)?, self.repr(&node.1)?));
         }
         Ok(output.join(",\n"))
     }
@@ -78,10 +78,10 @@ impl<'a> CPP<'a> {
         for node in variants.iter() {
             match &node.1 {
                 Some(ty) => {
-                    output.push(format!("{} {};", self.repr(&ty)?, self.repr(&node.0)?));
+                    output.push(format!("\t{} {};", self.repr(&ty)?, self.repr(&node.0)?));
                 }
                 None => {
-                    output.push(format!("{} {};", "void*", self.repr(&node.0)?));
+                    output.push(format!("\t{} {};", "void*", self.repr(&node.0)?));
                 }
             }
         }
@@ -108,7 +108,7 @@ impl<'a> CPP<'a> {
             NodeData::Load(_) => Ok("".to_string()),
             NodeData::Decl(decl) => match &decl.expr.deref().data {
                 NodeData::FnDef(args, ret, block) => Ok(format!(
-                    "{} {}({}) {{\n\t{}\n}}",
+                    "{} {}({}) {{\n{}\n}}",
                     self.repr(&*ret)?,
                     self.repr(&*decl.name)?,
                     self.repr_fn_def_args(&args)?,
@@ -116,7 +116,7 @@ impl<'a> CPP<'a> {
                 )),
 
                 NodeData::Struct(fields) => Ok(format!(
-                    "struct {} {{\n\t{}\n}};",
+                    "struct {} {{\n{}\n}};",
                     self.repr(&*decl.name)?,
                     self.repr_struct_fields(&fields)?
                 )),
@@ -124,13 +124,13 @@ impl<'a> CPP<'a> {
                 NodeData::Enum(is_union, variants) => {
                     if !is_union {
                         Ok(format!(
-                            "enum {} {{\n\t{}\n}};",
+                            "enum {} {{\n{}\n}};",
                             self.repr(&*decl.name)?,
                             self.repr_enum_variants(&variants)?
                         ))
                     } else {
                         Ok(format!(
-                            "union {} {{\n\t{}\n}};",
+                            "union {} {{\n{}\n}};",
                             self.repr(&*decl.name)?,
                             self.repr_union_variants(&variants)?
                         ))
@@ -230,14 +230,14 @@ impl<'a> CPP<'a> {
             )),
             NodeData::If(cond, then, _else) => {
                 let mut base = format!(
-                    "if ({}) {{\n\t{}\n\t}}",
+                    "if ({}) {{\n{}\n\t}}",
                     self.repr(&cond)?,
                     self.repr_block(&then)?
                 );
 
                 if _else.is_some() {
                     base += &format!(
-                        " else {{\n\t{}\n}}",
+                        " else {{\n{}\n\t}}",
                         self.repr_block(&_else.clone().unwrap())?
                     );
                 }
@@ -408,7 +408,7 @@ if (x) {
 \tprintf(\"true\");
 \t} else {
 \tprintf(\"false\");
-};
+\t};
 }",
         code
     );

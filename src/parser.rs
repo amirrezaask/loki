@@ -137,8 +137,6 @@ impl Parser {
 
     }
     fn expect_decl(&mut self) -> Result<Node> {
-        let mut ty: Option<Node> = None;
-
         self.expect_token(Type::Ident)?;
 
         let name = self.cur;
@@ -163,7 +161,7 @@ impl Parser {
 
             Type::Colon => {
                 self.forward_token();
-                ty = Some(self.expect_expr()?);
+                let ty = Some(self.expect_expr()?);
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
                     unreachable!();
@@ -184,9 +182,10 @@ impl Parser {
             Type::ColonEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
+                self.expect_token(Type::SemiColon)?;
+                self.forward_token();
                 let name = self.new_node(NodeData::Ident(name));
                 let ty_infer = self.naive_ty_infer(&rhs);
-
                 Ok(self.new_node(NodeData::Decl(Decl {
                     mutable: true,
                     name: Box::new(name),
@@ -656,7 +655,7 @@ impl Parser {
             Type::Ident => {
                 let next_tok = self.cur + 1;
                 match self.tokens[next_tok].ty {
-                    Type::DoubleColon | Type::Colon | Type::Equal => self.expect_decl(),
+                    Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => self.expect_decl(),
                     Type::Dot | Type::OpenParen => self.expect_fn_call(),
                     _ => Err(self.err_uexpected(Type::OpenParen)),
                 }
@@ -1037,6 +1036,23 @@ fn const_decl_expr_float() -> Result<()> {
 //     }
 //     Ok(())
 // }
+#[test]
+fn var_decl_inside_function() -> Result<()> {
+    let parser = Parser::new(
+        "main :: fn() int {
+a := true;
+};",
+    )?;
+    let ast = parser.get_ast()?;
+
+    if let NodeData::Decl(decl) = &ast.top_level[0].data {
+    } else {
+        panic!()
+    }
+    Ok(())
+
+}
+
 
 #[test]
 fn const_decl_fn_with_if() -> Result<()> {

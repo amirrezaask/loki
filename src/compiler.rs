@@ -51,12 +51,12 @@ impl Compiler {
                 }
             }
         }
-        asts.push(main_ast);
+
         for file in loads {
             let mut file_ast = self.get_ast_for(&file)?;
             asts.append(&mut file_ast)
         }
-
+        asts.push(main_ast);
         Ok(asts)
 
     }

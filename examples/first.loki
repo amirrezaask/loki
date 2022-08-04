@@ -18,9 +18,9 @@ Result :: enum {
 };
 
 main :: fn() int {
-    b1 :: true;
-    b2 :bool: false;
-    s :: "Amirreza";
+    b := true;
+    c :: 'c';
+    s := "Amirreza";
 
     amirreza :: Human { // 4 body 3
         age = 24,
@@ -36,16 +36,11 @@ main :: fn() int {
     printf("amirreza age is %d\n", amirreza.age);
     printf("parsa age is %d\n", parsa.age);
     
-    if (b1) {
-        c :: false;
+    if (b) {
         printf("b1 is true\n");
     }
-
-    if (b2) {
-        printf("b2 is true\n");    
-    }
     else {
-        printf("b2 is false\n");
+        printf("b1 is false\n");
     }
 
     return 0;
