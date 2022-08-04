@@ -27,6 +27,7 @@ pub enum SymbolType {
 
 #[derive(Debug, Clone)]
 pub struct SymbolMetadata {
+    // filename: String,
     location: SymbolLocation,
     id: NodeID,
     name: String,
@@ -35,6 +36,7 @@ pub struct SymbolMetadata {
 
 #[derive(Clone, Debug)]
 struct SymbolLocation {
+    // filename: String,// TODO to handle multiple files correctly
     v: Vec<usize>,
 }
 

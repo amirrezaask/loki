@@ -19,7 +19,7 @@ pub fn main() -> Result<()> {
     }
     let args = args[1..].to_vec();
     let filename = &args[0];
-    let c = compiler::Compiler::new();
+    let mut c = compiler::Compiler::new();
     c.compile_file(filename, code_gen::Backend::CPP)?;
     Ok(())
 }
