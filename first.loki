@@ -68,8 +68,7 @@ main :: fn() int {
     for (num in numbers) {
         printf("for each syntax: %d\n", num);
     }
-
-    humans := [2]Human {amirreza, parsa};
+    humans := [3]Human {amirreza, parsa, Human { age = 17, name = "comrade" }}; 
     for (humans) {
         printf("for each syntax: %d\n", it.age);
     }

@@ -107,7 +107,7 @@ impl<'a> CPP<'a> {
             Type::NotEqual => Ok("!=".to_string()),
             _ => {
                 panic!("unsupported operator: {:?}", op);
-            }
+           }
         }
     }
 
@@ -250,6 +250,28 @@ impl<'a> CPP<'a> {
                     }
                 }
             },
+            NodeData::Initialize(ty, fields) => {
+                let ty: String = if ty.is_some() {
+                    self.repr(&ty.clone().unwrap())?
+                } else {
+                    ".".to_string()
+                };
+                let fields = self.repr_struct_init_fields(&fields)?;
+                return Ok(format!("{{\n{}\n}}", fields));
+            }
+            NodeData::InitializeArray(ty, elems) => {
+                    if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
+                        Ok(format!("{}[{}]{{{}}}",
+                                   self.repr(&elem_ty)?,
+                                   self.repr(&size)?,
+                                   self.repr_array_elems(elems)?
+                        ))
+                    } else {
+                        unreachable!();
+                    }
+
+                }
+            
             // primitive types
             NodeData::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
             NodeData::Int(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),

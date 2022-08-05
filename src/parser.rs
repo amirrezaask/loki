@@ -216,7 +216,7 @@ impl Parser {
                 })))
             }
             _ => {
-                unreachable!();
+                return Err(self.err_uexpected(self.current_token().clone().ty));
             }
         }
     }
@@ -752,7 +752,6 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<Node> {
-        self.backward_token();
         let start = self.expect_decl()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
@@ -770,7 +769,6 @@ impl Parser {
         )));
     }
     fn expect_for_each(&mut self) -> Result<Node> {
-        self.backward_token();
         let iterator = self.expect_ident()?;
         self.forward_token();
         let iterable = self.expect_expr()?;
@@ -785,8 +783,7 @@ impl Parser {
         )));
     }
     fn expect_for_each_implicit_iterator(&mut self) -> Result<Node> {
-        self.backward_token();
-        let iterable = self.expect_ident()?;
+        let iterable = self.expect_expr()?;
         self.expect_token(Type::CloseParen)?;
         self.forward_token();
         self.expect_token(Type::OpenBrace)?;
@@ -914,38 +911,46 @@ impl Parser {
                 self.expect_token(Type::OpenParen)?;
                 self.forward_token();
 
-                // let starting_inside_paren = self.cur;
+                let starting_inside_paren = self.cur;
+                let before_node_counter = self.node_counter;
 
-                // if self.expect_decl().is_ok() {
-                //     // it's for c
-                //     return self.expect_for_c();
+                if self.expect_decl().is_ok() {
+                    self.node_counter = before_node_counter;
+                    self.cur = starting_inside_paren;
+                    return self.expect_for_c();
+                } else {
+                    self.cur = starting_inside_paren;
+                    self.node_counter = before_node_counter;
+                }
 
-                // } else {
-                //     self.cur = starting_inside_paren;
-                // }
-
-                // if self.expect_expr().is_ok() {
-                //     if self.expect_token(Type::Ident).is_ok() {
-                //         // for in 
-                //     } else {
-                //         // for with implicit
-                //     }
-                // }
-
-                
-                self.forward_token();
-                match self.current_token().ty {
-                    Type::KeywordIn => {
+                if self.expect_ident().is_ok() {
+                    if self.expect_token(Type::KeywordIn).is_ok() {
+                        self.cur = starting_inside_paren;
+                        self.node_counter = before_node_counter;
                         return self.expect_for_each();
-                    }
+                    } else {
 
-                    Type::CloseParen => {
+                        self.cur = starting_inside_paren;
+                        self.node_counter = before_node_counter;
                         return self.expect_for_each_implicit_iterator();
                     }
+                } else {
+                    self.cur = starting_inside_paren;
+                    self.node_counter = before_node_counter;
 
-                    _ => {
-                        return self.expect_for_c();
-                    }
+                }
+
+                if self.expect_expr().is_ok() {
+                    println!("here");
+                    self.cur = starting_inside_paren;
+                    self.node_counter = before_node_counter;
+                    
+                    return self.expect_for_each_implicit_iterator();
+                } else {
+                    self.cur = starting_inside_paren;
+                    self.node_counter = before_node_counter;
+
+                    unreachable!();
                 }
             }
             Type::KeywordReturn => {
