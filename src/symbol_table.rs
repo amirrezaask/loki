@@ -24,11 +24,13 @@ pub enum SymbolType {
     Bool,
     Char,
     String,
+    StructField(Box<SymbolMetadata>),
+    EnumVariant(Box<SymbolMetadata>),
     Array(usize, Box<SymbolType>),
     Type,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SymbolMetadata {
     // filename: String,
     location: SymbolLocation,
@@ -123,7 +125,7 @@ impl SymbolTable {
             match &stmt.data {
                 NodeData::Decl(decl) => {
                     let mut new_path = path.new_index_with_push(idx);
-                    self.fill_for_decl(ast, &mut new_path, &decl)?;
+                    self.fill_for_decl(ast, &mut new_path, &decl, idx)?;
                 }
                 NodeData::If(_, then, _else) => {
                     let mut new_path = path.new_index_with_push(idx);
@@ -143,7 +145,7 @@ impl SymbolTable {
         Ok(())
     }
 
-    fn fill_for_decl(&mut self, ast: &AST, path: &mut SymbolLocation, decl: &Decl) -> Result<()> {
+    fn fill_for_decl(&mut self, ast: &AST, path: &mut SymbolLocation, decl: &Decl, idx: usize) -> Result<()> {
         let name: String = ast.get_name_for_ident(*decl.name.clone())?.to_string();
         let id = decl.name.id;
         // Sum(Box<Node>, Box<Node>),
@@ -275,8 +277,27 @@ impl SymbolTable {
                     }
                 }
             }
-            NodeData::Enum(_, _) |
-            NodeData::Struct(_) |
+
+            NodeData::ContainerField(_, _) => {
+                println!("ignoring field access in symbol table");
+            }
+            NodeData::Enum(is_union, variant_values) => {
+                // self.add_sym(SymbolMetadata {
+                //     name: name, id: field.id,
+                //     location: path.new_index_with_push(idx),
+                //     ty: SymbolType::Type, //TODO
+                // });
+            }
+            NodeData::Struct(field_tys) => {
+                for (field, ty) in field_tys.iter() {
+                     self.add_sym(SymbolMetadata {
+                        name: name.clone(), id: field.id,
+                        location: path.new_index_with_push(idx),
+                        ty: SymbolType::Type, //TODO
+                     });
+                }
+            }
+            
             NodeData::IntTy(_) |
             NodeData::Int8Ty(_) |
             NodeData::Int16Ty(_) |
@@ -329,7 +350,7 @@ impl SymbolTable {
                 match &node.data {
                     NodeData::Decl(decl) => {
                         let mut path = SymbolLocation::new(vec![top_level_idx]);
-                        st.fill_for_decl(ast, &mut path, &decl)?;
+                        st.fill_for_decl(ast, &mut path, &decl, top_level_idx)?;
                     }
 
                     _ => {}

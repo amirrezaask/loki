@@ -72,7 +72,7 @@ pub enum NodeData {
     Multiply(Box<Node>, Box<Node>),
     Div(Box<Node>, Box<Node>),
     Mod(Box<Node>, Box<Node>),
-    FieldAccess(Vec<Node>),
+    ContainerField(Box<Node>, Box<Node>),
     FnDef(Vec<(Node, Node)>, Box<Node>, Vec<Node>),
     FnCall(Box<Node>, Vec<Node>),
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
@@ -148,6 +148,9 @@ impl AST {
                     }
                     let infered_ty = infered_ty.unwrap();
                     match &infered_ty.ty {
+                        SymbolType::EnumVariant(_) | SymbolType::StructField(_) => {
+                            unreachable!()
+                        }
                         SymbolType::Array(size, elem_ty) => {
                             let size = Node {
                                 id: -1, data: NodeData::Uint(0),

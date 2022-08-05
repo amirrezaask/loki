@@ -1,8 +1,8 @@
 - enum/union initialization sytnax
 - else if
 - slicing arrays
-
-# hard ones
+- field access revised
+- generics
 - pattern matching 
 - defer
-- memory stuff :))
+- memory stuff

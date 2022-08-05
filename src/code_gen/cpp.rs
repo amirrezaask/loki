@@ -232,6 +232,25 @@ impl<'a> CPP<'a> {
                     }
                 }
 
+                NodeData::ContainerField(container, field) => {
+                    //TODO make type inference work for this when I got hosele
+                    let container = self.repr(&container)?;
+                    let field = self.repr(&field)?;
+                    match decl.mutable {
+                        false => Ok(format!(
+                            "const auto {} = {}.{}",
+                            self.repr(decl.name.deref())?,
+                            container,
+                            field
+                        )),
+                        true => Ok(format!(
+                            "auto {} = {}.{}",
+                            self.repr(decl.name.deref())?,
+                            container, field,
+                        )),
+                    }
+                }
+
                 _ => {
                     let ty = self.get_decl_ty(node)?;
                     match decl.mutable {
@@ -316,7 +335,7 @@ impl<'a> CPP<'a> {
             NodeData::Multiply(lhs, rhs) => Ok(format!("({} * {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::Div(lhs, rhs) => Ok(format!("({} / {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(&lhs)?, self.repr(&rhs)?)),
-            NodeData::FieldAccess(path) => Ok(format!("{}", self.repr_field_access_path(&path)?)),
+            NodeData::ContainerField(container, field) => Ok(format!("{}.{}", self.repr(&container)?, self.repr(field)?)),
             NodeData::Cmp(op, lhs, rhs) => Ok(format!("{} {} {}", self.repr(lhs)?, self.repr_operator(op)?, self.repr(rhs)?)),
             NodeData::FnDef(_, _, _) => {
                 unreachable!();

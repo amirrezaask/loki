@@ -16,7 +16,6 @@ pub struct Parser {
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl Parser {
     fn err_uexpected(&self, what: Type) -> anyhow::Error {
-        
         anyhow!(
             "Expected {:?}, found {:?} at \"{}\"",
             what,
@@ -41,7 +40,7 @@ impl Parser {
         self.cur -= 1;
     }
     pub fn new_with_tokens(src: String, tokens: Vec<Token>) -> Result<Self> {
-//        println!("tokens: {:?}", tokens);
+        //        println!("tokens: {:?}", tokens);
         Ok(Self {
             src,
             tokens,
@@ -126,7 +125,6 @@ impl Parser {
                 } else {
                     return None;
                 }
-
             }
             NodeData::Initialize(op_ty, _) => {
                 if op_ty.is_some() {
@@ -223,9 +221,10 @@ impl Parser {
     /*
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
-    B -> initialize (< <= | >= > initialize)* // cmp
+    B -> initialize (< <= | >= > initialize)*
+    container_field -> initialize (. IDENT)
     initialize -> exact_expr ({})*
-    exact_expr -> int | unsigned_int | float | string | bool | ident(expr,*) | ident | '(' expr ')' | deref: *expr | ref: &expr
+    exact_expr -> int | unsigned_int | float | string | bool | ident | '(' expr ')' | deref: *expr | ref: &expr
         | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
     */
 
@@ -285,6 +284,19 @@ impl Parser {
         }
         Ok(self.new_node(NodeData::FnCall(Box::new(name), args)))
     }
+    fn expect_expr_container_field(&mut self) -> Result<Node> {
+        let container = self.expect_expr_initialize()?;
+        match self.current_token().ty {
+            Type::Dot => {
+                self.forward_token();
+                let field = self.expect_ident()?;
+                return Ok(self.new_node(NodeData::ContainerField(Box::new(container), Box::new(field))));
+            }
+            _ => {
+                return Ok(container);
+            }
+        }
+    }
     fn expect_expr_initialize(&mut self) -> Result<Node> {
         let ty = self.expect_expr_exact_expr()?;
         match self.current_token().ty {
@@ -304,7 +316,7 @@ impl Parser {
                 | NodeData::BoolTy(_)
                 | NodeData::StringTy(_)
                 | NodeData::FloatTy(_)
-                    | NodeData::VoidTy(_) => {
+                | NodeData::VoidTy(_) => {
                     return Ok(ty);
                 }
 
@@ -550,33 +562,10 @@ impl Parser {
                         self.backward_token();
                         self.expect_fn_call()
                     }
-
-                    Type::SemiColon => {
-                        // simple ident
-                        Ok(self.new_node(NodeData::Ident(self.cur - 1)))
-                    }
-
-                    Type::Dot => {
-                        // field access
-                        self.backward_token();
-                        let mut access = Vec::<Node>::new();
-                        loop {
-                            let f = self.expect_ident()?;
-                            access.push(f);
-                            match self.current_token().ty {
-                                Type::Dot => {
-                                    self.forward_token();
-                                }
-                                _ => {
-                                    break;
-                                }
-                            }
-                        }
-
-                        Ok(self.new_node(NodeData::FieldAccess(access)))
-                    }
-
-                    _ => Ok(self.new_node(NodeData::Ident(self.cur - 1))),
+                    _ => {
+                        return Ok(self.new_node(NodeData::Ident(self.cur - 1)));
+                            
+                    },
                 }
             }
             Type::KeywordVoid => {
@@ -659,7 +648,7 @@ impl Parser {
     }
 
     fn expect_expr_b(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_initialize()?;
+        let lhs = self.expect_expr_container_field()?;
 
         match self.current_token().ty {
             Type::LeftAngle
@@ -670,7 +659,7 @@ impl Parser {
             | Type::NotEqual => {
                 let op = self.current_token().ty.clone();
                 self.forward_token();
-                let rhs = self.expect_expr_initialize()?;
+                let rhs = self.expect_expr_container_field()?;
 
                 Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs))))
             }
@@ -789,7 +778,11 @@ impl Parser {
         self.expect_token(Type::OpenBrace)?;
         let body = self.expect_block()?;
         let iterator = self.new_node(NodeData::TEXT("it".to_string()));
-        return Ok(self.new_node(NodeData::ForIn(Some(Box::new(iterator)), Box::new(iterable), body))); //TODO: we should handle any expression here now we just handle ident
+        return Ok(self.new_node(NodeData::ForIn(
+            Some(Box::new(iterator)),
+            Box::new(iterable),
+            body,
+        ))); //TODO: we should handle any expression here now we just handle ident
     }
     fn expect_stmt(&mut self) -> Result<Node> {
         match self.current_token().ty {
@@ -929,7 +922,6 @@ impl Parser {
                         self.node_counter = before_node_counter;
                         return self.expect_for_each();
                     } else {
-
                         self.cur = starting_inside_paren;
                         self.node_counter = before_node_counter;
                         return self.expect_for_each_implicit_iterator();
@@ -937,14 +929,13 @@ impl Parser {
                 } else {
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
-
                 }
 
                 if self.expect_expr().is_ok() {
                     println!("here");
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
-                    
+
                     return self.expect_for_each_implicit_iterator();
                 } else {
                     self.cur = starting_inside_paren;
