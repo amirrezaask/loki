@@ -276,7 +276,7 @@ impl<'a> CPP<'a> {
                     ".".to_string()
                 };
                 let fields = self.repr_struct_init_fields(&fields)?;
-                return Ok(format!("{{\n{}\n}}", fields));
+                return Ok(format!("({}){{\n{}\n}}", ty, fields));
             }
             NodeData::InitializeArray(ty, elems) => {
                     if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
