@@ -15,7 +15,9 @@ Human :: struct {
 main :: fn() int {
     unknown := 1;
     z := unknown; // type inference almost working
-    
+
+
+    infer_bool := 1 == 1;
     number := 0;
 
     number++;

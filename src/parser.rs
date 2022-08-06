@@ -654,16 +654,17 @@ impl Parser {
 
         match self.current_token().ty {
             Type::LeftAngle
-            | Type::RightAngle
-            | Type::LessEqual
-            | Type::GreaterEqual
-            | Type::DoubleEqual
-            | Type::NotEqual => {
-                let op = self.current_token().ty.clone();
-                self.forward_token();
-                let rhs = self.expect_expr_container_field()?;
+                | Type::RightAngle
+                | Type::LessEqual
+                | Type::GreaterEqual
+                | Type::DoubleEqual
+                | Type::NotEqual => {
 
-                Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs))))
+                    let op = self.current_token().ty.clone();
+                    self.forward_token();
+                    println!("@@@{:?}", self.current_token());
+                    let rhs = self.expect_expr_container_field()?;
+                    Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs))))
             }
 
             _ => Ok(lhs),

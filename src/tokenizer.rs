@@ -493,6 +493,7 @@ impl Tokenizer {
                 State::SawEqual => match self.current_char() {
                     '=' => {
                         self.state = State::Start;
+                        self.forward_char();
                         return Ok(Token::new(Type::DoubleEqual, (self.cur - 1, self.cur)));
                     }
                     _ => {

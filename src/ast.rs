@@ -187,7 +187,13 @@ impl SymbolTable {
                 }
                 
             }
-
+            NodeData::Cmp(_, _, _) => {
+                def.ty = Box::new(Some(Node {
+                    id: format!("{}_-1", file),
+                    data: NodeData::BoolTy(0),
+                }))
+            }
+            
             NodeData::FnCall(ref mut proto, _) => {
                 if def.ty.is_none() {
                     if let NodeData::FnPrototype(_, ref ret) = proto.data {
