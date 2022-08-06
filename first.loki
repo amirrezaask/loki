@@ -1,4 +1,4 @@
-// #load "base.loki"; // Load directive loads a loki file as a part of compilation
+#load "base.loki"; // Load directive loads a loki file as a part of compilation
 
 /* #host "iostream"; // host directive is for when you want to import something from your target platform. */
 
@@ -7,14 +7,14 @@
 /*
    This is also a comment
 */
-// Human :: struct {
-//     age: int,
-//     name: string,
-// };
+Human :: struct {
+    age: int,
+    name: string,
+};
 
 main :: fn() int {
     unknown := 1;
-    z := unknown;
+    z := unknown; // type inference almost working
     
     number := 0;
 
