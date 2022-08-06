@@ -12,7 +12,7 @@ pub struct CPP<'a> {
 impl<'a> CPP<'a> {
     fn get_decl_ty(&self, node: &Node) -> Result<Node> {
         match &node.data {
-            NodeData::Decl(decl) => match decl.ty.deref() {
+            NodeData::Def(decl) => match decl.ty.deref() {
                 Some(ty) => Ok(ty.clone()),
                 None => {
                     println!("type inference shit the bed. {:?}", decl);
@@ -33,17 +33,34 @@ impl<'a> CPP<'a> {
 
         Ok(output.join("\n"))
     }
-    fn repr_fn_def_args(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
+    fn repr_fn_def_args(&self, node_tys: &Vec<Node>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
-            output.push(format!("{} {}", self.repr(&node.1)?, self.repr(&node.0)?));
+            match &node.data {
+                NodeData::Decl(name, ty) => {
+                    output.push(format!("{} {}", self.repr(&ty)?, self.repr(&name)?));
+                }
+
+                _ => {
+                    unreachable!()
+                }
+            }
+
         }
         Ok(output.join(", "))
     }
-    fn repr_struct_fields(&self, node_tys: &Vec<(Node, Node)>) -> Result<String> {
+    fn repr_struct_fields(&self, node_tys: &Vec<Node>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
-            output.push(format!("\t{} {};", self.repr(&node.1)?, self.repr(&node.0)?));
+            match &node.data {
+                NodeData::Decl(name, ty) => {
+                    output.push(format!("\t{} {};", self.repr(&ty)?, self.repr(&name)?));
+                }
+                _ => {
+                    unreachable!();
+                }
+            }
+
         }
         Ok(output.join("\n"))
     }
@@ -130,7 +147,7 @@ impl<'a> CPP<'a> {
             NodeData::Assign(name, val) => {
                 Ok(format!("{} = {}", self.repr(name)?, self.repr(val)?))
             }
-            NodeData::Def(name, ty) => {
+            NodeData::Decl(name, ty) => {
                 Ok(format!("{} {}", self.repr(ty)?, self.repr(name)?))
             }
 
@@ -138,7 +155,7 @@ impl<'a> CPP<'a> {
                 let mut op_name = op_name.clone();
                 if op_name.is_none() {
                     op_name = Some(Box::new(Node {
-                        id: -1,
+                        id: format!("_{}", -1),
                         data: NodeData::TEXT("it".to_string()),
                     }));
                 }
@@ -153,7 +170,7 @@ impl<'a> CPP<'a> {
                 Ok(format!("while ({}) {{\n{}\n}}",  self.repr(cond)?, self.repr_block(body)?))
             }
 
-            NodeData::Decl(decl) => match &decl.expr.deref().data {
+            NodeData::Def(decl) => match &decl.expr.deref().data {
                 NodeData::FnDef(args, ret, block) => Ok(format!(
                     "{} {}({}) {{\n{}\n}}",
                     self.repr(&*ret)?,
@@ -374,7 +391,7 @@ impl<'a> CPP<'a> {
     pub fn generate(&mut self) -> Result<String> {
         let mut out: Vec<String> = vec![];
         for node in self.ast.top_level.iter() {
-            out.push(self.repr(&node)?);
+            out.push(format!("{};", self.repr(&node)?));
         }
         
         Ok(out.join("\n"))

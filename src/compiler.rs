@@ -27,7 +27,7 @@ impl Compiler {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
-        let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
+        let parser = Parser::new_with_tokens(path.to_string(), program.to_string(), tokens)?;
         let ast = parser.get_ast()?;
         Ok(ast)
     }
@@ -35,6 +35,8 @@ impl Compiler {
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         println!("{}", path);
         let main_ast = self.parse_file(path)?;
+
+        println!("main symbol database: {:?}", main_ast.database.data);
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.iter().count() as u64;
         let mut loads = Vec::<String>::new();
