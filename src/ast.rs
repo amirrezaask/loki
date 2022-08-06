@@ -174,15 +174,26 @@ impl SymbolTable {
             }
 
             NodeData::Ident(ref ident) => {
-                // look it up
-                let ty = self.lookup(ident.clone(), file, &scope, Some(idx));
-                if ty.is_none() {
-                    println!("cannot guess {:?} type", def.name);
-                    self.add_def_to_scope(&def.name.get_ident(), None, file, &scope);
-                    return Ok(());
+                if def.ty.is_none() {
+                    // look it up
+                    let ty = self.lookup(ident.clone(), file, &scope, Some(idx));
+                    if ty.is_none() {
+                        println!("cannot guess {:?} type", def.name);
+                        self.add_def_to_scope(&def.name.get_ident(), None, file, &scope);
+                        return Ok(());
+                    }
+                    println!("checking {:?} type guessing this {:?}", def.name.get_ident(), ty);
+                    def.ty = Box::new(Some(ty.clone().unwrap()));
                 }
-                println!("checking {:?} type guessing this {:?}", def.name.get_ident(), ty);
-                def.ty = Box::new(Some(ty.clone().unwrap()));
+                
+            }
+
+            NodeData::FnCall(ref mut proto, _) => {
+                if def.ty.is_none() {
+                    if let NodeData::FnPrototype(_, ref ret) = proto.data {
+                        def.ty = Box::new(Some(ret.deref().clone()));
+                    }
+                }
             }
 
             NodeData::FnDef(ref proto, ref mut body) => {
