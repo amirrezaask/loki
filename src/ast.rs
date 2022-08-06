@@ -1,7 +1,6 @@
-use std::ops::Deref;
+use std::{ops::Deref, collections::HashMap};
 
 use crate::{
-    symbol_table::{self, SymbolTable, SymbolType},
     tokenizer::{Token, Type},
 };
 use anyhow::Result;
@@ -89,15 +88,59 @@ pub enum NodeData {
 
     Return(Box<Node>),
 }
+/*  
+    file(name: string) -> vec<id> (top_levels)
+    def(id) -> expr (id)
+    fn_def(id) -> stmt
+    if(id) -> 
+*/
 
+enum SymbolDatabaseKey {
+    File(String),
+    NodeID(NodeID),
+}
+
+enum SymbolDatabaseTypes {
+    UserDefined(NodeID), //structs, enums, unions, arrays
+    Int,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Int128,
+
+    Uint,
+    Uint8,
+    Uint16,
+    Uint32,
+    Uint64,
+    Uint128,
+
+    Float,
+    Bool,
+    String,
+    Char,
+    Void,
+}
+
+enum SymbolDatabaseValue {
+    Null, // stil not parsed completely
+    Stmts(Vec<NodeID>),
+    Expr(NodeID, Option<SymbolDatabaseTypes>)
+}
+
+pub struct SymbolDatabase {
+    data: HashMap<SymbolDatabaseKey, SymbolDatabaseValue>
+}
+    
 #[derive(Debug, Clone)]
-pub struct AST {
+pub struct Ast {
     pub src: String,
     pub tokens: Vec<Token>,
     pub top_level: Vec<Node>,
 }
 
-impl AST {
+impl Ast {
     pub fn get_src_for_token(&self, tok_idx: usize) -> Result<&str> {
         let src_range = &self.tokens[tok_idx];
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])
@@ -113,134 +156,5 @@ impl AST {
                 unreachable!()
             }
         }
-    }
-
-    fn infer_block_types(st: &SymbolTable, mut block: Vec<Node>) -> Result<Vec<Node>> {
-        for stmt in &mut block {
-            match &stmt.data {
-                NodeData::Decl(decl) => {
-                    let new_decl = Self::infer_decl_types(st, decl.clone())?;
-                    stmt.data = NodeData::Decl(new_decl);
-                }
-                NodeData::If(args, then, _else) => { //TODO handle else
-                    let new_then = Self::infer_block_types(st, *then.clone())?;
-                    stmt.data = NodeData::If(args.clone(), Box::new(new_then), _else.clone());
-                }
-                _ => {}
-            }
-        }
-        Ok(block)
-    }
-
-    fn infer_decl_types(st: &SymbolTable, mut decl: Decl) -> Result<Decl> {
-        match *decl.ty {
-            None => match decl.expr.data {
-                NodeData::FnDef(args, ret, block) => {
-                    let new_block = Self::infer_block_types(st, block.clone())?;
-                    decl.expr.data = NodeData::FnDef(args, ret, new_block);
-
-                    return Ok(decl);
-                }
-                _ => {
-                    let infered_ty = st.lookup_by_id(decl.name.id);
-                    if infered_ty.is_none() {
-                        return Ok(decl);
-                    }
-                    let infered_ty = infered_ty.unwrap();
-                    match &infered_ty.ty {
-                        SymbolType::EnumVariant(_) | SymbolType::StructField(_) => {
-                            unreachable!()
-                        }
-                        SymbolType::Array(size, elem_ty) => {
-                            let size = Node {
-                                id: -1, data: NodeData::Uint(0),
-                            };
-
-                            let elem_ty = Node {
-                                id: -1, data: NodeData::Uint(0), //TODO Fixme
-                            };
-                            
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::ArrayTy(Box::new(size), Box::new(elem_ty)),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::Name(name) => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::TEXT(name.clone()),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::Uint => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::UintTy(0),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::Int => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::IntTy(0),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::Float => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::FloatTy(0),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::Bool => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::BoolTy(0),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::Char => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::CharTy(0),
-                            }));
-                            return Ok(decl);
-                        }
-                        SymbolType::String => {
-                            decl.ty = Box::new(Some(Node {
-                                id: -1,
-                                data: NodeData::StringTy(0),
-                            }));
-                            return Ok(decl);
-                        }
-
-                        SymbolType::Type => {
-                            return Ok(decl);
-                        }
-                    }
-                }
-            },
-
-            _ => {
-                return Ok(decl);
-            }
-        }
-    }
-
-    pub fn infer_types(&mut self, st: &SymbolTable) -> Result<()> {
-        for node in &mut self.top_level {
-            match &node.data {
-                NodeData::Decl(decl) => {
-                    let infered_decl = Self::infer_decl_types(st, decl.clone())?;
-                    node.data = NodeData::Decl(infered_decl);
-                }
-            
-                _ => {}
-            }
-        }
-
-        Ok(())
     }
 }

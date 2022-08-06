@@ -1,13 +1,12 @@
 use crate::code_gen::Backend;
 use crate::code_gen::cpp::CPP;
-use crate::symbol_table::SymbolTable;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::time::Instant;
 
 // compiler that glue all parts together
 use super::parser::Parser;
-use crate::ast::AST;
+use crate::ast::Ast;
 use crate::ast::Node;
 use crate::ast::NodeData;
 use anyhow::Result;
@@ -24,7 +23,7 @@ impl Compiler {
         Self {total_lines: 0 , total_tokens: 0}
     }
 
-    pub fn parse_file(&self, path: &str) -> Result<AST> {
+    pub fn parse_file(&self, path: &str) -> Result<Ast> {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
@@ -33,13 +32,13 @@ impl Compiler {
         Ok(ast)
     }
 
-    pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<AST>> {
+    pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         println!("{}", path);
         let main_ast = self.parse_file(path)?;
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.iter().count() as u64;
         let mut loads = Vec::<String>::new();
-        let mut asts = Vec::<AST>::new();
+        let mut asts = Vec::<Ast>::new();
         
         for node in main_ast.top_level.iter() {
             match node.data {
@@ -74,26 +73,25 @@ impl Compiler {
         let frontend_time_start = Instant::now();
 
         let mut asts = self.get_ast_for(path)?;
-        let st = SymbolTable::new(&asts)?;
         // println!("scoped symbols: {:?}", st.symbols_by_scope);
         // println!("symbols by name: {:?}", st.symbols_by_name);
 
-        println!("Total Symbols processed: {}", st.symbols_by_id.len());
+        // println!("Total Symbols processed: {}", st.symbols_by_id.len());
         let mut codes = Vec::<String>::new();
 
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();
 
-        for ast in asts.iter_mut() {
-            ast.infer_types(&st)?;
-        }
+        // for ast in asts.iter_mut() {
+        //     ast.infer_types(&st)?;
+        // }
         
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();
         for ast in asts.iter() {
-            let mut codegen = CPP::new(&st, &ast);
+            let mut codegen = CPP::new(&ast);
             let code = codegen.generate()?;
             codes.push(code);
         }

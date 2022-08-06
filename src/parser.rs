@@ -1,6 +1,4 @@
-use std::ops::Deref;
-
-use crate::ast::{Decl, Node, NodeData, NodeID, AST};
+use crate::ast::{Decl, Node, NodeData, NodeID, Ast};
 use crate::tokenizer::Token;
 use crate::tokenizer::Tokenizer;
 use crate::tokenizer::Type;
@@ -979,7 +977,7 @@ impl Parser {
         }
     }
 
-    pub fn get_ast(mut self) -> Result<AST> {
+    pub fn get_ast(mut self) -> Result<Ast> {
         let mut top_level = Vec::<Node>::new();
         loop {
             if self.cur >= self.tokens.len() {
@@ -1017,7 +1015,7 @@ impl Parser {
                 }
             }
         }
-        Ok(AST {
+        Ok(Ast {
             src: self.src,
             tokens: self.tokens,
             top_level,

@@ -1,14 +1,12 @@
 use std::ops::Deref;
 
-use super::{Node, NodeData, Repr, AST};
-use crate::symbol_table::SymbolTable;
+use super::{Node, NodeData, Repr, Ast};
 use crate::tokenizer::{Tokenizer, Type};
 use crate::parser::Parser;
 use anyhow::Result;
 
 pub struct CPP<'a> {
-    ast: &'a AST,
-    st: &'a SymbolTable,
+    ast: &'a Ast,
 }
 
 impl<'a> CPP<'a> {
@@ -369,8 +367,8 @@ impl<'a> CPP<'a> {
             }
         }
     }
-    pub fn new(st: &'a SymbolTable, ast: &'a AST) -> Self {
-        Self { st , ast }
+    pub fn new(ast: &'a Ast) -> Self {
+        Self { ast }
     }
 
     pub fn generate(&mut self) -> Result<String> {
@@ -382,173 +380,3 @@ impl<'a> CPP<'a> {
         Ok(out.join("\n"))
     }
 }
-
-#[test]
-fn hello_world() -> Result<()> {
-    let program = "main :: fn() int {\n\tprintf(\"Hello world\");};";
-    let mut tokenizer = Tokenizer::new(program);
-    let tokens = tokenizer.all()?;
-    let mut parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-    let asts = vec![parser.get_ast()?];
-    let st = SymbolTable::new(&asts)?;
-    let mut code_gen = CPP::new(&st, &asts[0]);
-    let code = code_gen.generate()?;
-
-    assert_eq!(
-        "int main() {\n\tprintf(\"Hello world\");\n}",
-        code
-    );
-
-    Ok(())
-}
-
-#[test]
-fn struct_def() -> Result<()> {
-    let program = "S :: struct {
-a: int,
-b: string
-};";
-    let mut tokenizer = Tokenizer::new(program);
-    let tokens = tokenizer.all()?;
-    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-    let asts = vec![parser.get_ast()?];
-    let st = SymbolTable::new(&asts)?;
-    let mut code_gen = CPP::new(&st, &asts[0]);
-    let code = code_gen.generate()?;
-    assert_eq!(
-        "struct S {
-\tint a;
-std::string b;
-};",
-        code
-    );
-
-    Ok(())
-}
-
-// #[test]
-// fn struct_init() -> Result<()> {
-//     let program = "d :Human: { name = \"amirreza\" };";
-//     let mut tokenizer = Tokenizer::new(program);
-//     let tokens = tokenizer.all()?;
-//     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-//     let asts = vec![parser.get_ast()?];
-//     let st = SymbolTable::new(&asts)?;
-//     let mut code_gen = CPP::new(&st, &asts[0]);
-//     let code = code_gen.generate()?;
-
-//     assert_eq!(
-//         "const Human d = {\n.name=\"amirreza\"}",
-//         code
-//     );
-
-//     Ok(())
-// }
-
-#[test]
-fn enum_def() -> Result<()> {
-    let program = "e :: enum {
-a,
-b
-};";
-    let mut tokenizer = Tokenizer::new(program);
-    let tokens = tokenizer.all()?;
-    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-    let asts = vec![parser.get_ast()?];
-    let st = SymbolTable::new(&asts)?;
-    let mut code_gen = CPP::new(&st, &asts[0]);
-    let code = code_gen.generate()?;
-
-    assert_eq!(
-        "enum e {
-\ta,
-b
-};",
-        code
-    );
-
-    Ok(())
-}
-
-#[test]
-fn union_def() -> Result<()> {
-    let program = "e :: enum {
-a(int),
-b
-};";
-    let mut tokenizer = Tokenizer::new(program);
-    let tokens = tokenizer.all()?;
-    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-    let asts = vec![parser.get_ast()?];
-    let st = SymbolTable::new(&asts)?;
-    let mut code_gen = CPP::new(&st, &asts[0]);
-    let code = code_gen.generate()?;
-
-    assert_eq!(
-        "union e {
-\tint a;
-void* b;
-};",
-        code
-    );
-
-    Ok(())
-}
-
-#[test]
-fn hello_world_with_if() -> Result<()> {
-    let program = "main :: fn() int {
-x :: true;
-if (x) {
-\t\tprintf(\"true\");
-} else {
-\t\tprintf(\"false\");
-}
-};";
-    let mut tokenizer = Tokenizer::new(program);
-    let tokens = tokenizer.all()?;
-    let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-    let mut asts = vec![parser.get_ast()?];
-    let st = SymbolTable::new(&asts)?;
-    println!("symbol table: {:?}", st.symbols_by_name);
-    for ast in asts.iter_mut() {
-        ast.infer_types(&st)?;
-    }
-
-    println!("{:?}", asts[0].top_level);
-    let mut code_gen = CPP::new(&st, &asts[0]);
-    let code = code_gen.generate()?;
-
-    assert_eq!(
-        "int main() {
-\tconst bool x = true;
-\tif (x) {
-\tprintf(\"true\");
-\t} else {
-\tprintf(\"false\");
-\t};
-}",
-        code
-    );
-
-    Ok(())
-}
-
-// #[test]
-// fn field_access() -> Result<()> {
-//     let program = "x :int: a.b.c;";
-//     let mut tokenizer = Tokenizer::new(program);
-//     let tokens = tokenizer.all()?;
-//     let parser = Parser::new_with_tokens(program.to_string(), tokens)?;
-//     let asts = vec![parser.get_ast()?];
-//     let st = SymbolTable::new(&asts)?;
-//     let mut code_gen = CPP::new(&st, &asts[0]);
-//     let code = code_gen.generate()?;
-
-//     assert_eq!(
-//         "const int x = a.b.c",
-//         code
-//     );
-
-//     Ok(())
-// }

@@ -3,7 +3,7 @@ mod parser;
 mod tokenizer;
 mod compiler;
 mod ast;
-mod symbol_table;
+// mod symbol_table;
 use anyhow::Result;
 use std::env;
 
