@@ -1,4 +1,4 @@
-use crate::ast::{Def, Node, NodeData, NodeID, Ast};
+use crate::ast::{Def, Node, NodeData, NodeID, Ast, SymbolTable};
 use crate::tokenizer::Token;
 use crate::tokenizer::Tokenizer;
 use crate::tokenizer::Type;
@@ -77,8 +77,9 @@ impl Parser {
     fn expect_ident(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
+                let name = self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
                 self.forward_token();
-                return Ok(self.new_node(NodeData::Ident(self.cur - 1)));
+                return Ok(self.new_node(NodeData::Ident(name)));
             }
             _ => {
                 return Err(self.err_uexpected(Type::Ident));
@@ -131,9 +132,8 @@ impl Parser {
             NodeData::Initialize(op_ty, _) => {
                 if op_ty.is_some() {
                     let type_name =
-                        if let NodeData::Ident(ident_tok_idx) = op_ty.clone().unwrap().data {
-                            let loc = self.tokens[ident_tok_idx].loc;
-                            self.src[loc.0..=loc.1].to_string()
+                        if let NodeData::Ident(ident) = op_ty.clone().unwrap().data {
+                            ident
                         } else {
                             unreachable!()
                         };
@@ -154,24 +154,20 @@ impl Parser {
 
         Ok(())
     }
-    fn expect_decl(&mut self) -> Result<Node> {
+    fn expect_def(&mut self) -> Result<Node> {
         self.expect_token(Type::Ident)?;
 
-        let name = self.cur;
-
-        self.forward_token();
+        let name = self.expect_ident()?;
 
         match self.current_token().ty {
             Type::Equal => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let name = self.new_node(NodeData::Ident(name));
                 Ok(self.new_node(NodeData::Assign(Box::new(name), Box::new(rhs))))
             }
             Type::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let name = self.new_node(NodeData::Ident(name));
                 let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: false,
@@ -183,7 +179,6 @@ impl Parser {
 
             Type::Colon => {
                 self.forward_token();
-                let name = self.new_node(NodeData::Ident(name));
                 let ty = Some(self.expect_expr()?);
                 if ty.is_none() {
                     panic!("need a valid type after colon");
@@ -206,7 +201,6 @@ impl Parser {
             Type::ColonEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let name = self.new_node(NodeData::Ident(name));
                 let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: true,
@@ -256,12 +250,12 @@ impl Parser {
 
         let body = self.expect_block()?;
 
-        Ok(self.new_node(NodeData::FnDef(args, Box::new(ret_ty), body)))
+        let proto = self.new_node(NodeData::FnPrototype(args, Box::new(ret_ty)));
+        Ok(self.new_node(NodeData::FnDef(Box::new(proto), body)))
     }
 
     fn expect_fn_call(&mut self) -> Result<Node> {
-        let name = self.new_node(NodeData::Ident(self.cur));
-        self.forward_token();
+        let name = self.expect_ident()?;
         self.expect_token(Type::OpenParen)?;
         let mut args = Vec::<Node>::new();
 
@@ -569,7 +563,9 @@ impl Parser {
                         self.expect_fn_call()
                     }
                     _ => {
-                        return Ok(self.new_node(NodeData::Ident(self.cur - 1)));
+                        self.backward_token();
+                        let name = self.expect_ident()?;
+                        return Ok(name);
                             
                     },
                 }
@@ -747,7 +743,7 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<Node> {
-        let start = self.expect_decl()?;
+        let start = self.expect_def()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
         self.expect_semicolon_and_forward()?;
@@ -796,7 +792,7 @@ impl Parser {
                 let next_tok = self.cur + 1;
                 match self.tokens[next_tok].ty {
                     Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => {
-                        let decl = self.expect_decl()?;
+                        let decl = self.expect_def()?;
                         self.expect_semicolon_and_forward()?;
                         return Ok(decl);
                     }
@@ -847,7 +843,7 @@ impl Parser {
                     }
                     Type::DoublePlus => {
                         let lhs = self.expect_ident()?;
-                        self.forward_token();
+                        self.forward_token(); // skip ++
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
                         let inner =
                             self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
@@ -855,7 +851,7 @@ impl Parser {
                     }
                     Type::DoubleMinus => {
                         let lhs = self.expect_ident()?;
-                        self.forward_token();
+                        self.forward_token(); // skip ++
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
                         let inner =
                             self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
@@ -913,7 +909,7 @@ impl Parser {
                 let starting_inside_paren = self.cur;
                 let before_node_counter = self.node_counter;
 
-                if self.expect_decl().is_ok() {
+                if self.expect_def().is_ok() {
                     self.node_counter = before_node_counter;
                     self.cur = starting_inside_paren;
                     return self.expect_for_c();
@@ -985,7 +981,7 @@ impl Parser {
         }
     }
 
-    pub fn get_ast(mut self) -> Result<Ast> {
+    pub fn get_ast(mut self, st: &mut SymbolTable) -> Result<Ast> {
         let mut top_level = Vec::<Node>::new();
         loop {
             if self.cur >= self.tokens.len() {
@@ -1013,7 +1009,7 @@ impl Parser {
                     top_level.push(self.new_node(NodeData::Host(path)));
                 }
                 Type::Ident => {
-                    let decl = self.expect_decl()?;
+                    let decl = self.expect_def()?;
                     self.expect_semicolon_and_forward()?;
                     top_level.push(decl);
                 }
@@ -1023,431 +1019,6 @@ impl Parser {
                 }
             }
         }
-        println!("nodes generated: {}", self.node_counter);
-        Ok(Ast::new(self.filename, self.src, self.tokens, top_level)?)
+        Ok(Ast::new(self.filename, self.src, self.tokens, top_level, st)?)
     }
 }
-
-#[test]
-fn load_directive() -> Result<()> {
-    let parser = Parser::new("".to_string(), "#load \"base.loki\";")?;
-    let ast = parser.get_ast()?;
-    if let NodeData::Load(path) = &ast.top_level[0].data {
-        assert_eq!(*path, 1);
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-#[test]
-fn host_directive() -> Result<()> {
-    let parser = Parser::new("#host \"net/http\";")?;
-    let ast = parser.get_ast()?;
-    if let NodeData::Host(path) = &ast.top_level[0].data {
-        assert_eq!(*path, 1);
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-#[test]
-fn const_decl_expr_uint() -> Result<()> {
-    let mut parser = Parser::new("a :: 4;")?;
-    let ast = parser.get_ast()?;
-    println!("here: {:?}", ast.top_level[0]);
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::Uint(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-#[test]
-fn const_decl_expr_bool_true() -> Result<()> {
-    let mut parser = Parser::new("a :: true;")?;
-    let ast = parser.get_ast()?;
-    println!("here: {:?}", ast.top_level[0]);
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::True(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-#[test]
-fn const_decl_expr_bool_false() -> Result<()> {
-    let mut parser = Parser::new("a :: false;")?;
-    let ast = parser.get_ast()?;
-    println!("here: {:?}", ast.top_level[0]);
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::False(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-#[test]
-fn const_decl_expr_ident() -> Result<()> {
-    let mut parser = Parser::new("a :: b;")?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::Ident(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-// #[test] TODO FIXME
-// fn const_decl_expr_field_access() -> Result<()> {
-//     let mut parser = Parser::new("a :: b.c;")?;
-//     let ast = parser.get_ast()?;
-
-//     if let NodeData::Decl(decl) = &ast.top_level[0].data {
-//         assert_eq!(decl.mutable, false);
-//         assert_eq!(decl.name.data, NodeData::Ident(0));
-//         assert_eq!(
-//             decl.expr.data,
-//             NodeData::FieldAccess(vec![Node::Ident(2), Node::Ident(4)])
-//         );
-//     } else {
-//         panic!()
-//     }
-
-//     Ok(())
-// }
-
-#[test]
-fn const_decl_expr_char() -> Result<()> {
-    let mut parser = Parser::new("a :: 'a';")?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        println!("char node: {:?}", decl.expr);
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::Char(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-// #[test] TODO FIXME
-// fn const_decl_expr_fn_def() -> Result<()> {
-//     let mut parser = Parser::new("main :: fn() void {\n\tprintf(\"Hello World\");};")?;
-//     let ast = parser.get_ast()?;
-
-//     if let Node::Decl(decl) = &ast.top_level[0] {
-//         assert_eq!(decl.mutable, false);
-//         assert_eq!(decl.name, Box::new(Node::Ident(0)));
-//         assert_eq!(
-//             decl.expr,
-//             Box::new(Node::FnDef(
-//                 Vec::new(),
-//                 Box::new(Node::VoidTy(5)),
-//                 vec![Node::FnCall(
-//                     Box::new(Node::Ident(7)),
-//                     vec![Node::StringLiteral(9)]
-//                 )]
-//             ))
-//         );
-//     } else {
-//         panic!()
-//     }
-
-//     Ok(())
-// }
-
-#[test]
-fn for_c() -> Result<()> {
-    let mut parser = Parser::new("for (i:=0;i<10;i++)")?;
-    let ast = parser.expect_stmt()?;
-    println!("{:?}", ast);
-    panic!("");
-    Ok(())
-}
-
-#[test]
-fn const_decl_expr_string() -> Result<()> {
-    let mut parser = Parser::new("a :: \"Amirreza\";")?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::StringLiteral(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-// #[test] TODO FIXME
-// fn const_decl_expr_struct() -> Result<()> {
-//     let parser = Parser::new("a :: struct { i: int, f: string };")?;
-//     let ast = parser.get_ast()?;
-
-//     if let NodeData::Decl(decl) = &ast.top_level[0].data {
-//         assert_eq!(decl.mutable, false);
-//         assert_eq!(decl.name.data, NodeData::Ident(0));
-//         assert_eq!(
-//             decl.expr,
-//             Box::new(NodeData::Struct(vec![
-//                 (Node::Ident(4), Node::IntTy(6)),
-//                 (Node::Ident(8), Node::StringTy(10))
-//             ]))
-//         );
-//     } else {
-//         panic!()
-//     }
-
-//     Ok(())
-// }
-
-#[test]
-fn const_decl_expr_float() -> Result<()> {
-    let mut parser = Parser::new("a :: 2.2;")?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        assert_eq!(decl.mutable, false);
-        assert_eq!(decl.name.data, NodeData::Ident(0));
-        assert_eq!(decl.expr.data, NodeData::Float(2));
-    } else {
-        panic!()
-    }
-
-    Ok(())
-}
-
-// #[test] TODO FIXME
-// fn const_decl_struct_init() -> Result<()> {
-//     let mut parser = Parser::new(
-//         "
-// s :: S{
-//     id = 1,
-// };
-// ",
-//     )?;
-//     let ast = parser.get_ast()?;
-
-//     if let NodeData::Decl(decl) = &ast.top_level[0] {
-//         assert_eq!(
-//             *decl,
-//             Decl {
-//                 mutable: false,
-//                 name: Box::new(Node::Ident(0)),
-//                 ty: Box::new(None),
-//                 expr: Box::new(Node::TypeInit(
-//                     Some(Box::new(Node::Ident(2))),
-//                     vec![(Node::Ident(4), Node::Uint(6))]
-//                 ))
-//             }
-//         )
-//     } else {
-//         panic!()
-//     }
-//     Ok(())
-// }
-
-// #[test] TODO FIXME
-// fn const_decl_struct_init_infer() -> Result<()> {
-//     let mut parser = Parser::new(
-//         "
-// s :S: {
-//     id = 1,
-// };
-// ",
-//     )?;
-//     let ast = parser.get_ast()?;
-
-//     if let Node::Decl(decl) = &ast.top_level[0] {
-//         assert_eq!(
-//             *decl,
-//             Decl {
-//                 mutable: false,
-//                 name: Box::new(Node::Ident(0)),
-//                 ty: Box::new(Some(Node::Ident(2))),
-//                 expr: Box::new(Node::TypeInit(None, vec![(Node::Ident(5), Node::Uint(7))]))
-//             }
-//         )
-//     } else {
-//         panic!()
-//     }
-//     Ok(())
-// }
-#[test]
-fn var_decl_inside_function() -> Result<()> {
-    let parser = Parser::new(
-        "main :: fn() int {
-a := true;
-};",
-    )?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-    } else {
-        panic!()
-    }
-    Ok(())
-}
-
-#[test]
-fn const_decl_fn_with_if() -> Result<()> {
-    let mut parser = Parser::new(
-        "main :: fn() int {
-if (true) {
-\t\tprintf(\"Hello\");
-}
-\treturn 0;
-};",
-    )?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-    } else {
-        panic!()
-    }
-    Ok(())
-}
-
-#[test]
-fn const_decl_struct_init_program() -> Result<()> {
-    let mut parser = Parser::new(
-        "main :: fn() int {
-s :: S{
-id = 1,
-};
-};",
-    )?;
-    let ast = parser.get_ast()?;
-
-    if let NodeData::Def(decl) = &ast.top_level[0].data {
-        println!("{:?}", decl)
-    } else {
-        panic!()
-    }
-    Ok(())
-}
-
-// #[test] TODO FIXME
-// fn const_decl_expr_enum() -> Result<()> {
-//     let mut parser = Parser::new(
-//         "e :: enum {
-// a,
-// b
-// };",
-//     )?;
-//     let ast = parser.get_ast()?;
-
-//     if let NodeData::Decl(decl) = &ast.top_level[0].data {
-//         assert_eq!(decl.mutable, false);
-//         assert_eq!(decl.name, Box::new(Node::Ident(0)));
-//         assert_eq!(
-//             decl.expr,
-//             Box::new(Node::Enum(
-//                 false,
-//                 vec![(Node::Ident(4), None), (Node::Ident(6), None)]
-//             ))
-//         )
-//     } else {
-//         panic!()
-//     }
-
-//     Ok(())
-// }
-
-// #[test] TODO FIXME
-// fn const_decl_expr_union() -> Result<()> {
-//     let parser = Parser::new(
-//         "e :: enum {
-// a,
-// b(bool)
-// };",
-//     )?;
-//     let ast = parser.get_ast()?;
-
-//     if let Node::Decl(decl) = &ast.top_level[0] {
-//         assert_eq!(decl.mutable, false);
-//         assert_eq!(decl.name, Box::new(Node::Ident(0)));
-//         assert_eq!(
-//             decl.expr,
-//             Box::new(Node::Enum(
-//                 true,
-//                 vec![
-//                     (Node::Ident(4), None),
-//                     (Node::Ident(6), Some(Node::BoolTy(8)))
-//                 ]
-//             ))
-//         )
-//     } else {
-//         panic!()
-//     }
-
-//     Ok(())
-// }
-
-// #[test] TODO FIXME
-// fn expr_recursive_field_access() -> Result<()> {
-//     let mut parser = Parser::new("a.b.c.d.f;")?;
-//     let expr = parser.expect_expr()?;
-
-//     assert_eq!(
-//         Node::FieldAccess(vec![
-//             Node::Ident(0),
-//             Node::Ident(2),
-//             Node::Ident(4),
-//             Node::Ident(6),
-//             Node::Ident(8),
-//         ]),
-//         expr
-//     );
-
-//     Ok(())
-// }
-
-// #[test]
-// fn expr_ref() -> Result<()> {
-//     let mut parser = Parser::new("&a;")?;
-//     let expr = parser.expect_expr()?;
-
-//     assert_eq!(NodeData::Ref(Box::new(Node::Ident(1))), expr.data);
-
-//     Ok(())
-// }
-
-// #[test]
-// fn expr_deref() -> Result<()> {
-//     let mut parser = Parser::new("*a;")?;
-//     let expr = parser.expect_expr()?;
-
-//     assert_eq!(Node::Deref(Box::new(Node::Ident(1))), expr);
-
-//     Ok(())
-// }

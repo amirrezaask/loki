@@ -6,7 +6,7 @@ use std::time::Instant;
 
 // compiler that glue all parts together
 use super::parser::Parser;
-use crate::ast::Ast;
+use crate::ast::{Ast, SymbolTable};
 use crate::ast::Node;
 use crate::ast::NodeData;
 use anyhow::Result;
@@ -16,19 +16,20 @@ use std::process::Command;
 pub struct Compiler {
     total_lines: u64,
     total_tokens: u64,
+    st: SymbolTable,
 }
 
 impl Compiler {
     pub fn new() -> Self {
-        Self {total_lines: 0 , total_tokens: 0}
+        Self {total_lines: 0 , total_tokens: 0, st: SymbolTable::new()}
     }
 
-    pub fn parse_file(&self, path: &str) -> Result<Ast> {
+    pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
         let parser = Parser::new_with_tokens(path.to_string(), program.to_string(), tokens)?;
-        let ast = parser.get_ast()?;
+        let ast = parser.get_ast(&mut self.st)?;
         Ok(ast)
     }
 
@@ -36,7 +37,6 @@ impl Compiler {
         println!("{}", path);
         let main_ast = self.parse_file(path)?;
 
-        println!("main symbol database: {:?}", main_ast.database.data);
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.iter().count() as u64;
         let mut loads = Vec::<String>::new();
@@ -75,11 +75,8 @@ impl Compiler {
         let frontend_time_start = Instant::now();
 
         let mut asts = self.get_ast_for(path)?;
-        // println!("scoped symbols: {:?}", st.symbols_by_scope);
-        // println!("symbols by name: {:?}", st.symbols_by_name);
-
-        // println!("Total Symbols processed: {}", st.symbols_by_id.len());
         let mut codes = Vec::<String>::new();
+        println!("{:?}", self.st.file_scope_defs);
 
         let frontend_elapsed = frontend_time_start.elapsed();
 

@@ -7,88 +7,79 @@
 /*
    This is also a comment
 */
+// Human :: struct {
+//     age: int,
+//     name: string,
+// };
 
-Human :: struct {
-    age: int,
-    name: string,
-};
-
-/* Result :: enum { */
-/*     Ok(int), */
-/*     Err(string), */
-/* }; */
-
-/* ResultSimple :: enum { */
-/*     Ok, */
-/*     Err, */
-/* }; */
-a :: 2;
-sum :: fn(a: int, b: int) int {};
 main :: fn() int {
-/*     number := 0; */
-
-    // number++;
-    // number--;
-
-    // number+=10;
-    // number-=3;
-    // number*=2;
-    // number/=3;
-    // number%=1;
+    unknown := 1;
+    z := unknown;
     
-    // b := true;
+    number := 0;
+
+    number++;
+    number--;
+
+    number+=10;
+    number-=3;
+    number*=2;
+    number/=3;
+    number%=1;
     
-    // c :: 'c';
+    b := true;
     
-    // s :: "Amirreza";
-
-    // a: bool;
-    // a = true;
-
-    // amirreza :: Human {
-    //     age = 24,
-    //     name = "amirreza",
-    // };
-
-    // parsa : Human : .{
-    //     age = 17,
-    //     name = "parsa",
-    // };
-
-    // printf("amirreza age is %d\n", amirreza.age);
-    // printf("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
-    // printf("parsa age is %d\n", parsa.age);
-
-
-    // counter := 0;
-    // while (counter < 10) {
-    //     printf("while loop using counter: %d\n", counter);
-    //     counter++;
-    // }
-
-    // for (i:=0;i<10;i++) {
-    //     printf("for c syntax: %d\n", i);
-    // }
-
-    // numbers := [10]uint{1, 2, 3, 4};
-    // for (num in numbers) {
-    //     printf("for each syntax: %d\n", num);
-    // }
-    // humans := [3]Human {amirreza, parsa, Human { age = 17, name = "comrade" }};
-    // for (humans) {
-    //     printf("for each syntax: %d\n", it.age);
-    // }
+    c :: 'c';
     
-    // for (numbers) {
-    //     printf("for each syntax: %d\n", it);
-    // }
+    s :: "Amirreza";
 
-    // if (b) {
-    //     printf("b1 is true\n");
-    // }
-    // else {
-    //     printf("b1 is false\n");
-    // }
+    a: bool;
+    a = true;
 
-/*     return 0; */
+    amirreza :: Human {
+        age = 24,
+        name = "amirreza",
+    };
+
+    parsa : Human : .{
+        age = 17,
+        name = "parsa",
+    };
+
+    printf("amirreza age is %d\n", amirreza.age);
+    printf("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
+    printf("parsa age is %d\n", parsa.age);
+
+
+    counter := 0;
+    while (counter < 10) {
+        printf("while loop using counter: %d\n", counter);
+        counter++;
+    }
+
+    for (i:=0;i<10;i++) {
+        printf("for c syntax: %d\n", i);
+    }
+
+    numbers := [10]uint{1, 2, 3, 4};
+    for (num in numbers) {
+        printf("for each syntax: %d\n", num);
+    }
+    humans := [3]Human {amirreza, parsa, Human { age = 17, name = "comrade" }};
+    for (humans) {
+        printf("for each syntax: %d\n", it.age);
+    }
+    
+    for (numbers) {
+        printf("for each syntax: %d\n", it);
+    }
+
+    if (b) {
+        printf("b1 is true\n");
+    }
+    else {
+        printf("b1 is false\n");
+    }
+
+    return 0;
 };

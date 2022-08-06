@@ -62,7 +62,7 @@ pub enum NodeData {
     True(TokenIndex),
     False(TokenIndex),
     Char(TokenIndex),
-    Ident(TokenIndex),
+    Ident(String),
     TEXT(String),
     Sum(Box<Node>, Box<Node>),
     Subtract(Box<Node>, Box<Node>),
@@ -70,7 +70,8 @@ pub enum NodeData {
     Div(Box<Node>, Box<Node>),
     Mod(Box<Node>, Box<Node>),
     ContainerField(Box<Node>, Box<Node>),
-    FnDef(Vec<Node>, Box<Node>, Vec<Node>),
+    FnPrototype(Vec<Node>, Box<Node>),
+    FnDef(Box<Node>, Vec<Node>),
     FnCall(Box<Node>, Vec<Node>),
     If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
     Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
@@ -87,123 +88,118 @@ pub enum NodeData {
     Return(Box<Node>),
 }
 
-fn extract_decl(node: &Node) -> (Box<Node>, Box<Node>) {
-    match &node.data {
-        NodeData::Decl(lhs, rhs) => {
-            return (lhs.clone(), rhs.clone())
-        }
-
-        _ => {
+impl Node {
+    pub fn get_ident(&self)-> String {
+        if let NodeData::Ident(ident) = &self.data {
+            return ident.to_string();
+        } else {
             unreachable!()
         }
     }
 }
-/*
-    file(name: string) -> vec<id> (top_levels)
-    def(id) -> expr (id)
-    fn_def(id) -> stmt
-    if(id) ->
-*/
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub enum SymbolDatabaseKey {
-    File(String),
-    NodeID(NodeID),
-}
+
+type File = String;
+type Scope = Vec<usize>;
+type Name = String;
 
 #[derive(Debug, Clone)]
-enum SymbolDatabaseTypes {
-    StructUserDefined(NodeID), //structs, enums, unions, arrays
-    Int,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    Int128,
-
-    Uint,
-    Uint8,
-    Uint16,
-    Uint32,
-    Uint64,
-    Uint128,
-
-    Float,
-    Bool,
-    String,
-    Char,
-    Void,
+pub struct SymbolTable {
+    pub file_scopes: HashMap<File, Scope>,
+    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, Option<Node>)>>
 }
-
-impl SymbolDatabaseTypes {
-    pub fn from_def(node: &Node) -> SymbolDatabaseTypes {
-        match node.data {
-            NodeData::UintTy(_) => SymbolDatabaseTypes::Uint,
-            NodeData::Uint8Ty(_) => SymbolDatabaseTypes::Uint8,
-            NodeData::Uint16Ty(_) => SymbolDatabaseTypes::Uint16,
-            NodeData::Uint32Ty(_) => SymbolDatabaseTypes::Uint32,
-            NodeData::Uint64Ty(_) => SymbolDatabaseTypes::Uint64,
-            NodeData::Uint128Ty(_) => SymbolDatabaseTypes::Uint128,
-            NodeData::IntTy(_) => SymbolDatabaseTypes::Int,
-            NodeData::Int8Ty(_) => SymbolDatabaseTypes::Int8,
-            NodeData::Int16Ty(_) => SymbolDatabaseTypes::Int16,
-            NodeData::Int32Ty(_) => SymbolDatabaseTypes::Int32,
-            NodeData::Int64Ty(_) => SymbolDatabaseTypes::Int64,
-            NodeData::Int128Ty(_) => SymbolDatabaseTypes::Int128,
-            NodeData::CharTy(_) => SymbolDatabaseTypes::Char,
-            NodeData::Float(_) => SymbolDatabaseTypes::Float,
-            NodeData::BoolTy(_) => SymbolDatabaseTypes::Bool,
-            NodeData::StringTy(_) => SymbolDatabaseTypes::String,
-            NodeData::Uint(_) => SymbolDatabaseTypes::Uint,
-            NodeData::Int(_) => SymbolDatabaseTypes::Int,
-
-            _ => {
-                println!("cannot handle from( {:?} ) to symbol database type", node);
-                unreachable!()
-            }
+impl SymbolTable {
+    fn add_def_to_scope(&mut self, name: &str, ty: Option<Node>, file: &File, scope: &Scope) {
+        if self.file_scope_defs.contains_key(&(file.to_string(), scope.clone())) {
+            let val = self.file_scope_defs.get_mut(&(file.to_string(), scope.clone()));
+            val.unwrap().push((name.to_string(), ty.clone()));
+        } else {
+            self.file_scope_defs.insert((file.to_string(), scope.clone()), vec![(name.to_string(), ty.clone())]);
         }
     }
-}
+    pub fn new() -> Self {
+        Self { file_scopes:HashMap::new(), file_scope_defs: HashMap::new() }
+    }
 
-#[derive(Debug, Clone)]
-pub enum SymbolDatabaseValue {
-    Null,                                      // stil not parsed completely
-    TopLevels(Vec<NodeID>),                    // just for files.
-    Stmts(Vec<NodeID>),                        // for functions, if, for, while, switch
-    Expr(NodeID, Option<SymbolDatabaseTypes>), // for definitions
-    Struct(Vec<NodeID>),
-    Decl(NodeID, SymbolDatabaseTypes),
-    FnDef(Vec<NodeID>, SymbolDatabaseTypes, Vec<NodeID>)
-}
-
-impl SymbolDatabaseValue {
-    pub fn addIfTopLevel(&mut self, id: NodeID) {
-        match self {
-            Self::TopLevels(v) => {
-                v.push(id);
-            }
-            _ => {
-                println!(
-                    "trying to add top level but value is not top level. {:?}",
-                    self
-                );
-                unreachable!()
+    fn lookup(&self, name: Name, file: &File, scope: &Scope, less_than_this: Option<usize>) -> Option<Node> {
+        let defs = self.file_scope_defs.get(&(file.clone(), scope.clone())).unwrap();
+        for (idx,def) in defs.iter().enumerate() {
+            if def.0 == name.to_string() {
+                if less_than_this.is_some() {
+                    if idx > less_than_this.unwrap() {
+                        return def.1.clone();
+                    }
+                }
+                return def.1.clone();
             }
         }
-    }
-}
 
-#[derive(Debug, Clone)]
-pub struct SymbolDatabase {
-    pub data: HashMap<SymbolDatabaseKey, SymbolDatabaseValue>,
-}
+        None
+    }
 
-impl SymbolDatabase {
-    pub fn add(&mut self, key: SymbolDatabaseKey, value: SymbolDatabaseValue) {
-        self.data.insert(key, value);
+    fn lookup_pos(&self, name: Name, file: &File, scope: &Scope) -> Option<usize> {
+        let defs = self.file_scope_defs.get(&(file.clone(), scope.clone())).unwrap();
+        for (idx, def) in defs.iter().enumerate() {
+            if def.0 == name {
+                return Some(idx);
+            }
+        }
+
+        None
     }
-    pub fn get_mut(&mut self, key: &SymbolDatabaseKey) -> Option<&mut SymbolDatabaseValue> {
-        return self.data.get_mut(key);
+
+    fn fill_for_block(&mut self, file: &File, block: &mut Vec<Node>, scope: &Scope) -> Result<()> {
+        for (idx, node) in block.iter_mut().enumerate() {
+            match node.data {
+                NodeData::Def(ref mut def) => {
+                    self.fill_for_def(file, def, scope.to_vec(), idx)?;
+                }
+                
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
+
+    fn fill_for_def(&mut self, file: &File, def: &mut Def, scope: Scope, idx: usize) -> Result<()> {
+        match def.expr.data {
+            NodeData::Uint(_) |
+            NodeData::Int(_) |
+            NodeData::Char(_) |
+            NodeData::True(_) | 
+            NodeData::False(_) |
+            NodeData::Float(_) |
+            NodeData::StringLiteral(_) => {
+                self.add_def_to_scope(&def.name.get_ident(), def.ty.deref().clone(), file, &scope)
+            }
+
+            NodeData::Ident(ref ident) => {
+                // look it up
+                let ty = self.lookup(ident.clone(), file, &scope, Some(idx));
+                if ty.is_none() {
+                    println!("cannot guess {:?} type", def.name);
+                    self.add_def_to_scope(&def.name.get_ident(), None, file, &scope);
+                    return Ok(());
+                }
+                println!("checking {:?} type guessing this {:?}", def.name.get_ident(), ty);
+                def.ty = Box::new(Some(ty.clone().unwrap()));
+            }
+
+            NodeData::FnDef(ref proto, ref mut body) => {
+                let mut new_scope = scope.clone();
+                new_scope.push(idx);
+                self.add_def_to_scope(&def.name.get_ident(), Some(*proto.clone()), file, &new_scope);
+                self.fill_for_block(file, body, &new_scope)?;
+            }
+
+            _ => {}
+
+        }
+
+        Ok(())
+    }
+
+
 }
 
 #[derive(Debug, Clone)]
@@ -212,7 +208,6 @@ pub struct Ast {
     pub src: String,
     pub tokens: Vec<Token>,
     pub top_level: Vec<Node>,
-    pub database: SymbolDatabase,
 }
 
 impl Ast {
@@ -221,103 +216,32 @@ impl Ast {
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])
     }
 
-    pub fn get_name_for_ident(&self, node: Node) -> Result<&str> {
-        match node.data {
-            NodeData::Ident(ident) => {
-                return self.get_src_for_token(ident);
-            }
-
-            _ => {
-                unreachable!()
+    pub fn add(&mut self, st: &mut SymbolTable, filename: &str, src: &str, tokens: &Vec<Token>) -> Result<()> {
+        let file = filename.to_string();
+        for (idx, node) in self.top_level.iter_mut().enumerate() {
+            if let NodeData::Def(ref mut def) = node.data {
+                st.fill_for_def(&file, def, vec![], idx)?;
             }
         }
+
+        Ok(())
     }
+    
 
     pub fn new(
         filename: String,
         src: String,
         tokens: Vec<Token>,
-        top_level: Vec<Node>,
+        mut top_level: Vec<Node>,
+        st: &mut SymbolTable,
     ) -> Result<Self> {
-        let db = Self::create_symbol_database(filename.clone(), &src, &tokens, &top_level)?;
-        Ok(Self {
-            filename,
-            src,
-            tokens,
+        let mut ast = Self {
+            filename: filename.clone(),
+            src: src.clone(),
+            tokens: tokens.clone(),
             top_level,
-            database: db,
-        })
-    }
-
-    pub fn create_symbol_database(
-        filename: String,
-        src: &str,
-        tokens: &Vec<Token>,
-        top_level: &Vec<Node>,
-    ) -> Result<SymbolDatabase> {
-        let mut sd = SymbolDatabase {
-            data: HashMap::new(),
         };
-        // addin file as it's own entry.
-        sd.add(
-            SymbolDatabaseKey::File(filename.clone()),
-            SymbolDatabaseValue::TopLevels(vec![]),
-        );
-
-        for node in top_level {
-            let mut file_top_levels = sd
-                .get_mut(&SymbolDatabaseKey::File(filename.clone()))
-                .unwrap();
-            file_top_levels.addIfTopLevel(node.id.clone());
-            println!("got node: {:?}", node);
-            match &node.data {
-                NodeData::Def(def) => match &def.expr.data {
-                    NodeData::Uint(_)
-                    | NodeData::Int(_)
-                    | NodeData::Float(_)
-                    | NodeData::BoolTy(_)
-                    | NodeData::CharTy(_)
-                    | NodeData::StringTy(_) => sd.add(
-                        SymbolDatabaseKey::NodeID(node.id.clone()),
-                        SymbolDatabaseValue::Expr(
-                            def.expr.id.clone(),
-                            Some(SymbolDatabaseTypes::from_def(&def.expr)),
-                        ),
-                    ),
-
-                    NodeData::Struct(fields) => {
-                        let mut struct_field_ids = Vec::<NodeID>::new();
-                        for f in fields {
-                            struct_field_ids.push(f.id.clone());
-                            let decl = extract_decl(f);
-                            sd.add(SymbolDatabaseKey::NodeID(f.id.clone()), SymbolDatabaseValue::Decl(decl.0.id, SymbolDatabaseTypes::from_def(&decl.1)));
-                        }
-                        sd.add(
-                            SymbolDatabaseKey::NodeID(node.id.clone()),
-                            SymbolDatabaseValue::Struct(struct_field_ids),
-
-                        );
-
-                    }
-
-                    NodeData::FnDef(args, ret, body) => {
-                        let mut arg_ids = Vec::<NodeID>::new();
-                        for f in args {
-                            arg_ids.push(f.id.clone());
-                            let decl = extract_decl(f);
-                            sd.add(SymbolDatabaseKey::NodeID(f.id.clone()), SymbolDatabaseValue::Decl(decl.0.id, SymbolDatabaseTypes::from_def(&decl.1)));
-                        }
-                        sd.add(SymbolDatabaseKey::NodeID(node.id.clone()), SymbolDatabaseValue::FnDef(arg_ids, SymbolDatabaseTypes::from_def(ret), vec![]));
-                    }
-
-
-                    _ => {}
-                },
-
-                _ => {}
-            }
-        }
-
-        Ok(sd)
+        ast.add(st, &filename, &src, &tokens)?;
+        Ok(ast)
     }
 }

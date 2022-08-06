@@ -171,13 +171,16 @@ impl<'a> CPP<'a> {
             }
 
             NodeData::Def(decl) => match &decl.expr.deref().data {
-                NodeData::FnDef(args, ret, block) => Ok(format!(
-                    "{} {}({}) {{\n{}\n}}",
-                    self.repr(&*ret)?,
-                    self.repr(&*decl.name)?,
-                    self.repr_fn_def_args(&args)?,
-                    self.repr_block(&block)?,
-                )),
+                NodeData::FnDef(proto, block) => 
+                    if let NodeData::FnPrototype(args, ret) = &proto.data {
+                        Ok(format!("{} {}({}) {{\n{}\n}}",
+                        self.repr(&*ret)?,
+                        self.repr(&*decl.name)?,
+                        self.repr_fn_def_args(&args)?,
+                        self.repr_block(&block)?,))
+                    } else {
+                        unreachable!()
+                    }
 
                 NodeData::InitializeArray(ty, elems) => {
                     if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
@@ -316,7 +319,7 @@ impl<'a> CPP<'a> {
             NodeData::True(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
             NodeData::False(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
             NodeData::Char(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            NodeData::Ident(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::Ident(s) => Ok(s.clone()),
             NodeData::TEXT(s) => Ok(format!("{}", s)),
 
             // keywords
@@ -352,7 +355,7 @@ impl<'a> CPP<'a> {
             NodeData::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::ContainerField(container, field) => Ok(format!("{}.{}", self.repr(&container)?, self.repr(field)?)),
             NodeData::Cmp(op, lhs, rhs) => Ok(format!("{} {} {}", self.repr(lhs)?, self.repr_operator(op)?, self.repr(rhs)?)),
-            NodeData::FnDef(_, _, _) => {
+            NodeData::FnDef(_, _) => {
                 unreachable!();
             }
 
