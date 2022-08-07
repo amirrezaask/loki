@@ -25,5 +25,5 @@ graph TD
 - control flows ( if , for , while )
 - file loading ( in a good way :)) )
 - type inference ( cannot handle circular dependency but that's all go has anyway so I think good enough )
-- loading C headers and using them ( that's how our print works )
+- loading C headers and using them ( look into samples/ncurses.loki that uses ncurses library )
 - CPP codegen
