@@ -19,3 +19,11 @@ graph TD
     B[Parser] --> |Produces AST| C[Semantic Analyzer/Type Inference]
     C --> |AST| D[Target Code Generator]                    
 ```
+
+## Features so far
+- functions ( local functions / closures WIP )
+- control flows ( if , for , while )
+- file loading ( in a good way :)) )
+- type inference ( cannot handle circular dependency but that's all go has anyway so I think good enough )
+- loading C headers and using them ( that's how our print works )
+- CPP codegen

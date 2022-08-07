@@ -14,8 +14,6 @@ Human :: struct {
 
 unknown :: 1;
 
-
-
 main :: fn() int {
     z := unknown;
 
