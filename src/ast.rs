@@ -23,6 +23,7 @@ pub struct Node {
 #[derive(Debug, PartialEq, Clone)]
 pub enum NodeData {
     //top level items
+    C_CompilerFlag(TokenIndex),
     Load(TokenIndex),
     Host(TokenIndex),
     Def(Def),
@@ -302,6 +303,19 @@ pub struct Ast {
 }
 
 impl Ast {
+    pub fn get_compiler_flags(&self) -> Vec<String> {
+        let mut flags = Vec::<String>::new();
+        for node in self.top_level.iter() {
+            match node.data {
+                NodeData::C_CompilerFlag(flag) => {
+                    flags.push(self.get_src_for_token(flag).unwrap().to_string());
+                }
+                _ => {
+                }
+            }
+        }
+        return flags;
+    }
     pub fn get_src_for_token(&self, tok_idx: usize) -> Result<&str> {
         let src_range = &self.tokens[tok_idx];
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])

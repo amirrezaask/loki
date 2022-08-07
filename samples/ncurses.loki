@@ -1,0 +1,18 @@
+#load "base.loki";
+#host "ncurses.h";
+#c_compiler_flag "-lncurses";
+
+WELCOME :: "welcome to space invaders";
+PLAYER_SHIP :: "YOUR SHIP";
+YOU_WON :: "YOU WON, NICE JOB";
+YOU_LOST :: "GET GOOOD PLS";
+ENEMY1_SHIP :: "@@";
+ROCKET :: "^";
+KEY_SPACE :: ' ';
+KEYCODE_EXIT :: 'q';
+
+main :: fn() int {
+    initscr();
+    addstr("Welcome to loki program");
+    getch();
+};

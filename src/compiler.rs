@@ -85,7 +85,6 @@ impl Compiler {
         for ast in asts.iter_mut() {
             ast.add(&mut self.st, &ast.filename.clone(), &ast.src.clone(), &ast.tokens.clone())?;
         }
-        println!("symbol table should be complete: {:?}", self.st);        
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();
@@ -93,6 +92,10 @@ impl Compiler {
             let mut codegen = CPP::new(&ast);
             let code = codegen.generate()?;
             codes.push(code);
+        }
+        let mut compiler_flags_by_user = Vec::<String>::new();
+        for ast in asts.iter() {
+            compiler_flags_by_user.append(&mut ast.get_compiler_flags());
         }
         let backend_codegen_elapsed = backend_code_gen_time_start.elapsed();
 
@@ -107,7 +110,15 @@ impl Compiler {
         let writing_output_elapsed = writing_output_time_start.elapsed();
         let calling_c_compiler_time_start = Instant::now();
 
-        let cpp_output = Command::new("clang++").arg("-o").arg(bin_name).arg(&out_file_name).output()?;
+        let mut cpp_command = Command::new("clang++");
+
+        cpp_command.arg("-o").arg(bin_name).arg(&out_file_name);
+
+        for flag in compiler_flags_by_user {
+            cpp_command.arg(flag);
+        }
+        let cpp_output = cpp_command.output()?;
+
         // std::fs::remove_file(out_file_name)?;
         if !cpp_output.status.success() {
             println!(

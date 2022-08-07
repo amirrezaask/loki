@@ -998,6 +998,16 @@ impl Parser {
                     }
                     top_level.push(self.new_node(NodeData::Load(path)));
                 }
+                Type::C_CompilerFlagDirective => {
+                    self.forward_token();
+                    self.expect_token(Type::StringLiteral)?;
+                    let path = self.cur;
+                    self.forward_token();
+                    if self.current_token().ty == Type::SemiColon {
+                        self.forward_token();
+                    }
+                    top_level.push(self.new_node(NodeData::C_CompilerFlag(path)));
+                }
                 Type::HostDirective => {
                     self.forward_token();
                     self.expect_token(Type::StringLiteral)?;

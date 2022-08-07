@@ -381,6 +381,7 @@ impl<'a> CPP<'a> {
                 Ok(base)
             }
             NodeData::Return(expr) => Ok(format!("return {}", self.repr(&expr)?)),
+            NodeData::C_CompilerFlag(_) => { Ok ("".to_string()) },
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);
                 unreachable!()

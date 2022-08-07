@@ -56,6 +56,7 @@ pub enum Type {
 
     LoadDirective,
     HostDirective,
+    C_CompilerFlagDirective,
 
     KeywordConst,
     KeywordVar,
@@ -104,17 +105,11 @@ pub enum Type {
 }
 
 impl Type {
-    fn to_vec_str() -> Vec<&'static str> {
-        vec![
-            "#load", "in", "as", "var", "const", "if", "switch", "goto", "for", "while",
-            "continue", "break", "fn", "return", "true", "false", "enum", "else", "bool", "struct",
-            "union", "void", "int", "uint", "string", "float", "char",
-        ]
-    }
     fn from_str(s: &str) -> Self {
         match s {
             "#load" => Self::LoadDirective,
             "#host" => Self::HostDirective,
+            "#c_compiler_flag" => Self::C_CompilerFlagDirective,
 
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,
