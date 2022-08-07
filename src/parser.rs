@@ -662,7 +662,6 @@ impl Parser {
 
                     let op = self.current_token().ty.clone();
                     self.forward_token();
-                    println!("@@@{:?}", self.current_token());
                     let rhs = self.expect_expr_container_field()?;
                     Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs))))
             }

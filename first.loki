@@ -12,11 +12,16 @@ Human :: struct {
     name: string,
 };
 
+unknown :: 1;
+
+
+
 main :: fn() int {
-    unknown := 1;
-    z := unknown; // type inference almost working
+    z := unknown;
 
-
+    y := 10;
+    x := y;
+    
     infer_bool := 1 == 1;
     number := 0;
 
