@@ -89,7 +89,7 @@ pub enum NodeData {
 }
 
 impl Node {
-    pub fn get_ident(&self)-> String {
+    pub fn get_ident(&self) -> String {
         if let NodeData::Ident(ident) = &self.data {
             return ident.to_string();
         } else {
@@ -105,29 +105,51 @@ type Name = String;
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
     pub file_scopes: HashMap<File, Scope>,
-    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, Option<Node>)>>
+    pub file_loads: HashMap<File, Vec<File>>,
+    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, Option<Node>)>>,
 }
 impl SymbolTable {
     fn add_def_to_scope(&mut self, name: &str, ty: Option<Node>, file: &File, scope: &Scope) {
-        if self.file_scope_defs.contains_key(&(file.to_string(), scope.clone())) {
-            let val = self.file_scope_defs.get_mut(&(file.to_string(), scope.clone()));
+        if self
+            .file_scope_defs
+            .contains_key(&(file.to_string(), scope.clone()))
+        {
+            let val = self
+                .file_scope_defs
+                .get_mut(&(file.to_string(), scope.clone()));
             val.unwrap().push((name.to_string(), ty.clone()));
         } else {
-            self.file_scope_defs.insert((file.to_string(), scope.clone()), vec![(name.to_string(), ty.clone())]);
+            self.file_scope_defs.insert(
+                (file.to_string(), scope.clone()),
+                vec![(name.to_string(), ty.clone())],
+            );
         }
     }
     pub fn new() -> Self {
-        Self { file_scopes:HashMap::new(), file_scope_defs: HashMap::new() }
+        Self {
+            file_scopes: HashMap::new(),
+            file_scope_defs: HashMap::new(),
+            file_loads: HashMap::new(),
+        }
     }
 
     /*
     lookup checks current file defenitions and tries from scope passed into it and goes up.
      */
-    fn lookup(&self, name: Name, file: &File, scope: &Scope, less_than_this: Option<usize>) -> Option<Node> {
+    fn lookup(
+        &self,
+        name: Name,
+        file: &File,
+        scope: &Scope,
+        less_than_this: Option<usize>,
+    ) -> Option<Node> {
         let mut scope = scope.clone();
         loop {
-            let defs = self.file_scope_defs.get(&(file.clone(), scope.clone())).unwrap();
-            for (idx,def) in defs.iter().enumerate() {
+            let defs = self
+                .file_scope_defs
+                .get(&(file.clone(), scope.clone()))
+                .unwrap();
+            for (idx, def) in defs.iter().enumerate() {
                 if def.0 == name.to_string() {
                     if less_than_this.is_some() {
                         if idx > less_than_this.unwrap() {
@@ -137,15 +159,43 @@ impl SymbolTable {
                     return def.1.clone();
                 }
             }
+            if scope.len() == 0 {
+                break;
+            }
             scope.pop();
         }
-        
+
+        // not in the current file. let's check loads
+        let loads = self.file_loads.get(file);
+        println!("loads are: {:?}", loads);
+
+        match loads {
+            Some(files) => {
+                for load_file in files {
+                    let defs = self
+                        .file_scope_defs
+                        .get(&(load_file.clone(), vec![]))
+                        .unwrap();
+                    for def in defs.iter() {
+                        if def.0 == name.to_string() {
+                            return def.1.clone();
+                        }
+                    }
+                }
+            }
+            None => {
+
+            }
+        }
 
         None
     }
 
     fn lookup_pos(&self, name: Name, file: &File, scope: &Scope) -> Option<usize> {
-        let defs = self.file_scope_defs.get(&(file.clone(), scope.clone())).unwrap();
+        let defs = self
+            .file_scope_defs
+            .get(&(file.clone(), scope.clone()))
+            .unwrap();
         for (idx, def) in defs.iter().enumerate() {
             if def.0 == name {
                 return Some(idx);
@@ -155,13 +205,18 @@ impl SymbolTable {
         None
     }
 
-    fn infer_type_block(&mut self, file: &File, block: &mut Vec<Node>, scope: &Scope) -> Result<()> {
+    fn infer_type_block(
+        &mut self,
+        file: &File,
+        block: &mut Vec<Node>,
+        scope: &Scope,
+    ) -> Result<()> {
         for (idx, node) in block.iter_mut().enumerate() {
             match node.data {
                 NodeData::Def(ref mut def) => {
                     self.infer_type_def(file, def, scope.to_vec(), idx)?;
                 }
-                
+
                 _ => {}
             }
         }
@@ -169,15 +224,21 @@ impl SymbolTable {
         Ok(())
     }
 
-    fn infer_type_def(&mut self, file: &File, def: &mut Def, scope: Scope, idx: usize) -> Result<()> {
+    fn infer_type_def(
+        &mut self,
+        file: &File,
+        def: &mut Def,
+        scope: Scope,
+        idx: usize,
+    ) -> Result<()> {
         match def.expr.data {
-            NodeData::Uint(_) |
-            NodeData::Int(_) |
-            NodeData::Char(_) |
-            NodeData::True(_) | 
-            NodeData::False(_) |
-            NodeData::Float(_) |
-            NodeData::StringLiteral(_) => {
+            NodeData::Uint(_)
+            | NodeData::Int(_)
+            | NodeData::Char(_)
+            | NodeData::True(_)
+            | NodeData::False(_)
+            | NodeData::Float(_)
+            | NodeData::StringLiteral(_) => {
                 self.add_def_to_scope(&def.name.get_ident(), def.ty.deref().clone(), file, &scope)
             }
 
@@ -190,10 +251,13 @@ impl SymbolTable {
                         self.add_def_to_scope(&def.name.get_ident(), None, file, &scope);
                         return Ok(());
                     }
-                    println!("checking {:?} type guessing this {:?}", def.name.get_ident(), ty);
+                    println!(
+                        "checking {:?} type guessing this {:?}",
+                        def.name.get_ident(),
+                        ty
+                    );
                     def.ty = Box::new(Some(ty.clone().unwrap()));
                 }
-                
             }
             NodeData::Cmp(_, _, _) => {
                 def.ty = Box::new(Some(Node {
@@ -201,7 +265,7 @@ impl SymbolTable {
                     data: NodeData::BoolTy(0),
                 }))
             }
-            
+
             NodeData::FnCall(ref mut proto, _) => {
                 if def.ty.is_none() {
                     if let NodeData::FnPrototype(_, ref ret) = proto.data {
@@ -213,18 +277,20 @@ impl SymbolTable {
             NodeData::FnDef(ref proto, ref mut body) => {
                 let mut new_scope = scope.clone();
                 new_scope.push(idx);
-                self.add_def_to_scope(&def.name.get_ident(), Some(*proto.clone()), file, &new_scope);
+                self.add_def_to_scope(
+                    &def.name.get_ident(),
+                    Some(*proto.clone()),
+                    file,
+                    &new_scope,
+                );
                 self.infer_type_block(file, body, &new_scope)?;
             }
 
             _ => {}
-
         }
 
         Ok(())
     }
-
-
 }
 
 #[derive(Debug, Clone)]
@@ -241,23 +307,43 @@ impl Ast {
         Ok(&self.src[src_range.loc.0..=src_range.loc.1])
     }
 
-    pub fn add(&mut self, st: &mut SymbolTable, filename: &str, src: &str, tokens: &Vec<Token>) -> Result<()> {
+    pub fn add(
+        &mut self,
+        st: &mut SymbolTable,
+        filename: &str,
+        src: &str,
+        tokens: &Vec<Token>,
+    ) -> Result<()> {
         let file = filename.to_string();
         for (idx, node) in self.top_level.iter_mut().enumerate() {
-            if let NodeData::Def(ref mut def) = node.data {
-                st.infer_type_def(&file, def, vec![], idx)?;
+            match node.data {
+                NodeData::Def(ref mut def) => {
+                    st.infer_type_def(&file, def, vec![], idx)?;
+                }
+
+                NodeData::Load(path_idx) => {
+                    let path = src[tokens[path_idx].loc.0..=tokens[path_idx].loc.1].to_string();
+                    if st.file_loads.contains_key(filename) {
+                        st.file_loads.get_mut(filename).unwrap().push(path);
+                    } else {
+                        st.file_loads.insert(filename.to_string(), vec![path]);
+                    }
+                }
+
+                _ => {
+                    
+                }
             }
         }
 
         Ok(())
     }
-    
 
     pub fn new(
         filename: String,
         src: String,
         tokens: Vec<Token>,
-        mut top_level: Vec<Node>,
+        top_level: Vec<Node>,
         st: &mut SymbolTable,
     ) -> Result<Self> {
         let mut ast = Self {
@@ -266,7 +352,6 @@ impl Ast {
             tokens: tokens.clone(),
             top_level,
         };
-        ast.add(st, &filename, &src, &tokens)?;
         Ok(ast)
     }
 }

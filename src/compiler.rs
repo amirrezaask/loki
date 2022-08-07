@@ -82,10 +82,10 @@ impl Compiler {
 
         let ty_infer_time_start = Instant::now();
 
-        // for ast in asts.iter_mut() {
-        //     ast.infer_types(&st)?;
-        // }
-        
+        for ast in asts.iter_mut() {
+            ast.add(&mut self.st, &ast.filename.clone(), &ast.src.clone(), &ast.tokens.clone())?;
+        }
+        println!("symbol table should be complete: {:?}", self.st);        
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();

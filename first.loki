@@ -19,6 +19,8 @@ unknown :: 1;
 main :: fn() int {
     z := unknown;
 
+    uu := someUknownConst;
+    
     y := 10;
     x := y;
     
