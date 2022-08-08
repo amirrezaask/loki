@@ -155,15 +155,13 @@ impl Parser {
         Ok(())
     }
     fn expect_def(&mut self) -> Result<Node> {
-        self.expect_token(Type::Ident)?;
-
-        let name = self.expect_ident()?;
+        let dest = self.expect_lhs()?;
 
         match self.current_token().ty {
             Type::Equal => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                Ok(self.new_node(NodeData::Assign(Box::new(name), Box::new(rhs))))
+                Ok(self.new_node(NodeData::Assign(Box::new(dest), Box::new(rhs))))
             }
             Type::DoubleColon => {
                 self.forward_token();
@@ -171,7 +169,7 @@ impl Parser {
                 let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: false,
-                    name: Box::new(name),
+                    name: Box::new(dest),
                     ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
                 })))
@@ -185,14 +183,14 @@ impl Parser {
                 }
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
-                    return Ok(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty.unwrap()))));
+                    return Ok(self.new_node(NodeData::Decl(Box::new(dest), Box::new(ty.unwrap()))));
                 }
                 let mutable = self.current_token().ty == Type::Equal;
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable,
-                    name: Box::new(name),
+                    name: Box::new(dest),
                     ty: Box::new(ty),
                     expr: Box::new(rhs),
                 })))
@@ -204,7 +202,7 @@ impl Parser {
                 let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: true,
-                    name: Box::new(name),
+                    name: Box::new(dest),
                     ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
                 })))
@@ -255,7 +253,7 @@ impl Parser {
     }
 
     fn expect_fn_call(&mut self) -> Result<Node> {
-        let name = self.expect_ident()?;
+        let name = self.expect_lhs()?;
         self.expect_token(Type::OpenParen)?;
         let mut args = Vec::<Node>::new();
 
@@ -764,6 +762,27 @@ impl Parser {
             body,
         )));
     }
+    
+    // expect_dest will return a node that can be used as a lhs of an assignment.
+    fn expect_lhs(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            Type::Ident => {
+                self.forward_token();
+                if self.current_token().ty == Type::Dot {
+                    self.backward_token();
+                    let cf = self.expect_expr_container_field();
+                    return cf;
+                } else {
+                    self.backward_token();
+                    return self.expect_ident();
+                }
+            }
+
+            _ => {
+                panic!("token {:?} cannot be a destination node.", self.current_token());
+            }
+        }
+    }
     fn expect_for_each(&mut self) -> Result<Node> {
         let iterator = self.expect_ident()?;
         self.forward_token();
@@ -794,16 +813,20 @@ impl Parser {
     fn expect_stmt(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
-                let next_tok = self.cur + 1;
-                match self.tokens[next_tok].ty {
+                let before_lhs_cur = self.cur;
+                let lhs = self.expect_lhs()?;
+                match self.current_token().ty {
                     Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => {
-                        let decl = self.expect_def()?;
+                        self.cur = before_lhs_cur;
+                        let def = self.expect_def()?;
                         self.expect_semicolon_and_forward()?;
-                        return Ok(decl);
+                        return Ok(def);
                     }
-                    Type::OpenParen => self.expect_fn_call(),
+                    Type::OpenParen => {
+                        self.cur = before_lhs_cur;
+                        self.expect_fn_call()
+                    },
                     Type::PlusEqual => {
-                        let lhs = self.expect_ident()?;
                         self.forward_token();
                         let rhs = self.expect_expr()?;
                         let inner =
@@ -811,72 +834,55 @@ impl Parser {
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::MinusEqual => {
-                        let lhs = self.expect_ident()?;
                         self.forward_token();
-                        let rhs = self.expect_expr()?;
 
+                        let rhs = self.expect_expr()?;
                         let inner =
                             self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::ModEqual => {
-                        let lhs = self.expect_ident()?;
                         self.forward_token();
-                        let rhs = self.expect_expr()?;
 
+                        let rhs = self.expect_expr()?;
                         let inner =
                             self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::MulEqual => {
-                        let lhs = self.expect_ident()?;
                         self.forward_token();
-                        let rhs = self.expect_expr()?;
 
+                        let rhs = self.expect_expr()?;
                         let inner =
                             self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DivEqual => {
-                        let lhs = self.expect_ident()?;
                         self.forward_token();
+                        
                         let rhs = self.expect_expr()?;
-
                         let inner =
                             self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DoublePlus => {
-                        let lhs = self.expect_ident()?;
-                        self.forward_token(); // skip ++
+                        self.forward_token();
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
                         let inner =
                             self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
                     Type::DoubleMinus => {
-                        let lhs = self.expect_ident()?;
-                        self.forward_token(); // skip ++
+                        self.forward_token();
+                        
                         let rhs = self.new_node(NodeData::TEXT("1".to_string()));
                         let inner =
                             self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
-
-                    Type::Dot => {
-                        println!("inja : {:?}", self.current_token());
-                        let lhs = self.expect_expr_container_field()?;
-                        println!("lhs: {:?}", lhs);
-
-                        self.expect_token(Type::Equal)?;
-                        self.forward_token();
-                        let rhs = self.expect_expr()?;
-                        println!("lhs: {:?}", lhs);
-                        println!("rhs: {:?}", rhs);
-                        self.if_semicolon_forward();
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(rhs))));
-                    }
-                    _ => Err(self.err_uexpected(Type::OpenParen)),
+                    _ => {
+                        panic!("expecting stmt got {:?}", self.current_token());
+                    },
                 }
             }
 
@@ -953,7 +959,6 @@ impl Parser {
                 }
 
                 if self.expect_expr().is_ok() {
-                    println!("here");
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
 
