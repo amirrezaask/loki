@@ -11,6 +11,20 @@ ROCKET :: "^";
 KEY_SPACE :: ' ';
 KEYCODE_EXIT :: 'q';
 
+Direction :: enum {
+    Up, Down
+};
+
+Position :: struct {
+    x: int,
+    y: int,
+};
+
+Game :: struct {
+    //    rockets: []Rocket,  make arrays work
+    //    ships: []Ship,
+};
+
 main :: fn() int {
     initscr();
     addstr("Welcome to loki program");

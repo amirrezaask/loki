@@ -12,11 +12,12 @@ Vector :: struct {
 
 Game :: struct {
     a: Vector,
+    direction: Direction,
 };
 
 main :: fn() int {
     g : Game;
-    b := g.a.x;
+    g.direction = Direction.Up;
     a := Direction.Up;
     printf("hello world! %d", 2);
 };

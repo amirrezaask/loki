@@ -862,6 +862,20 @@ impl Parser {
                             self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)));
                         return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner))));
                     }
+
+                    Type::Dot => {
+                        println!("inja : {:?}", self.current_token());
+                        let lhs = self.expect_expr_container_field()?;
+                        println!("lhs: {:?}", lhs);
+
+                        self.expect_token(Type::Equal)?;
+                        self.forward_token();
+                        let rhs = self.expect_expr()?;
+                        println!("lhs: {:?}", lhs);
+                        println!("rhs: {:?}", rhs);
+                        self.if_semicolon_forward();
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(rhs))));
+                    }
                     _ => Err(self.err_uexpected(Type::OpenParen)),
                 }
             }

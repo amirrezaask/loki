@@ -321,6 +321,36 @@ impl SymbolTable {
                 NodeData::Decl(ref name, ref ty) => {
                     self.add_def_to_scope(name.get_ident().as_str(), ty, file, scope);
                 }
+                NodeData::Assign(ref mut lhs, ref mut rhs) => {
+                    match rhs.data {
+                        NodeData::ContainerField(ref mut cf) => {
+                            match cf.container.data {
+                                NodeData::Ident(ref ident) => {
+                                    // println!("st: {:?}", self);
+                                    // println!("cf: {:?}", cf);
+                                    // should check from symbol table the type, it should be a 
+                                    let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
+                                    if container_ty.is_none() {
+                                        // error
+                                        panic!("cannot infer type of: {:?}", cf.container);
+                                    }
+                                    let container_ty = container_ty.unwrap();
+                                    if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
+                                        panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
+                                    }
+                                    if container_ty.get_node().is_enum() {
+                                        cf.container_is_enum = true;
+                                    }
+                                }
+
+                                _ => {}
+                            }
+                            
+                        }
+                        _ => {}
+                    }
+                    
+                }
 
                 _ => {}
             }
@@ -328,20 +358,6 @@ impl SymbolTable {
 
         Ok(())
     }
-
-    // fn infer_type_node(&mut self, file: &File, node: &Node, scope: Scope, idx: usize) -> Result<Node> { // type node
-    //     match node.data {
-    //         NodeData::Ident(ref ident) => {
-    //         }
-
-    //         NodeData::Initialize(op_typ, _) => {
-    //         }
-
-    //         NodeData::ContainerField(container, field) => {
-
-    //         }
-    //     }
-    // }
 
     fn infer_type_def(
         &mut self,
@@ -400,21 +416,6 @@ impl SymbolTable {
                         if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
                             panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
                         }
-                        // println!("@!{:?}", container_ty);
-                        // if container_ty.get_node().is_ident() {
-                        //     let container_ty_ty = self.lookup(container_ty.get_node().get_ident(), file, &scope, Some(idx));
-                        //     if container_ty_ty.is_none() {
-                        //         // println!("{:?}", container_ty);
-                        //         // println!("{:?}", self);
-                        //         panic!("unknown container type: {:?}", cf);
-                        //     }
-                        //     if container_ty_ty.unwrap().get_node().is_enum() {
-                        //         cf.container_is_enum = true;
-                        //         // println!("is enum");
-                        //     }
-
-                        // }
-
                         if container_ty.get_node().is_enum() {
                             cf.container_is_enum = true;
                         }

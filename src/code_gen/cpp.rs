@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use super::{Node, NodeData, Repr, Ast};
+use crate::ast::SymbolTable;
 use crate::tokenizer::{Tokenizer, Type};
 use crate::parser::Parser;
 use anyhow::Result;

@@ -7,14 +7,23 @@
 /*
    This is also a comment
 */
+
 Human :: struct {
     age: int,
     name: string,
 };
 
+State :: enum {
+    Alive,
+    Dead
+};
+
 unknown :: 1;
 
 main :: fn() int {
+
+    state := State.Alive;
+    
     z := unknown;
 
     uu := someUknownConst;
@@ -43,10 +52,12 @@ main :: fn() int {
     a: bool;
     a = true;
 
-    amirreza :: Human {
+    amirreza := Human {
         age = 24,
         name = "amirreza",
     };
+
+    amirreza.age = 25;
 
     parsa : Human : .{
         age = 17,
