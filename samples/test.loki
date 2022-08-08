@@ -17,6 +17,7 @@ Game :: struct {
 
 main :: fn() int {
     g : Game;
+    g.a.x = 2;
     g.direction = Direction.Up;
     a := Direction.Up;
     printf("hello world! %d", 2);
