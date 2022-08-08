@@ -6,7 +6,17 @@ Direction :: enum {
     Down
 };
 
+Vector :: struct {
+    x: int,
+};
+
+Game :: struct {
+    a: Vector,
+};
+
 main :: fn() int {
+    g : Game;
+    b := g.a.x;
     a := Direction.Up;
     printf("hello world! %d", 2);
 };

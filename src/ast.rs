@@ -401,19 +401,19 @@ impl SymbolTable {
                             panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
                         }
                         // println!("@!{:?}", container_ty);
-                        if container_ty.get_node().is_ident() {
-                            let container_ty_ty = self.lookup(container_ty.get_node().get_ident(), file, &scope, Some(idx));
-                            if container_ty_ty.is_none() {
-                                // println!("{:?}", container_ty);
-                                // println!("{:?}", self);
-                                panic!("unknown container type: {:?}", cf);
-                            }
-                            if container_ty_ty.unwrap().get_node().is_enum() {
-                                cf.container_is_enum = true;
-                                // println!("is enum");
-                            }
+                        // if container_ty.get_node().is_ident() {
+                        //     let container_ty_ty = self.lookup(container_ty.get_node().get_ident(), file, &scope, Some(idx));
+                        //     if container_ty_ty.is_none() {
+                        //         // println!("{:?}", container_ty);
+                        //         // println!("{:?}", self);
+                        //         panic!("unknown container type: {:?}", cf);
+                        //     }
+                        //     if container_ty_ty.unwrap().get_node().is_enum() {
+                        //         cf.container_is_enum = true;
+                        //         // println!("is enum");
+                        //     }
 
-                        }
+                        // }
 
                         if container_ty.get_node().is_enum() {
                             cf.container_is_enum = true;
