@@ -1,4 +1,4 @@
-use crate::ast::{Def, Node, NodeData, NodeID, Ast, SymbolTable};
+use crate::ast::{Def, Node, NodeData, NodeID, Ast, SymbolTable, ContainerField};
 use crate::tokenizer::Token;
 use crate::tokenizer::Tokenizer;
 use crate::tokenizer::Type;
@@ -289,8 +289,13 @@ impl Parser {
         match self.current_token().ty {
             Type::Dot => {
                 self.forward_token();
-                let field = self.expect_ident()?;
-                return Ok(self.new_node(NodeData::ContainerField(Box::new(container), Box::new(field))));
+                let field = self.expect_expr()?;
+                let cf = ContainerField {
+                    container: Box::new(container),
+                    field: Box::new(field),
+                    container_is_enum: false,
+                };
+                return Ok(self.new_node(NodeData::ContainerField(cf)));
             }
             _ => {
                 return Ok(container);

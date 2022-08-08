@@ -2,6 +2,7 @@ use crate::code_gen::Backend;
 use crate::code_gen::cpp::CPP;
 use std::ffi::OsStr;
 use std::path::Path;
+use std::str::FromStr;
 use std::time::Instant;
 
 // compiler that glue all parts together
@@ -19,12 +20,15 @@ pub struct Compiler {
     st: SymbolTable,
 }
 
+
 impl Compiler {
     pub fn new() -> Self {
         Self {total_lines: 0 , total_tokens: 0, st: SymbolTable::new()}
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
+        // let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
+        // println!("{:?}", abs_path);
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
@@ -76,7 +80,6 @@ impl Compiler {
 
         let mut asts = self.get_ast_for(path)?;
         let mut codes = Vec::<String>::new();
-        println!("{:?}", self.st.file_scope_defs);
 
         let frontend_elapsed = frontend_time_start.elapsed();
 
@@ -85,6 +88,8 @@ impl Compiler {
         for ast in asts.iter_mut() {
             ast.add(&mut self.st, &ast.filename.clone(), &ast.src.clone(), &ast.tokens.clone())?;
         }
+
+        // println!("st: {:?}", self.st);
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();

@@ -21,6 +21,13 @@ pub struct Node {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct ContainerField {
+    pub container: Box<Node>,
+    pub field: Box<Node>,
+    pub container_is_enum: bool,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum NodeData {
     //top level items
     C_CompilerFlag(TokenIndex),
@@ -70,7 +77,7 @@ pub enum NodeData {
     Multiply(Box<Node>, Box<Node>),
     Div(Box<Node>, Box<Node>),
     Mod(Box<Node>, Box<Node>),
-    ContainerField(Box<Node>, Box<Node>),
+    ContainerField(ContainerField),
     FnPrototype(Vec<Node>, Box<Node>),
     FnDef(Box<Node>, Vec<Node>),
     FnCall(Box<Node>, Vec<Node>),
@@ -97,6 +104,19 @@ impl Node {
             unreachable!()
         }
     }
+    pub fn is_ident(&self) -> bool {
+        if let NodeData::Ident(_) = self.data {
+            return true;
+        }
+        return false;
+
+    }
+    pub fn is_enum(&self) -> bool {
+        if let NodeData::Enum(_, _) = self.data {
+            return true;
+        }
+        return false;
+    }
 }
 
 type File = String;
@@ -104,13 +124,90 @@ type Scope = Vec<usize>;
 type Name = String;
 
 #[derive(Debug, Clone)]
+pub enum SymbolType {
+    Primitive(Node),
+    TypeRef(Node),
+    TypeDef(Node)
+}
+impl SymbolType {
+    pub fn new(node: &Node) -> Self {
+        match node.data {
+            NodeData::Enum(_, _) | NodeData::Struct(_) | NodeData::FnPrototype(_, _)=> {
+                SymbolType::TypeDef(node.clone())
+            }
+
+            NodeData::Ident(_) => {
+                SymbolType::TypeRef(node.clone())
+            }
+            NodeData::IntTy(_) |
+            NodeData::Int8Ty(_) |
+            NodeData::Int16Ty(_) |
+            NodeData::Int32Ty(_) |
+            NodeData::Int64Ty(_) |
+            NodeData::Int128Ty(_) |
+            NodeData::UintTy(_) |
+            NodeData::Uint8Ty(_) |
+            NodeData::Uint16Ty(_) |
+            NodeData::Uint32Ty(_) |
+            NodeData::Uint64Ty(_) |
+            NodeData::Uint128Ty(_) |
+            NodeData::FloatTy(_) |
+            NodeData::BoolTy(_) |
+            NodeData::StringTy(_) |
+            NodeData::CharTy(_) |
+            NodeData::VoidTy(_) 
+                => {
+                    SymbolType::Primitive(node.clone())
+                }
+
+            _ => {
+                panic!("cannot create symbol type: {:?}", node);
+            }
+        }
+    }
+
+    pub fn get_node(&self) -> Node {
+        match self {
+            SymbolType::TypeDef(ref node) => {
+                return node.clone();
+            }
+
+            SymbolType::TypeRef(ref node) => {
+                return node.clone();
+            }
+
+            SymbolType::Primitive(node) => {
+                return node.clone();
+            }
+        }
+    }
+
+    pub fn is_type_ref(&self) -> bool {
+        if let SymbolType::TypeRef(_) = self {
+            return true;
+        }
+
+        return false;
+    }
+
+    pub fn is_type_def(&self) -> bool {
+        if let SymbolType::TypeDef(_) = self {
+            return true;
+        }
+
+        return false;
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SymbolTable {
     pub file_scopes: HashMap<File, Scope>,
     pub file_loads: HashMap<File, Vec<File>>,
-    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, Option<Node>)>>,
+    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, SymbolType)>>,
 }
 impl SymbolTable {
-    fn add_def_to_scope(&mut self, name: &str, ty: Option<Node>, file: &File, scope: &Scope) {
+    fn add_def_to_scope(&mut self, name: &str, ty: &Node, file: &File, scope: &Scope) {
+        let ty = SymbolType::new(ty);
         if self
             .file_scope_defs
             .contains_key(&(file.to_string(), scope.clone()))
@@ -143,21 +240,25 @@ impl SymbolTable {
         file: &File,
         scope: &Scope,
         less_than_this: Option<usize>,
-    ) -> Option<Node> {
+    ) -> Option<SymbolType> {
         let mut scope = scope.clone();
         loop {
             let defs = self
                 .file_scope_defs
-                .get(&(file.clone(), scope.clone()))
-                .unwrap();
+                .get(&(file.clone(), scope.clone()));
+            if defs.is_none() {
+                scope.pop();
+                continue;
+            }
+            let defs = defs.unwrap();
             for (idx, def) in defs.iter().enumerate() {
                 if def.0 == name.to_string() {
                     if less_than_this.is_some() {
                         if idx > less_than_this.unwrap() {
-                            return def.1.clone();
+                            return Some(def.1.clone());
                         }
                     }
-                    return def.1.clone();
+                    return Some(def.1.clone());
                 }
             }
             if scope.len() == 0 {
@@ -168,7 +269,7 @@ impl SymbolTable {
 
         // not in the current file. let's check loads
         let loads = self.file_loads.get(file);
-        println!("loads are: {:?}", loads);
+        // println!("loads are: {:?}", loads);
 
         match loads {
             Some(files) => {
@@ -179,7 +280,7 @@ impl SymbolTable {
                         .unwrap();
                     for def in defs.iter() {
                         if def.0 == name.to_string() {
-                            return def.1.clone();
+                            return Some(def.1.clone());
                         }
                     }
                 }
@@ -217,6 +318,9 @@ impl SymbolTable {
                 NodeData::Def(ref mut def) => {
                     self.infer_type_def(file, def, scope.to_vec(), idx)?;
                 }
+                NodeData::Decl(ref name, ref ty) => {
+                    self.add_def_to_scope(name.get_ident().as_str(), ty, file, scope);
+                }
 
                 _ => {}
             }
@@ -224,6 +328,20 @@ impl SymbolTable {
 
         Ok(())
     }
+
+    // fn infer_type_node(&mut self, file: &File, node: &Node, scope: Scope, idx: usize) -> Result<Node> { // type node
+    //     match node.data {
+    //         NodeData::Ident(ref ident) => {
+    //         }
+
+    //         NodeData::Initialize(op_typ, _) => {
+    //         }
+
+    //         NodeData::ContainerField(container, field) => {
+
+    //         }
+    //     }
+    // }
 
     fn infer_type_def(
         &mut self,
@@ -233,31 +351,84 @@ impl SymbolTable {
         idx: usize,
     ) -> Result<()> {
         match def.expr.data {
+            NodeData::Struct(_) | NodeData::Enum(_, _) => {
+                self.add_def_to_scope(&def.name.get_ident(), &def.expr, file, &scope)
+            }
             NodeData::Uint(_)
             | NodeData::Int(_)
             | NodeData::Char(_)
             | NodeData::True(_)
             | NodeData::False(_)
             | NodeData::Float(_)
-            | NodeData::StringLiteral(_) => {
-                self.add_def_to_scope(&def.name.get_ident(), def.ty.deref().clone(), file, &scope)
+            | NodeData::StringLiteral(_)
+                => {
+                    if def.ty.is_none() {
+                        unreachable!();
+                    }
+                    self.add_def_to_scope(&def.name.get_ident(), &def.ty.clone().unwrap(), file, &scope)
             }
 
             NodeData::Ident(ref ident) => {
-                if def.ty.is_none() {
-                    // look it up
-                    let ty = self.lookup(ident.clone(), file, &scope, Some(idx));
-                    if ty.is_none() {
-                        println!("cannot guess {:?} type", def.name);
-                        self.add_def_to_scope(&def.name.get_ident(), None, file, &scope);
-                        return Ok(());
+                // look it up
+                let ty = self.lookup(ident.clone(), file, &scope, Some(idx));
+                if ty.is_none() {
+                    panic!("cannot guess {:?} type", def.name);
+                }
+                // println!(
+                //     "checking {:?} type guessing this {:?}",
+                //     def.name.get_ident(),
+                //     ty
+                // );
+                def.ty = Box::new(Some(ty.unwrap().get_node()));
+
+            }
+            NodeData::ContainerField(ref mut cf) => {
+                if def.ty.is_some() { // user explicitly said the type
+                    return Ok(());
+                }
+                match cf.container.data {
+                    NodeData::Ident(ref ident) => {
+                        // println!("st: {:?}", self);
+                        // println!("cf: {:?}", cf);
+                        // should check from symbol table the type, it should be a 
+                        let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
+                        if container_ty.is_none() {
+                            // error
+                            panic!("cannot infer type of: {:?}", cf.container);
+                        }
+                        let container_ty = container_ty.unwrap();
+                        if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
+                            panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
+                        }
+                        // println!("@!{:?}", container_ty);
+                        if container_ty.get_node().is_ident() {
+                            let container_ty_ty = self.lookup(container_ty.get_node().get_ident(), file, &scope, Some(idx));
+                            if container_ty_ty.is_none() {
+                                // println!("{:?}", container_ty);
+                                // println!("{:?}", self);
+                                panic!("unknown container type: {:?}", cf);
+                            }
+                            if container_ty_ty.unwrap().get_node().is_enum() {
+                                cf.container_is_enum = true;
+                                // println!("is enum");
+                            }
+
+                        }
+
+                        if container_ty.get_node().is_enum() {
+                            cf.container_is_enum = true;
+                        }
                     }
-                    println!(
-                        "checking {:?} type guessing this {:?}",
-                        def.name.get_ident(),
-                        ty
-                    );
-                    def.ty = Box::new(Some(ty.clone().unwrap()));
+
+                    NodeData::Initialize(ref op_ty, _) => {
+
+                    }
+
+                    NodeData::FnCall(_, _) => {}
+
+                    _ => {
+                        
+                    }
                 }
             }
             NodeData::Cmp(_, _, _) => {
@@ -280,9 +451,9 @@ impl SymbolTable {
                 new_scope.push(idx);
                 self.add_def_to_scope(
                     &def.name.get_ident(),
-                    Some(*proto.clone()),
+                    &proto,
                     file,
-                    &new_scope,
+                    &scope,
                 );
                 self.infer_type_block(file, body, &new_scope)?;
             }

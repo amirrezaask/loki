@@ -250,21 +250,28 @@ impl<'a> CPP<'a> {
                     }
                 }
 
-                NodeData::ContainerField(container, field) => {
+                NodeData::ContainerField(cf) => {
+                    let container = &cf.container;
+                    let field = &cf.field;
                     //TODO make type inference work for this when I got hosele
                     let container = self.repr(&container)?;
                     let field = self.repr(&field)?;
+                    let mut sep = ".";
+                    if cf.container_is_enum {
+                        sep = "::";
+                    }
                     match decl.mutable {
                         false => Ok(format!(
-                            "const auto {} = {}.{}",
+                            "const auto {} = {}{}{}",
                             self.repr(decl.name.deref())?,
                             container,
+                            sep,
                             field
                         )),
                         true => Ok(format!(
-                            "auto {} = {}.{}",
+                            "auto {} = {}{}{}",
                             self.repr(decl.name.deref())?,
-                            container, field,
+                            container, sep, field,
                         )),
                     }
                 }
@@ -353,7 +360,13 @@ impl<'a> CPP<'a> {
             NodeData::Multiply(lhs, rhs) => Ok(format!("({} * {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::Div(lhs, rhs) => Ok(format!("({} / {})", self.repr(&lhs)?, self.repr(&rhs)?)),
             NodeData::Mod(lhs, rhs) => Ok(format!("({} % {})", self.repr(&lhs)?, self.repr(&rhs)?)),
-            NodeData::ContainerField(container, field) => Ok(format!("{}.{}", self.repr(&container)?, self.repr(field)?)),
+            NodeData::ContainerField(ref cf) => {
+                if cf.container_is_enum {
+                    return Ok(format!("{}::{}", self.repr(&cf.container)?, self.repr(&cf.field)?));
+
+                }
+                return Ok(format!("{}.{}", self.repr(&cf.container)?, self.repr(&cf.field)?));
+            },
             NodeData::Cmp(op, lhs, rhs) => Ok(format!("{} {} {}", self.repr(lhs)?, self.repr_operator(op)?, self.repr(rhs)?)),
             NodeData::FnDef(_, _) => {
                 unreachable!();

@@ -1,0 +1,12 @@
+#load "base.loki";
+
+
+Direction :: enum {
+    Up,
+    Down
+};
+
+main :: fn() int {
+    a := Direction.Up;
+    printf("hello world! %d", 2);
+};
