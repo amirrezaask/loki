@@ -158,6 +158,7 @@ impl<'a> CPP<'a> {
                     op_name = Some(Box::new(Node {
                         id: format!("_{}", -1),
                         data: NodeData::TEXT("it".to_string()),
+                        annotations: vec![]
                     }));
                 }
                 Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr(&op_name.unwrap())?, self.repr(list)?, self.repr_block(body)?))

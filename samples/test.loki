@@ -1,6 +1,5 @@
 #load "base.loki";
 
-
 Direction :: enum {
     Up,
     Down

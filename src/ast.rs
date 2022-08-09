@@ -15,9 +15,46 @@ pub struct Def {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum TypeAnnotation {
+    Int,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Int128,
+
+    Uint,
+    Uint8,
+    Uint16,
+    Uint32,
+    Uint64,
+    Uint128,
+
+    Float32,
+    Float64,
+
+    Bool,
+    
+    String,
+    Char,
+
+    StructDef,
+    EnumDef,
+
+    TypeRef,
+    Ref(Box<TypeAnnotation>),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Annotation {
+    Type(TypeAnnotation),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Node {
     pub id: NodeID,
     pub data: NodeData,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -59,8 +96,8 @@ pub enum NodeData {
     VoidTy(TokenIndex),
     ArrayTy(Box<Node>, Box<Node>), // len ty
 
-    Struct(Vec<Node>),
-    Enum(bool, Vec<(Node, Option<Node>)>),
+    Struct(Vec<Node>), // type annotation: structDef
+    Enum(bool, Vec<(Node, Option<Node>)>), //enumdef
 
     //Expressions
     Uint(TokenIndex),
@@ -435,7 +472,7 @@ impl SymbolTable {
             NodeData::Cmp(_, _, _) => {
                 def.ty = Box::new(Some(Node {
                     id: format!("{}_-1", file),
-                    data: NodeData::BoolTy(0),
+                    data: NodeData::BoolTy(0), annotations: vec![]
                 }))
             }
 
