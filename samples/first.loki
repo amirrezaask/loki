@@ -22,7 +22,7 @@ Human :: struct {
 top_level_uint_constant :: 1;
 
 main :: () int {
-
+    
     state := State.Alive;
     
     z := top_level_uint_constant;

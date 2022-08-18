@@ -14,7 +14,7 @@ Game :: struct {
     direction: Direction,
 };
 
-main :: fn() int {
+main :: () int {
     g : Game;
     g.a.x = 2;
     g.direction = Direction.Up;

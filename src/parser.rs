@@ -26,7 +26,7 @@ impl Parser {
     fn new_node(&mut self, data: NodeData, type_annotation: AstNodeType, scope: Vec<u64>) -> Node {
         let node = Node {
             id: format!("{}_{}", self.filename, self.node_counter),
-            data, type_annotation, scope
+            data, type_annotation
         };
         self.node_counter += 1;
         return node;
@@ -1088,7 +1088,7 @@ impl Parser {
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                     top_level.push(self.new_node(NodeData::Load(literal.to_string()), AstNodeType::Unknown, root_id.clone()));
                 }
-                Type::C_CompilerFlagDirective => {
+                Type::CompilerFlagDirective => {
                     self.forward_token();
                     self.expect_token(Type::StringLiteral)?;
                     let path = self.cur;
@@ -1096,7 +1096,7 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::CCompilerFlag(path), AstNodeType::Unknown, root_id.clone()));
+                    top_level.push(self.new_node(NodeData::CompilerFlags(path.to_string()), AstNodeType::Unknown, root_id.clone()));
                 }
                 Type::HostDirective => {
                     self.forward_token();

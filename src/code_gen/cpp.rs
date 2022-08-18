@@ -223,8 +223,8 @@ impl<'a> CPP<'a> {
                 if op_name.is_none() {
                     op_name = Some(Box::new(Node {
                         id: format!("_{}", -1),
-                        data: NodeData::TEXT("it".to_string()),
-                        type_annotation: AstNodeType::Unknown, scope: list.scope.clone(),
+                        data: NodeData::Ident("it".to_string()),
+                        type_annotation: AstNodeType::Unknown,
                     }));
                 }
                 Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr(&op_name.unwrap())?, self.repr(list)?, self.repr_block(body)?))
@@ -459,7 +459,7 @@ impl<'a> CPP<'a> {
                 Ok(base)
             }
             NodeData::Return(expr) => Ok(format!("return {}", self.repr(&expr)?)),
-            NodeData::CCompilerFlag(_) => { Ok ("".to_string()) },
+            NodeData::CompilerFlags(_) => { Ok ("".to_string()) },
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);
                 unreachable!()

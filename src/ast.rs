@@ -108,7 +108,6 @@ impl AstNodeType {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Node {
     pub id: NodeID,
-    pub scope: Vec<u64>,
     pub data: NodeData,
     pub type_annotation: AstNodeType,
 }
@@ -133,7 +132,7 @@ pub struct FnDef {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NodeData {
     //top level items
-    CCompilerFlag(TokenIndex),
+    CompilerFlags(String),
     Load(String),
     Host(String),
     Def(Def),
@@ -604,23 +603,18 @@ impl Ast {
     pub fn get_compiler_flags(&self) -> Vec<String> {
         let mut flags = Vec::<String>::new();
         for node in self.top_level.iter() {
-            if let NodeData::CCompilerFlag(flag) = node.data {
-                flags.push(self.get_src_for_token(flag).unwrap().to_string());
+            if let NodeData::CompilerFlags(ref flag) = node.data {
+                flags.push(flag.clone());
             }
         }
         return flags;
     }
-    pub fn get_src_for_token(&self, tok_idx: usize) -> Result<&str> {
-        let src_range = &self.tokens[tok_idx];
-        Ok(&self.src[src_range.loc.0..=src_range.loc.1])
-    }
+    
 
     pub fn add(
         &mut self,
         st: &mut SymbolTable,
         filename: &str,
-        src: &str,
-        tokens: &Vec<Token>,
     ) -> Result<()> {
         let file = filename.to_string();
         for (idx, node) in self.top_level.iter_mut().enumerate() {

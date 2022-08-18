@@ -54,7 +54,7 @@ pub enum Type {
 
     LoadDirective,
     HostDirective,
-    C_CompilerFlagDirective,
+    CompilerFlagDirective,
 
     KeywordConst,
     KeywordVar,
@@ -107,6 +107,7 @@ impl Type {
         match s {
             "#load" => Self::LoadDirective,
             "#host" => Self::HostDirective,
+            "#compiler_flag" => Self::CompilerFlagDirective,
 
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,

@@ -1,6 +1,6 @@
 #load "base.loki";
 #host "ncurses.h";
-#c_compiler_flag "-lncurses";
+#compiler_flag "-lncurses";
 
 WELCOME :: "welcome to space invaders";
 PLAYER_SHIP :: "YOUR SHIP";
@@ -25,7 +25,7 @@ Game :: struct {
     //    ships: []Ship,
 };
 
-main :: fn() int {
+main :: () int {
     initscr();
     addstr("Welcome to loki program");
     getch();

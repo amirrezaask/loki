@@ -92,7 +92,7 @@ impl Compiler {
         let ty_infer_time_start = Instant::now();
 
         for ast in asts.iter_mut() {
-            ast.add(&mut self.st, &ast.filename.clone(), &ast.src.clone(), &ast.tokens.clone())?;
+            ast.add(&mut self.st, &ast.filename.clone())?;
         }
 
         // println!("st: {:?}", self.st);
