@@ -104,8 +104,8 @@ pub struct ContainerField {
 pub enum NodeData {
     //top level items
     CCompilerFlag(TokenIndex),
-    Load(TokenIndex),
-    Host(TokenIndex),
+    Load(String),
+    Host(String),
     Def(Def),
     Decl(Box<Node>, AstType),
     Assign(Box<Node>, Box<Node>),
@@ -130,7 +130,7 @@ pub enum NodeData {
     StringTy,
     CharTy,
     VoidTy,
-    ArrayTy(Box<Node>, Box<Node>), // len ty
+    ArrayTy(u64, AstType), // len ty
 
     Struct(Vec<Node>),
     Enum(bool, Vec<(Node, Option<Node>)>),
@@ -164,7 +164,7 @@ pub enum NodeData {
     Ref(Box<Node>),
     Deref(Box<Node>),
     
-    If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
+    If(Box<Node>, Vec<Node>, Option<Vec<Node>>),
     
     For(Box<Node>, Box<Node>, Box<Node>, Vec<Node>),
     ForIn(Option<Box<Node>>, Box<Node>, Vec<Node>),
@@ -203,6 +203,13 @@ impl Node {
             return true;
         }
         return false;
+    }
+
+    pub fn extract_uint(&self) -> u64 {
+        if let NodeData::Uint(u) = self.data {
+            return u;
+        }
+        unreachable!();
     }
 }
 
@@ -570,12 +577,11 @@ impl Ast {
                     st.infer_type_def(&file, def, vec![], idx)?;
                 }
 
-                NodeData::Load(path_idx) => {
-                    let path = src[tokens[path_idx].loc.0..=tokens[path_idx].loc.1].to_string();
+                NodeData::Load(ref path) => {
                     if st.file_loads.contains_key(filename) {
-                        st.file_loads.get_mut(filename).unwrap().push(path);
+                        st.file_loads.get_mut(filename).unwrap().push(path.clone());
                     } else {
-                        st.file_loads.insert(filename.to_string(), vec![path]);
+                        st.file_loads.insert(filename.to_string(), vec![path.clone()]);
                     }
                 }
 

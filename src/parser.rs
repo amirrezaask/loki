@@ -476,7 +476,7 @@ impl Parser {
                 self.expect_token(Type::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
-                return Ok(self.new_node(NodeData::ArrayTy(Box::new(len), Box::new(ty)), AstType::Unknown));
+                return Ok(self.new_node(NodeData::ArrayTy(len.extract_uint(), AstType::new(&ty)), AstType::Unknown));
             }
 
             Type::Asterix => {
@@ -867,14 +867,14 @@ impl Parser {
                         let _else = self.expect_block()?;
                         Ok(self.new_node(NodeData::If(
                             Box::new(cond),
-                            Box::new(then),
+                            then,
                             Some(_else),
                         ), AstType::Unknown))
                     }
                     _ => {
                         Ok(self.new_node(NodeData::If(
                             Box::new(cond),
-                            Box::new(then),
+                            then,
                             None,
                         ), AstType::Unknown))
                     }
@@ -986,7 +986,9 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::Load(path), AstType::Unknown));
+                    let src_range = &self.tokens[path];
+                    let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                    top_level.push(self.new_node(NodeData::Load(literal.to_string()), AstType::Unknown));
                 }
                 Type::C_CompilerFlagDirective => {
                     self.forward_token();
@@ -1006,7 +1008,9 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::Host(path), AstType::Unknown));
+                    let src_range = &self.tokens[path];
+                    let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                    top_level.push(self.new_node(NodeData::Host(literal.to_string()), AstType::Unknown));
                 }
                 Type::Ident => {
                     let decl = self.expect_def()?;

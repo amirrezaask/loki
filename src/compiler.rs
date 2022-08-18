@@ -47,8 +47,8 @@ impl Compiler {
         
         for node in main_ast.top_level.iter() {
             match node.data {
-                NodeData::Load(path_idx) => {
-                    loads.push(main_ast.get_src_for_token(path_idx)?.to_string());
+                NodeData::Load(ref path) => {
+                    loads.push(path.clone());
                 }
                 _ => {
                     continue;

@@ -202,7 +202,7 @@ impl<'a> CPP<'a> {
             NodeData::Host(import) => {
                 Ok(format!(
                     "#include \"{}\"",
-                    self.ast.get_src_for_token(import.clone())?
+                    import
                 ))
             }
             NodeData::Load(_) => Ok("".to_string()),
@@ -240,7 +240,7 @@ impl<'a> CPP<'a> {
                         self.repr(&*ret)?,
                         self.repr(&*def.name)?,
                         self.repr_fn_def_args(&args)?,
-                        self.repr_block(&block)?,))
+                        self.repr_block(block)?,))
                     } else {
                         unreachable!()
                     }
@@ -250,17 +250,17 @@ impl<'a> CPP<'a> {
                         match def.mutable {
                             true => {
                                 Ok(format!("const {} {}[{}] = {{{}}}",
-                                           self.repr(&elem_ty)?,
+                                           self.repr_ast_ty(elem_ty)?,
                                            self.repr(&def.name)?,
-                                           self.repr(&size)?,
+                                           size,
                                            self.repr_array_elems(elems)?
                                 ))
                             }
                             false => {
                                 Ok(format!("{} {}[{}] = {{{}}}",
-                                           self.repr(&elem_ty)?,
+                                           self.repr_ast_ty(elem_ty)?,
                                            self.repr(&def.name)?,
-                                           self.repr(&size)?,
+                                           size,
                                            self.repr_array_elems(elems)?
                                 ))
                             }
@@ -369,8 +369,8 @@ impl<'a> CPP<'a> {
             NodeData::InitializeArray(ty, elems) => {
                     if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
                         Ok(format!("{}[{}]{{{}}}",
-                                   self.repr(&elem_ty)?,
-                                   self.repr(&size)?,
+                                   self.repr_ast_ty(elem_ty)?,
+                                   size,
                                    self.repr_array_elems(elems)?
                         ))
                     } else {
