@@ -2,13 +2,11 @@ use crate::code_gen::Backend;
 use crate::code_gen::cpp::CPP;
 use std::ffi::OsStr;
 use std::path::Path;
-use std::str::FromStr;
 use std::time::Instant;
 
 // compiler that glue all parts together
 use super::parser::Parser;
 use crate::ast::{Ast, SymbolTable};
-use crate::ast::Node;
 use crate::ast::NodeData;
 use anyhow::Result;
 use std::io::Write;
@@ -30,7 +28,7 @@ impl Compiler {
         // let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
         // println!("{:?}", abs_path);
         let program = std::fs::read_to_string(path)?;
-        let mut tokenizer = crate::tokenizer::Tokenizer::new(program.as_str());
+        let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
         let parser = Parser::new_with_tokens(path.to_string(), program.to_string(), tokens)?;
         let ast = parser.get_ast(&mut self.st)?;
@@ -107,7 +105,7 @@ impl Compiler {
         
         let final_code = codes.join("\n");
         
-        let out_file_name = format!("main.cpp");
+        let out_file_name = "main.cpp".to_string();
         let writing_output_time_start = Instant::now();
 
         let mut out_file = std::fs::File::create(&out_file_name)?;

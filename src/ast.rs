@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::Deref};
 
-use crate::tokenizer::{Token, Type};
+use crate::lexer::{Token, Type};
 use anyhow::Result;
 
 pub type TokenIndex = usize;
@@ -10,51 +10,70 @@ pub type NodeID = String;
 pub struct Def {
     pub mutable: bool,
     pub name: Box<Node>,
-    pub ty: Box<Option<Node>>,
     pub expr: Box<Node>,
 }
-
 #[derive(Debug, PartialEq, Clone)]
-pub enum TypeAnnotation {
-    Int,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    Int128,
-
-    Uint,
-    Uint8,
-    Uint16,
-    Uint32,
-    Uint64,
-    Uint128,
-
-    Float32,
-    Float64,
+pub enum AstType {
+    Unknown,
+    SignedInt(i32),
+    UnsignedInt(i32),
+    Float(i8),
 
     Bool,
-    
-    String,
+
     Char,
+    String,
 
-    StructDef,
-    EnumDef,
+    Array(i8, Box<AstType>),
+    DynamicArray(Box<AstType>),
 
-    TypeRef,
-    Ref(Box<TypeAnnotation>),
+    TypeName(String),
+
+    Initialize(Box<AstType>),
+
+    TypeDefStruct,
+    TypeDefEnum,
+    TypeDefUnion,
+
+    Ref(Box<AstType>),
+    Deref(Box<AstType>),
+
+    Void,
+
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Annotation {
-    Type(TypeAnnotation),
+impl AstType {
+    pub fn new(node: &Node) -> Self {
+        match node.data {
+            NodeData::Ident(ref ident) => {
+                return AstType::TypeName(ident.clone());
+            }
+            _ => {
+                AstType::Unknown
+            }
+
+        }
+    }
+    pub fn is_type_def(&self) -> bool {
+        match self {
+            AstType::TypeDefStruct | AstType::TypeDefUnion | AstType::TypeDefEnum => true,
+            _ => return false
+        }
+    }
+
+    pub fn is_type_def_enum(&self) -> bool {
+        match self {
+            AstType::TypeDefEnum => true,
+            _ => return false
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
     pub id: NodeID,
     pub data: NodeData,
-    pub annotations: Vec<Annotation>,
+    pub type_annotation: AstType
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -67,7 +86,7 @@ pub struct ContainerField {
 #[derive(Debug, PartialEq, Clone)]
 pub enum NodeData {
     //top level items
-    C_CompilerFlag(TokenIndex),
+    CCompilerFlag(TokenIndex),
     Load(TokenIndex),
     Host(TokenIndex),
     Def(Def),
@@ -96,8 +115,8 @@ pub enum NodeData {
     VoidTy(TokenIndex),
     ArrayTy(Box<Node>, Box<Node>), // len ty
 
-    Struct(Vec<Node>), // type annotation: structDef
-    Enum(bool, Vec<(Node, Option<Node>)>), //enumdef
+    Struct(Vec<Node>),
+    Enum(bool, Vec<(Node, Option<Node>)>),
 
     //Expressions
     Uint(TokenIndex),
@@ -150,6 +169,13 @@ impl Node {
     }
     pub fn is_enum(&self) -> bool {
         if let NodeData::Enum(_, _) = self.data {
+            return true;
+        }
+        return false;
+    }
+
+    pub fn is_initialize(&self) -> bool {
+        if let NodeData::Initialize(_, _) = self.data {
             return true;
         }
         return false;
@@ -240,11 +266,10 @@ impl SymbolType {
 pub struct SymbolTable {
     pub file_scopes: HashMap<File, Scope>,
     pub file_loads: HashMap<File, Vec<File>>,
-    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, SymbolType)>>,
+    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, AstType)>>,
 }
 impl SymbolTable {
-    fn add_def_to_scope(&mut self, name: &str, ty: &Node, file: &File, scope: &Scope) {
-        let ty = SymbolType::new(ty);
+    fn add_def_to_scope(&mut self, name: &str, ty: &AstType, file: &File, scope: &Scope) {
         if self
             .file_scope_defs
             .contains_key(&(file.to_string(), scope.clone()))
@@ -277,7 +302,7 @@ impl SymbolTable {
         file: &File,
         scope: &Scope,
         less_than_this: Option<usize>,
-    ) -> Option<SymbolType> {
+    ) -> Option<AstType> {
         let mut scope = scope.clone();
         loop {
             let defs = self
@@ -290,10 +315,8 @@ impl SymbolTable {
             let defs = defs.unwrap();
             for (idx, def) in defs.iter().enumerate() {
                 if def.0 == name.to_string() {
-                    if less_than_this.is_some() {
-                        if idx > less_than_this.unwrap() {
-                            return Some(def.1.clone());
-                        }
+                    if less_than_this.is_some() && idx > less_than_this.unwrap() {
+                        return Some(def.1.clone());
                     }
                     return Some(def.1.clone());
                 }
@@ -313,7 +336,7 @@ impl SymbolTable {
                 for load_file in files {
                     let defs = self
                         .file_scope_defs
-                        .get(&(load_file.clone(), vec![]))
+                        .get(&(load_file.clone(), vec![])) // getting top level defs of the `load_file`
                         .unwrap();
                     for def in defs.iter() {
                         if def.0 == name.to_string() {
@@ -356,7 +379,7 @@ impl SymbolTable {
                     self.infer_type_def(file, def, scope.to_vec(), idx)?;
                 }
                 NodeData::Decl(ref name, ref ty) => {
-                    self.add_def_to_scope(name.get_ident().as_str(), ty, file, scope);
+                    self.add_def_to_scope(name.get_ident().as_str(), &ty.type_annotation, file, scope);
                 }
                 NodeData::Assign(ref mut lhs, ref mut rhs) => {
                     match rhs.data {
@@ -372,10 +395,10 @@ impl SymbolTable {
                                         panic!("cannot infer type of: {:?}", cf.container);
                                     }
                                     let container_ty = container_ty.unwrap();
-                                    if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
+                                    if container_ty.is_type_def() && !container_ty.is_type_def_enum() {
                                         panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
                                     }
-                                    if container_ty.get_node().is_enum() {
+                                    if container_ty.is_type_def_enum() {
                                         cf.container_is_enum = true;
                                     }
                                 }
@@ -405,7 +428,7 @@ impl SymbolTable {
     ) -> Result<()> {
         match def.expr.data {
             NodeData::Struct(_) | NodeData::Enum(_, _) => {
-                self.add_def_to_scope(&def.name.get_ident(), &def.expr, file, &scope)
+                self.add_def_to_scope(&def.name.get_ident(), &def.expr.type_annotation, file, &scope)
             }
             NodeData::Uint(_)
             | NodeData::Int(_)
@@ -415,10 +438,10 @@ impl SymbolTable {
             | NodeData::Float(_)
             | NodeData::StringLiteral(_)
                 => {
-                    if def.ty.is_none() {
+                    if def.expr.type_annotation == AstType::Unknown {
                         unreachable!();
                     }
-                    self.add_def_to_scope(&def.name.get_ident(), &def.ty.clone().unwrap(), file, &scope)
+                    self.add_def_to_scope(&def.name.get_ident(), &def.expr.type_annotation.clone(), file, &scope)
             }
 
             NodeData::Ident(ref ident) => {
@@ -432,11 +455,11 @@ impl SymbolTable {
                 //     def.name.get_ident(),
                 //     ty
                 // );
-                def.ty = Box::new(Some(ty.unwrap().get_node()));
+                def.expr.type_annotation = ty.unwrap();
 
             }
             NodeData::ContainerField(ref mut cf) => {
-                if def.ty.is_some() { // user explicitly said the type
+                if def.expr.type_annotation != AstType::Unknown { // user explicitly said the type
                     return Ok(());
                 }
                 match cf.container.data {
@@ -450,16 +473,15 @@ impl SymbolTable {
                             panic!("cannot infer type of: {:?}", cf.container);
                         }
                         let container_ty = container_ty.unwrap();
-                        if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
-                            panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
-                        }
-                        if container_ty.get_node().is_enum() {
+                        // if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
+                        //     panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
+                        // }
+                        if container_ty.is_type_def_enum() {
                             cf.container_is_enum = true;
                         }
                     }
 
                     NodeData::Initialize(ref op_ty, _) => {
-
                     }
 
                     NodeData::FnCall(_, _) => {}
@@ -470,26 +492,23 @@ impl SymbolTable {
                 }
             }
             NodeData::Cmp(_, _, _) => {
-                def.ty = Box::new(Some(Node {
-                    id: format!("{}_-1", file),
-                    data: NodeData::BoolTy(0), annotations: vec![]
-                }))
+                def.expr.type_annotation = AstType::Bool;
             }
 
-            NodeData::FnCall(ref mut proto, _) => {
-                if def.ty.is_none() {
-                    if let NodeData::FnPrototype(_, ref ret) = proto.data {
-                        def.ty = Box::new(Some(ret.deref().clone()));
-                    }
-                }
-            }
+            // NodeData::FnCall(ref mut proto, _) => {
+            //     if def.expr.type_annotation.is_none() {
+            //         if let NodeData::FnPrototype(_, ref ret) = proto.data {
+            //             def.expr.type_annotation = Box::new(Some(ret.deref().clone()));
+            //         }
+            //     }
+            // }
 
             NodeData::FnDef(ref proto, ref mut body) => {
                 let mut new_scope = scope.clone();
                 new_scope.push(idx);
                 self.add_def_to_scope(
                     &def.name.get_ident(),
-                    &proto,
+                    &proto.type_annotation,
                     file,
                     &scope,
                 );
@@ -516,7 +535,7 @@ impl Ast {
         let mut flags = Vec::<String>::new();
         for node in self.top_level.iter() {
             match node.data {
-                NodeData::C_CompilerFlag(flag) => {
+                NodeData::CCompilerFlag(flag) => {
                     flags.push(self.get_src_for_token(flag).unwrap().to_string());
                 }
                 _ => {

@@ -1,6 +1,6 @@
 mod code_gen;
 mod parser;
-mod tokenizer;
+mod lexer;
 mod compiler;
 mod ast;
 // mod symbol_table;

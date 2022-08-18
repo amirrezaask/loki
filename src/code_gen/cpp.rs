@@ -1,8 +1,8 @@
 use std::ops::Deref;
 
 use super::{Node, NodeData, Repr, Ast};
-use crate::ast::SymbolTable;
-use crate::tokenizer::{Tokenizer, Type};
+use crate::ast::{AstType, SymbolTable};
+use crate::lexer::{Tokenizer, Type};
 use crate::parser::Parser;
 use anyhow::Result;
 
@@ -11,14 +11,75 @@ pub struct CPP<'a> {
 }
 
 impl<'a> CPP<'a> {
-    fn get_decl_ty(&self, node: &Node) -> Result<Node> {
+
+    fn repr_ast_ty(&self, ty: AstType) -> Result<String> {
+        match ty {
+            AstType::Initialize(name) => {
+                Ok(format!("{}", self.repr_ast_ty(*name)?))
+            }
+            AstType::Unknown => {
+                Ok("".to_string())
+            }
+            AstType::SignedInt(_) => {
+                Ok("int".to_string())
+            }
+            AstType::UnsignedInt(_) => {
+                Ok("unsigned int".to_string())
+            }
+            AstType::Float(_) => {
+                Ok("float".to_string())
+            }
+            AstType::Bool => {
+                Ok("bool".to_string())
+            }
+            AstType::Char => {
+                Ok("char".to_string())
+            }
+            AstType::String => {
+                Ok("std::string".to_string())
+            }
+            AstType::Array(_, _) => {
+                unreachable!()
+            }
+            AstType::DynamicArray(_) => {
+                unreachable!()
+            }
+            AstType::TypeName(name) => {
+                Ok(name)
+            }
+            AstType::TypeDefStruct => {
+                Ok("".to_string())
+            }
+            AstType::TypeDefEnum => {
+                Ok("".to_string())
+            }
+            AstType::TypeDefUnion => {
+                Ok("".to_string())
+            }
+            AstType::Ref(name) => {
+                Ok(format!("*{}", self.repr_ast_ty(name.deref().clone())?))
+            }
+            AstType::Deref(name) => {
+                Ok(format!("&{}", self.repr_ast_ty(name.deref().clone())?))
+
+            }
+            AstType::Void => {
+                Ok("void".to_string())
+            }
+        }
+    }
+    fn get_def_typ(&self, node: &Node) -> Result<AstType> {
         match &node.data {
-            NodeData::Def(decl) => match decl.ty.deref() {
-                Some(ty) => Ok(ty.clone()),
-                None => {
-                    println!("type inference shit the bed. {:?}", decl);
-                    unreachable!();
+            NodeData::Def(def) => {
+                
+                match def.expr.type_annotation {
+                    AstType::Unknown => {
+                        println!("type inference shit the bed. {:?}", def);
+                        unreachable!();
+                    }
+                    _ => Ok(def.expr.type_annotation.clone()),
                 }
+
             },
             _ => {
                 println!("wrong node passed to ty inference : {:?}", node);
@@ -158,7 +219,7 @@ impl<'a> CPP<'a> {
                     op_name = Some(Box::new(Node {
                         id: format!("_{}", -1),
                         data: NodeData::TEXT("it".to_string()),
-                        annotations: vec![]
+                        type_annotation: AstType::Unknown,
                     }));
                 }
                 Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr(&op_name.unwrap())?, self.repr(list)?, self.repr_block(body)?))
@@ -234,18 +295,18 @@ impl<'a> CPP<'a> {
                 }
 
                 NodeData::Initialize(_, fields) => {
-                    let ty = self.get_decl_ty(node)?;
+                    let ty = self.get_def_typ(node)?;
                     let fields = self.repr_struct_init_fields(&fields)?;
                     match decl.mutable {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
-                            self.repr(&ty)?,
+                            self.repr_ast_ty(ty)?,
                             self.repr(decl.name.deref())?,
                             fields
                         )),
                         true => Ok(format!(
                             "{} {} = {{\n{}}}",
-                            self.repr(&ty)?,
+                            self.repr_ast_ty(ty)?,
                             self.repr(decl.name.deref())?,
                             fields,
                         )),
@@ -279,17 +340,17 @@ impl<'a> CPP<'a> {
                 }
 
                 _ => {
-                    let ty = self.get_decl_ty(node)?;
+                    let ty = self.get_def_typ(node)?;
                     match decl.mutable {
                         false => Ok(format!(
                             "const {} {} = {}",
-                            self.repr(&ty)?,
+                            self.repr_ast_ty(ty)?,
                             self.repr(decl.name.deref())?,
                             self.repr(decl.expr.deref())?
                         )),
                         true => Ok(format!(
                             "{} {} = {}",
-                            self.repr(&ty)?,
+                            self.repr_ast_ty(ty)?,
                             self.repr(decl.name.deref())?,
                             self.repr(decl.expr.deref())?
                         )),
@@ -396,7 +457,7 @@ impl<'a> CPP<'a> {
                 Ok(base)
             }
             NodeData::Return(expr) => Ok(format!("return {}", self.repr(&expr)?)),
-            NodeData::C_CompilerFlag(_) => { Ok ("".to_string()) },
+            NodeData::CCompilerFlag(_) => { Ok ("".to_string()) },
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);
                 unreachable!()

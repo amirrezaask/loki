@@ -1,10 +1,7 @@
 use anyhow::Result;
+
 pub type SrcLocation = (usize, usize);
-/*TODO:
-- handle floats
 
-
-*/
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Type {
     EOF,
@@ -94,7 +91,8 @@ pub enum Type {
     KeywordUint128,
 
     KeywordString,
-    KeywordFloat,
+    KeywordFloat32,
+    KeywordFloat64,
     KeywordChar,
     KeywordAs,
 
@@ -109,7 +107,6 @@ impl Type {
         match s {
             "#load" => Self::LoadDirective,
             "#host" => Self::HostDirective,
-            "#c_compiler_flag" => Self::C_CompilerFlagDirective,
 
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,
@@ -133,22 +130,23 @@ impl Type {
             "union" => Self::KeywordUnion,
             "void" => Self::KeywordVoid,
 
-            "int8" => Self::KeywordInt8,
-            "int16" => Self::KeywordInt16,
-            "int32" => Self::KeywordInt32,
-            "int64" => Self::KeywordInt64,
-            "int128" => Self::KeywordInt128,
+            "s8" => Self::KeywordInt8,
+            "s16" => Self::KeywordInt16,
+            "s32" => Self::KeywordInt32,
+            "s64" => Self::KeywordInt64,
+            "s128" => Self::KeywordInt128,
             "int" => Self::KeywordInt,
 
-            "uint8" => Self::KeywordUint8,
-            "uint16" => Self::KeywordUint16,
-            "uint32" => Self::KeywordUint32,
-            "uint64" => Self::KeywordUint64,
-            "uint128" => Self::KeywordUint128,
+            "u8" => Self::KeywordUint8,
+            "u16" => Self::KeywordUint16,
+            "u32" => Self::KeywordUint32,
+            "u64" => Self::KeywordUint64,
+            "u128" => Self::KeywordUint128,
             "uint" => Self::KeywordUint,
 
             "string" => Self::KeywordString,
-            "float" => Self::KeywordFloat,
+            "f64" => Self::KeywordFloat32,
+            "f32" => Self::KeywordFloat64,
             "char" => Self::KeywordChar,
             _ => Self::Ident,
         }
@@ -712,20 +710,6 @@ fn integers() {
     let num = num.unwrap();
     assert_eq!("123", &src[num.loc.0..=num.loc.1]);
 }
-
-#[test]
-fn keywords() {
-    for keyword in Type::to_vec_str() {
-        let mut tokenizer = Tokenizer::new(keyword);
-
-        let tok = tokenizer.next();
-
-        assert!(tok.is_ok());
-        let tok = tok.unwrap();
-        assert_eq!(&keyword[0..keyword.len()], &keyword[tok.loc.0..=tok.loc.1]);
-    }
-}
-
 #[test]
 fn const_decl_char() -> Result<()> {
     let src = "c :: 'c';";

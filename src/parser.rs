@@ -1,7 +1,7 @@
-use crate::ast::{Def, Node, NodeData, NodeID, Ast, SymbolTable, ContainerField, Annotation, TypeAnnotation};
-use crate::tokenizer::Token;
-use crate::tokenizer::Tokenizer;
-use crate::tokenizer::Type;
+use crate::ast::{Def, Node, NodeData, Ast, SymbolTable, ContainerField, AstType};
+use crate::lexer::Token;
+use crate::lexer::Tokenizer;
+use crate::lexer::Type;
 use anyhow::{anyhow, Result};
 
 #[derive(Debug, Default)]
@@ -22,10 +22,10 @@ impl Parser {
             self.src[self.tokens[self.cur].loc.0..=self.tokens[self.cur].loc.1].to_string(),
         )
     }
-    fn new_node(&mut self, data: NodeData, annotations: Vec<Annotation>) -> Node {
+    fn new_node(&mut self, data: NodeData, type_annotation: AstType) -> Node {
         let node = Node {
             id: format!("{}_{}", self.filename, self.node_counter),
-            data, annotations
+            data, type_annotation
         };
         self.node_counter += 1;
         return node;
@@ -79,7 +79,7 @@ impl Parser {
             Type::Ident => {
                 let name = self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
                 self.forward_token();
-                return Ok(self.new_node(NodeData::Ident(name), vec![]));
+                return Ok(self.new_node(NodeData::Ident(name), AstType::Unknown));
             }
             _ => {
                 return Err(self.err_uexpected(Type::Ident));
@@ -89,7 +89,7 @@ impl Parser {
     fn expect_string_literal(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::StringLiteral => {
-                return Ok(self.new_node(NodeData::StringLiteral(self.cur), vec![Annotation::Type(TypeAnnotation::String)]));
+                return Ok(self.new_node(NodeData::StringLiteral(self.cur), AstType::String));
             }
             _ => {
                 return Err(self.err_uexpected(Type::StringLiteral));
@@ -97,57 +97,7 @@ impl Parser {
         }
     }
 
-    fn naive_ty_infer(&mut self, expr: &Node) -> Option<Node> {
-        match &expr.data {
-            NodeData::True(_) | NodeData::False(_) => {
-                return Some(self.new_node(NodeData::BoolTy(0), vec![Annotation::Type(TypeAnnotation::Bool)]));
-            }
-            NodeData::Char(_) => {
-                return Some(self.new_node(NodeData::CharTy(0), vec![Annotation::Type(TypeAnnotation::Char)]));
-            }
-            NodeData::Uint(_) => {
-                return Some(self.new_node(NodeData::UintTy(0), vec![Annotation::Type(TypeAnnotation::Uint)]));
-            }
-            NodeData::Int(_) => {
-                return Some(self.new_node(NodeData::IntTy(0), vec![Annotation::Type(TypeAnnotation::Int)]));
-            }
-            NodeData::Float(_) => {
-                return Some(self.new_node(NodeData::FloatTy(0), vec![Annotation::Type(TypeAnnotation::Float64)]));
-            }
 
-            NodeData::StringLiteral(_) => {
-                return Some(self.new_node(NodeData::StringTy(0), vec![Annotation::Type(TypeAnnotation::String)]));
-            }
-            NodeData::InitializeArray(op_ty, _) => {
-                if op_ty.is_some() {
-                    if let NodeData::ArrayTy(len, ty) = op_ty.clone().unwrap().data {
-                        return Some(self.new_node(op_ty.clone().unwrap().data, vec![]));
-                    } else {
-                        return None;
-                    }
-                } else {
-                    return None;
-                }
-            }
-            NodeData::Initialize(op_ty, _) => {
-                if op_ty.is_some() {
-                    let type_name =
-                        if let NodeData::Ident(ident) = op_ty.clone().unwrap().data {
-                            ident
-                        } else {
-                            unreachable!()
-                        };
-                    return Some(self.new_node(NodeData::TEXT(type_name), vec![]));
-                } else {
-                    return None;
-                }
-            }
-
-            _ => {
-                return None;
-            }
-        }
-    }
     fn expect_semicolon_and_forward(&mut self) -> Result<()> {
         self.expect_token(Type::SemiColon)?;
         self.forward_token();
@@ -161,18 +111,16 @@ impl Parser {
             Type::Equal => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                Ok(self.new_node(NodeData::Assign(Box::new(dest), Box::new(rhs)), vec![]))
+                Ok(self.new_node(NodeData::Assign(Box::new(dest), Box::new(rhs)), AstType::Unknown))
             }
             Type::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: false,
                     name: Box::new(dest),
-                    ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
-                }), vec![]))
+                }), AstType::Unknown))
             }
 
             Type::Colon => {
@@ -183,7 +131,7 @@ impl Parser {
                 }
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
-                    return Ok(self.new_node(NodeData::Decl(Box::new(dest), Box::new(ty.unwrap())), vec![]));
+                    return Ok(self.new_node(NodeData::Decl(Box::new(dest), Box::new(ty.unwrap())), AstType::Unknown));
                 }
                 let mutable = self.current_token().ty == Type::Equal;
                 self.forward_token();
@@ -191,21 +139,18 @@ impl Parser {
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable,
                     name: Box::new(dest),
-                    ty: Box::new(ty),
                     expr: Box::new(rhs),
-                }), vec![]))
+                }), AstType::Unknown))
             }
 
             Type::ColonEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let ty_infer = self.naive_ty_infer(&rhs);
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: true,
                     name: Box::new(dest),
-                    ty: Box::new(ty_infer),
                     expr: Box::new(rhs),
-                }), vec![]))
+                }), AstType::Unknown))
             }
             _ => {
                 return Err(self.err_uexpected(self.current_token().clone().ty));
@@ -240,7 +185,7 @@ impl Parser {
             self.expect_token(Type::Colon)?;
             self.forward_token();
             let ty = self.expect_expr()?;
-            args.push(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty)), vec![]));
+            args.push(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty)), AstType::Unknown));
         }
 
         let ret_ty = self.expect_expr()?;
@@ -248,8 +193,8 @@ impl Parser {
 
         let body = self.expect_block()?;
 
-        let proto = self.new_node(NodeData::FnPrototype(args, Box::new(ret_ty)), vec![]);
-        Ok(self.new_node(NodeData::FnDef(Box::new(proto), body), vec![]))
+        let proto = self.new_node(NodeData::FnPrototype(args, Box::new(ret_ty)), AstType::Unknown);
+        Ok(self.new_node(NodeData::FnDef(Box::new(proto), body), AstType::Unknown))
     }
 
     fn expect_fn_call(&mut self) -> Result<Node> {
@@ -280,7 +225,7 @@ impl Parser {
                 }
             }
         }
-        Ok(self.new_node(NodeData::FnCall(Box::new(name), args), vec![]))
+        Ok(self.new_node(NodeData::FnCall(Box::new(name), args), AstType::Unknown))
     }
     fn expect_expr_container_field(&mut self) -> Result<Node> {
         let container = self.expect_expr_initialize()?;
@@ -293,7 +238,7 @@ impl Parser {
                     field: Box::new(field),
                     container_is_enum: false,
                 };
-                return Ok(self.new_node(NodeData::ContainerField(cf), vec![]));
+                return Ok(self.new_node(NodeData::ContainerField(cf), AstType::Unknown));
             }
             _ => {
                 return Ok(container);
@@ -362,7 +307,7 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
-                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(ty)), fields), vec![]));
+                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(ty.clone())), fields), AstType::Initialize(Box::new( AstType::new(&ty)))));
                     } else {
                         let mut fields = Vec::<Node>::new();
                         loop {
@@ -386,7 +331,7 @@ impl Parser {
                         }
 
                         return Ok(
-                            self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields), vec![])
+                            self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields), AstType::Unknown)
                         );
                     }
                 }
@@ -401,27 +346,27 @@ impl Parser {
         match self.current_token().ty {
             Type::UnsignedInt => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Uint(self.cur - 1), AstType::UnsignedInt(64)))
             }
             Type::Float => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Float(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Float(self.cur - 1), AstType::Float(64)))
             }
             Type::StringLiteral => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::StringLiteral(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::StringLiteral(self.cur - 1), AstType::String))
             }
             Type::KeywordTrue => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::True(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::True(self.cur - 1), AstType::Bool))
             }
             Type::KeywordFalse => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::False(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::False(self.cur - 1), AstType::Bool))
             }
             Type::Char => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Char(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Char(self.cur - 1), AstType::Char))
             }
             Type::KeywordStruct => {
                 self.forward_token();
@@ -438,7 +383,7 @@ impl Parser {
                     self.expect_token(Type::Colon)?;
                     self.forward_token();
                     let ty = self.expect_expr()?;
-                    fields.push(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty)), vec![]));
+                    fields.push(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty)), AstType::Unknown));
                     match self.current_token().ty {
                         Type::Comma => {
                             self.forward_token();
@@ -452,7 +397,7 @@ impl Parser {
                     }
                 }
 
-                Ok(self.new_node(NodeData::Struct(fields), vec![]))
+                Ok(self.new_node(NodeData::Struct(fields), AstType::TypeDefStruct))
             }
             Type::KeywordEnum => {
                 self.forward_token();
@@ -499,7 +444,7 @@ impl Parser {
                     }
                 }
 
-                Ok(self.new_node(NodeData::Enum(is_union, variants), vec![]))
+                Ok(self.new_node(NodeData::Enum(is_union, variants), AstType::TypeDefEnum))
             }
             Type::OpenParen => {
                 self.forward_token();
@@ -515,18 +460,19 @@ impl Parser {
                 self.expect_token(Type::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
-                return Ok(self.new_node(NodeData::ArrayTy(Box::new(len), Box::new(ty)), vec![]));
+                return Ok(self.new_node(NodeData::ArrayTy(Box::new(len), Box::new(ty)), AstType::Unknown));
             }
 
             Type::Asterix => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(NodeData::Deref(Box::new(expr)), vec![]));
+                return Ok(self.new_node(NodeData::Deref(Box::new(expr.clone())), AstType::Ref(Box::new(expr.type_annotation.clone()))));
             }
             Type::Ampersand => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(NodeData::Ref(Box::new(expr)), vec![]));
+
+                return Ok(self.new_node(NodeData::Ref(Box::new(expr.clone())), AstType::Deref(Box::new(expr.type_annotation.clone()))));
             }
             Type::Dot => {
                 self.forward_token();
@@ -555,7 +501,7 @@ impl Parser {
                     }
                 }
 
-                return Ok(self.new_node(NodeData::Initialize(None, fields), vec![]));
+                return Ok(self.new_node(NodeData::Initialize(None, fields), AstType::Unknown));
             }
             Type::Ident => {
                 self.forward_token();
@@ -575,72 +521,76 @@ impl Parser {
             }
             Type::KeywordVoid => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::VoidTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::VoidTy(self.cur - 1), AstType::Void))
             }
             Type::KeywordInt => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::IntTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::IntTy(self.cur - 1), AstType::SignedInt(64)))
             }
             Type::KeywordInt8 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int8Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Int8Ty(self.cur - 1), AstType::SignedInt(8)))
             }
             Type::KeywordInt16 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int16Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Int16Ty(self.cur - 1), AstType::SignedInt(16)))
             }
             Type::KeywordInt32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int32Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Int32Ty(self.cur - 1), AstType::SignedInt(32)))
             }
             Type::KeywordInt64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int64Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Int64Ty(self.cur - 1),AstType::SignedInt(64)))
             }
             Type::KeywordInt128 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int128Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Int128Ty(self.cur - 1),AstType::SignedInt(128)))
             }
             Type::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::UintTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::UintTy(self.cur - 1), AstType::UnsignedInt(64)))
             }
             Type::KeywordUint8 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint8Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Uint8Ty(self.cur - 1), AstType::UnsignedInt(8)))
             }
             Type::KeywordUint16 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint16Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Uint16Ty(self.cur - 1), AstType::UnsignedInt(16)))
             }
             Type::KeywordUint32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint32Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Uint32Ty(self.cur - 1), AstType::UnsignedInt(32)))
             }
             Type::KeywordUint64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint64Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Uint64Ty(self.cur - 1), AstType::UnsignedInt(64)))
             }
             Type::KeywordUint128 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint128Ty(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::Uint128Ty(self.cur - 1), AstType::UnsignedInt(128)))
             }
-            Type::KeywordFloat => {
+            Type::KeywordFloat32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::FloatTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::FloatTy(self.cur - 1), AstType::Float(32)))
+            }
+            Type::KeywordFloat64 => {
+                self.forward_token();
+                Ok(self.new_node(NodeData::FloatTy(self.cur - 1), AstType::Float(64)))
             }
             Type::KeywordChar => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::CharTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::CharTy(self.cur - 1), AstType::Char))
             }
             Type::KeywordBool => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::BoolTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::BoolTy(self.cur - 1), AstType::Bool))
             }
 
             Type::KeywordString => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::StringTy(self.cur - 1), vec![]))
+                Ok(self.new_node(NodeData::StringTy(self.cur - 1), AstType::String))
             }
 
             Type::KeywordFn => self.expect_fn_def(),
@@ -666,7 +616,7 @@ impl Parser {
                     let op = self.current_token().ty.clone();
                     self.forward_token();
                     let rhs = self.expect_expr_container_field()?;
-                    Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs)), vec![]))
+                    Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs)), AstType::Unknown))
             }
 
             _ => Ok(lhs),
@@ -679,17 +629,17 @@ impl Parser {
             Type::Asterix => {
                 self.forward_token();
                 let rhs = self.expect_expr_b()?;
-                Ok(self.new_node(NodeData::Multiply(Box::new(lhs), Box::new(rhs)), vec![]))
+                Ok(self.new_node(NodeData::Multiply(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
             }
             Type::Percent => {
                 self.forward_token();
                 let rhs = self.expect_expr_b()?;
-                Ok(self.new_node(NodeData::Mod(Box::new(lhs), Box::new(rhs)), vec![]))
+                Ok(self.new_node(NodeData::Mod(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
             }
             Type::ForwardSlash => {
                 self.forward_token();
                 let rhs = self.expect_expr_b()?;
-                Ok(self.new_node(NodeData::Div(Box::new(lhs), Box::new(rhs)), vec![]))
+                Ok(self.new_node(NodeData::Div(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
             }
             _ => Ok(lhs),
         }
@@ -702,12 +652,12 @@ impl Parser {
             Type::Minus => {
                 self.forward_token();
                 let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(NodeData::Subtract(Box::new(lhs), Box::new(rhs)), vec![]))
+                Ok(self.new_node(NodeData::Subtract(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
             }
             Type::Plus => {
                 self.forward_token();
                 let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(NodeData::Sum(Box::new(lhs), Box::new(rhs)), vec![]))
+                Ok(self.new_node(NodeData::Sum(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
             }
 
             _ => Ok(lhs),
@@ -760,7 +710,7 @@ impl Parser {
             Box::new(cond),
             Box::new(cont),
             body,
-        ), vec![]));
+        ), AstType::Unknown));
     }
     
     // expect_dest will return a node that can be used as a lhs of an assignment.
@@ -795,7 +745,7 @@ impl Parser {
             Some(Box::new(iterator)),
             Box::new(iterable),
             body,
-        ), vec![]));
+        ), AstType::Unknown));
     }
     fn expect_for_each_implicit_iterator(&mut self) -> Result<Node> {
         let iterable = self.expect_expr()?;
@@ -803,12 +753,12 @@ impl Parser {
         self.forward_token();
         self.expect_token(Type::OpenBrace)?;
         let body = self.expect_block()?;
-        let iterator = self.new_node(NodeData::TEXT("it".to_string()), vec![]);
+        let iterator = self.new_node(NodeData::TEXT("it".to_string()), AstType::Unknown);
         return Ok(self.new_node(NodeData::ForIn(
             Some(Box::new(iterator)),
             Box::new(iterable),
             body,
-        ), vec![])); //TODO: we should handle any expression here now we just handle ident
+        ), AstType::Unknown)); //TODO: we should handle any expression here now we just handle ident
     }
     fn expect_stmt(&mut self) -> Result<Node> {
         match self.current_token().ty {
@@ -830,55 +780,55 @@ impl Parser {
                         self.forward_token();
                         let rhs = self.expect_expr()?;
                         let inner =
-                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     Type::MinusEqual => {
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
                         let inner =
-                            self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     Type::ModEqual => {
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
                         let inner =
-                            self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     Type::MulEqual => {
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
                         let inner =
-                            self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     Type::DivEqual => {
                         self.forward_token();
                         
                         let rhs = self.expect_expr()?;
                         let inner =
-                            self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     Type::DoublePlus => {
                         self.forward_token();
-                        let rhs = self.new_node(NodeData::TEXT("1".to_string()), vec![]);
+                        let rhs = self.new_node(NodeData::TEXT("1".to_string()), AstType::Unknown);
                         let inner =
-                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     Type::DoubleMinus => {
                         self.forward_token();
                         
-                        let rhs = self.new_node(NodeData::TEXT("1".to_string()), vec![]);
+                        let rhs = self.new_node(NodeData::TEXT("1".to_string()), AstType::Unknown);
                         let inner =
-                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), vec![]);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), vec![]));
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
                     }
                     _ => {
                         panic!("expecting stmt got {:?}", self.current_token());
@@ -903,14 +853,14 @@ impl Parser {
                             Box::new(cond),
                             Box::new(then),
                             Some(_else),
-                        ), vec![]));
+                        ), AstType::Unknown));
                     }
                     _ => {
                         return Ok(self.new_node(NodeData::If(
                             Box::new(cond),
                             Box::new(then),
                             None,
-                        ), vec![]));
+                        ), AstType::Unknown));
                     }
                 }
             }
@@ -923,7 +873,7 @@ impl Parser {
                 self.expect_token(Type::OpenBrace)?;
                 let body = self.expect_block()?;
 
-                return Ok(self.new_node(NodeData::While(Box::new(cond), body), vec![]));
+                return Ok(self.new_node(NodeData::While(Box::new(cond), body), AstType::Unknown));
             }
 
             Type::KeywordFor => {
@@ -975,7 +925,7 @@ impl Parser {
                 let expr = self.expect_expr()?;
                 self.expect_token(Type::SemiColon)?;
                 self.forward_token();
-                Ok(self.new_node(NodeData::Return(Box::new(expr)), vec![]))
+                Ok(self.new_node(NodeData::Return(Box::new(expr)), AstType::Unknown))
             }
 
             Type::KeywordGoto => {
@@ -985,7 +935,7 @@ impl Parser {
             }
 
             Type::KeywordContinue => {
-                return Ok(self.new_node(NodeData::Break, vec![]));
+                return Ok(self.new_node(NodeData::Break, AstType::Unknown));
             }
 
             Type::KeywordSwitch => {
@@ -995,7 +945,7 @@ impl Parser {
             }
 
             Type::KeywordBreak => {
-                return Ok(self.new_node(NodeData::Break, vec![]));
+                return Ok(self.new_node(NodeData::Break, AstType::Unknown));
             }
 
             _ => {
@@ -1020,7 +970,7 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::Load(path), vec![]));
+                    top_level.push(self.new_node(NodeData::Load(path), AstType::Unknown));
                 }
                 Type::C_CompilerFlagDirective => {
                     self.forward_token();
@@ -1030,7 +980,7 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::C_CompilerFlag(path), vec![]));
+                    top_level.push(self.new_node(NodeData::CCompilerFlag(path), AstType::Unknown));
                 }
                 Type::HostDirective => {
                     self.forward_token();
@@ -1040,7 +990,7 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::Host(path), vec![]));
+                    top_level.push(self.new_node(NodeData::Host(path), AstType::Unknown));
                 }
                 Type::Ident => {
                     let decl = self.expect_def()?;
