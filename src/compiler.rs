@@ -113,7 +113,7 @@ impl Compiler {
         let writing_output_elapsed = writing_output_time_start.elapsed();
         let calling_c_compiler_time_start = Instant::now();
 
-        let mut cpp_command = Command::new("clang++");
+        let mut cpp_command = Command::new("c++");
 
         cpp_command.arg("-o").arg(bin_name).arg(&out_file_name);
 

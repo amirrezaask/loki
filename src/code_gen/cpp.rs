@@ -281,7 +281,7 @@ impl<'a> CPP<'a> {
                 NodeData::Enum(is_union, variants) => {
                     if !is_union {
                         Ok(format!(
-                            "enum {} {{\n{}\n}};",
+                            "enum class {} {{\n{}\n}};",
                             self.repr(&*decl.name)?,
                             self.repr_enum_variants(&variants)?
                         ))

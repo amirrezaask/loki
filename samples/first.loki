@@ -61,14 +61,14 @@ main :: fn() int {
 
     amirreza.age = 25;
 
-    parsa : Human : .{
+    /*parsa : Human : .{
         age = 17,
         name = "parsa",
-    };
+    };*/
 
     printf("amirreza age is %d\n", amirreza.age);
     printf("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
-    printf("parsa age is %d\n", parsa.age);
+    //printf("parsa age is %d\n", parsa.age);
 
 
     counter := 0;
@@ -85,7 +85,7 @@ main :: fn() int {
     for (num in numbers) {
         printf("for each syntax: %d\n", num);
     }
-    humans := [3]Human {amirreza, parsa, Human { age = 17, name = "comrade" }};
+    humans := [3]Human {amirreza, Human { age = 17, name = "comrade" }};
     for (humans) {
         printf("for each syntax: %d\n", it.age);
     }
