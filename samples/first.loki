@@ -19,13 +19,13 @@ Human :: struct {
     state: State,
 };
 
-unknown :: 1;
+top_level_uint_constant :: 1;
 
-main :: fn() int {
+main :: () int {
 
     state := State.Alive;
     
-    z := unknown;
+    z := top_level_uint_constant;
 
     uu := someUknownConst;
     
@@ -37,7 +37,7 @@ main :: fn() int {
 
     number++;
     number--;
-
+    number = number + 10;
     number+=10;
     number-=3;
     number*=2;

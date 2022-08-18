@@ -9,6 +9,7 @@ use super::parser::Parser;
 use crate::ast::{Ast, SymbolTable};
 use crate::ast::NodeData;
 use anyhow::Result;
+use serde_json::json;
 use std::io::Write;
 use std::process::Command;
 
@@ -35,11 +36,17 @@ impl Compiler {
         Ok(ast)
     }
 
+    pub fn dump_ast(name: &str, ast: &Ast) -> Result<()> {
+        let mut out_file = std::fs::File::create(format!("{}_ast_dump.json", name))?;
+        out_file.write_all(serde_json::to_string(&ast.top_level).unwrap().as_bytes())?;
+
+        Ok(())
+    }
+
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         println!("{}", path);
         let main_ast = self.parse_file(path)?;
-        println!("{:?}", main_ast.top_level);
-
+        Self::dump_ast(path, &main_ast)?;
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.iter().count() as u64;
         let mut loads = Vec::<String>::new();

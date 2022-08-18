@@ -1,10 +1,7 @@
+- enums should not use host enum and just be consttants in a namespace
 - foreign interface
-
 - else if
-
-------
 - slicing arrays
--------
 - generics
 - pattern matching 
 - defer

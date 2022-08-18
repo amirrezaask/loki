@@ -1,20 +1,23 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap};
 
 use crate::lexer::{Token, Type};
 use anyhow::Result;
+use serde::Serialize;
 
 pub type TokenIndex = usize;
+
 pub type NodeID = String;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Def {
     pub mutable: bool,
-    pub name: Box<Node>,
+    pub name: String,
     pub expr: Box<Node>,
 }
-#[derive(Debug, PartialEq, Clone)]
-pub enum AstType {
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum AstNodeType {
     Unknown,
+    NoType,
     SignedInt(i32),
     UnsignedInt(i32),
     Float(i8),
@@ -24,90 +27,117 @@ pub enum AstType {
     Char,
     String,
 
-    Array(i8, Box<AstType>),
-    DynamicArray(Box<AstType>),
+    Array(i8, Box<AstNodeType>),
+    DynamicArray(Box<AstNodeType>),
 
     TypeName(String),
 
-    Initialize(Box<AstType>),
+    Initialize(Box<AstNodeType>),
 
     TypeDefStruct,
     TypeDefEnum,
     TypeDefUnion,
 
-    Ref(Box<AstType>),
-    Deref(Box<AstType>),
+    Ref(Box<AstNodeType>),
+    Deref(Box<AstNodeType>),
+
+    FnType(Vec<AstNodeType>, Box<AstNodeType>),
 
     Void,
 
 }
 
-impl AstType {
+impl AstNodeType {
     pub fn new(node: &Node) -> Self {
         match node.data {
             NodeData::Ident(ref ident) => {
-                return AstType::TypeName(ident.clone());
+                return AstNodeType::TypeName(ident.clone());
             }
-            NodeData::UintTy => AstType::UnsignedInt(64),
-            NodeData::Uint8Ty => AstType::UnsignedInt(8),
-            NodeData::Uint16Ty => AstType::UnsignedInt(16),
-            NodeData::Uint32Ty => AstType::UnsignedInt(32),
-            NodeData::Uint64Ty => AstType::UnsignedInt(64),
-            NodeData::Uint128Ty => AstType::UnsignedInt(128),
-            NodeData::IntTy => AstType::SignedInt(64),
-            NodeData::Int8Ty => AstType::SignedInt(8),
-            NodeData::Int16Ty => AstType::SignedInt(16),
-            NodeData::Int32Ty => AstType::SignedInt(32),
-            NodeData::Int64Ty => AstType::SignedInt(64),
-            NodeData::Int128Ty => AstType::SignedInt(128),
-            NodeData::CharTy => AstType::Char,
-            NodeData::StringTy => AstType::String,
-            NodeData::BoolTy => AstType::Bool,
-            NodeData::FloatTy => AstType::Float(64),
-            NodeData::VoidTy => AstType::Void,
+            
+            NodeData::UintTy => AstNodeType::UnsignedInt(64),
+            NodeData::Uint8Ty => AstNodeType::UnsignedInt(8),
+            NodeData::Uint16Ty => AstNodeType::UnsignedInt(16),
+            NodeData::Uint32Ty => AstNodeType::UnsignedInt(32),
+            NodeData::Uint64Ty => AstNodeType::UnsignedInt(64),
+            NodeData::Uint128Ty => AstNodeType::UnsignedInt(128),
+            NodeData::IntTy => AstNodeType::SignedInt(64),
+            NodeData::Int8Ty => AstNodeType::SignedInt(8),
+            NodeData::Int16Ty => AstNodeType::SignedInt(16),
+            NodeData::Int32Ty => AstNodeType::SignedInt(32),
+            NodeData::Int64Ty => AstNodeType::SignedInt(64),
+            NodeData::Int128Ty => AstNodeType::SignedInt(128),
+            NodeData::CharTy => AstNodeType::Char,
+            NodeData::StringTy => AstNodeType::String,
+            NodeData::BoolTy => AstNodeType::Bool,
+            NodeData::FloatTy => AstNodeType::Float(64),
+            NodeData::VoidTy => AstNodeType::Void,
             _ => {
-                AstType::Unknown
+                AstNodeType::Unknown
             }
 
         }
     }
+    pub fn make_fn_signature(args: &Vec<Node>, ret: &Node) -> Self {
+        let args_ty: Vec<AstNodeType> = args.iter().map(|arg| AstNodeType::new(arg)).collect();
+
+        return AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret)));
+    }
     pub fn is_type_def(&self) -> bool {
         match self {
-            AstType::TypeDefStruct | AstType::TypeDefUnion | AstType::TypeDefEnum => true,
+            AstNodeType::TypeDefStruct | AstNodeType::TypeDefUnion | AstNodeType::TypeDefEnum => true,
             _ => return false
         }
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        match self {
+            AstNodeType::Unknown => true,
+            _ => return false
+        }
+
     }
 
     pub fn is_type_def_enum(&self) -> bool {
         match self {
-            AstType::TypeDefEnum => true,
+            AstNodeType::TypeDefEnum => true,
             _ => return false
         }
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Node {
     pub id: NodeID,
+    pub scope: Vec<u64>,
     pub data: NodeData,
-    pub type_annotation: AstType
+    pub type_annotation: AstNodeType,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct ContainerField {
     pub container: Box<Node>,
     pub field: Box<Node>,
     pub container_is_enum: bool,
 }
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct FnSignature {
+    pub args: Vec<Node>,
+    pub ret: Box<Node>
+}
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct FnDef {
+    pub sign: FnSignature,
+    pub body: Vec<Node>,    
+}
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NodeData {
     //top level items
     CCompilerFlag(TokenIndex),
     Load(String),
     Host(String),
     Def(Def),
-    Decl(Box<Node>, AstType),
+    Decl(String),
     Assign(Box<Node>, Box<Node>),
 
     // Type defs
@@ -130,7 +160,9 @@ pub enum NodeData {
     StringTy,
     CharTy,
     VoidTy,
-    ArrayTy(u64, AstType), // len ty
+    ArrayTy(u64, AstNodeType), // len ty
+    FnType(FnSignature),
+
 
     Struct(Vec<Node>),
     Enum(bool, Vec<(Node, Option<Node>)>),
@@ -156,8 +188,7 @@ pub enum NodeData {
     Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
     InitializeArray(Option<Box<Node>>, Vec<Node>),
     
-    FnPrototype(Vec<Node>, Box<Node>),
-    FnDef(Box<Node>, Vec<Node>),
+    FnDef(FnDef),
     FnCall(Box<Node>, Vec<Node>),
     
     Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
@@ -226,7 +257,7 @@ pub enum SymbolType {
 impl SymbolType {
     pub fn new(node: &Node) -> Self {
         match node.data {
-            NodeData::Enum(_, _) | NodeData::Struct(_) | NodeData::FnPrototype(_, _)=> {
+            NodeData::Enum(_, _) | NodeData::Struct(_) | NodeData::FnType(_)=> {
                 SymbolType::TypeDef(node.clone())
             }
 
@@ -297,10 +328,10 @@ impl SymbolType {
 pub struct SymbolTable {
     pub file_scopes: HashMap<File, Scope>,
     pub file_loads: HashMap<File, Vec<File>>,
-    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, AstType)>>,
+    pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, AstNodeType)>>,
 }
 impl SymbolTable {
-    fn add_def_to_scope(&mut self, name: &str, ty: &AstType, file: &File, scope: &Scope) {
+    fn add_def_to_scope(&mut self, name: &str, ty: &AstNodeType, file: &File, scope: &Scope) {
         if let std::collections::hash_map::Entry::Vacant(e) = self
             .file_scope_defs.entry((file.to_string(), scope.clone())) {
             e.insert(vec![(name.to_string(), ty.clone())]);
@@ -328,7 +359,7 @@ impl SymbolTable {
         file: &File,
         scope: &Scope,
         less_than_this: Option<usize>,
-    ) -> Option<AstType> {
+    ) -> Option<AstNodeType> {
         let mut scope = scope.clone();
         loop {
             let defs = self
@@ -404,8 +435,8 @@ impl SymbolTable {
                 NodeData::Def(ref mut def) => {
                     self.infer_type_def(file, def, scope.to_vec(), idx)?;
                 }
-                NodeData::Decl(ref name, ref ty) => {
-                    self.add_def_to_scope(name.get_ident().as_str(), &ty, file, scope);
+                NodeData::Decl(ref name) => {
+                    self.add_def_to_scope(name, &node.type_annotation, file, scope);
                 }
                 NodeData::Assign(ref mut lhs, ref mut rhs) => {
                     if let NodeData::ContainerField(ref mut cf) = rhs.data {
@@ -447,7 +478,7 @@ impl SymbolTable {
     ) -> Result<()> {
         match def.expr.data {
             NodeData::Struct(_) | NodeData::Enum(_, _) => {
-                self.add_def_to_scope(&def.name.get_ident(), &def.expr.type_annotation, file, &scope)
+                self.add_def_to_scope(&def.name, &def.expr.type_annotation, file, &scope)
             }
             NodeData::Uint(_)
             | NodeData::Int(_)
@@ -456,10 +487,10 @@ impl SymbolTable {
             | NodeData::Float(_)
             | NodeData::StringLiteral(_)
                 => {
-                    if def.expr.type_annotation == AstType::Unknown {
+                    if def.expr.type_annotation == AstNodeType::Unknown {
                         unreachable!();
                     }
-                    self.add_def_to_scope(&def.name.get_ident(), &def.expr.type_annotation.clone(), file, &scope)
+                    self.add_def_to_scope(&def.name, &def.expr.type_annotation.clone(), file, &scope)
             }
 
             NodeData::Ident(ref ident) => {
@@ -468,16 +499,11 @@ impl SymbolTable {
                 if ty.is_none() {
                     panic!("cannot guess {:?} type", def.name);
                 }
-                // println!(
-                //     "checking {:?} type guessing this {:?}",
-                //     def.name.get_ident(),
-                //     ty
-                // );
                 def.expr.type_annotation = ty.unwrap();
 
             }
             NodeData::ContainerField(ref mut cf) => {
-                if def.expr.type_annotation != AstType::Unknown { // user explicitly said the type
+                if def.expr.type_annotation != AstNodeType::Unknown { // user explicitly said the type
                     return Ok(());
                 }
                 match cf.container.data {
@@ -510,7 +536,7 @@ impl SymbolTable {
                 }
             }
             NodeData::Cmp(_, _, _) => {
-                def.expr.type_annotation = AstType::Bool;
+                def.expr.type_annotation = AstNodeType::Bool;
             }
 
             // NodeData::FnCall(ref mut proto, _) => {
@@ -521,16 +547,16 @@ impl SymbolTable {
             //     }
             // }
 
-            NodeData::FnDef(ref proto, ref mut body) => {
+            NodeData::FnDef(ref mut fn_def) => {
                 let mut new_scope = scope.clone();
                 new_scope.push(idx);
                 self.add_def_to_scope(
-                    &def.name.get_ident(),
-                    &proto.type_annotation,
+                    &def.name,
+                    &def.expr.type_annotation,
                     file,
                     &scope,
                 );
-                self.infer_type_block(file, body, &new_scope)?;
+                self.infer_type_block(file, &mut fn_def.body, &new_scope)?;
             }
 
             _ => {}
@@ -549,6 +575,32 @@ pub struct Ast {
 }
 
 impl Ast {
+    // pub fn get_childes(&self, parent_id: NodeID) -> Vec<Node> {
+    //     let nodes = vec![];
+    //     for top_level in &self.top_level {
+    //         match top_level.data {
+    //             NodeData::Def(ref def) => {
+    //                 match def.expr.data {
+    //                     NodeData::Struct(_) => todo!(),
+    //                     NodeData::Enum(_, _) => todo!(),
+    //                     NodeData::FnPrototype(_, _) => todo!(),
+    //                     NodeData::FnDef(_, _) => todo!(),
+    //                     NodeData::If(_, _, _) => todo!(),
+    //                     NodeData::For(_, _, _, _) => todo!(),
+    //                     NodeData::ForIn(_, _, _) => todo!(),
+    //                     NodeData::While(_, _) => todo!(),
+    //                     NodeData::Break => todo!(),
+    //                     NodeData::Continue => todo!(),
+    //                     NodeData::Return(_) => todo!(),
+    //                 }
+
+    //             },
+    //             _ => {}
+    //         }
+    //     }
+
+    //     nodes
+    // }
     pub fn get_compiler_flags(&self) -> Vec<String> {
         let mut flags = Vec::<String>::new();
         for node in self.top_level.iter() {

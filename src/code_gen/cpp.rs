@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use super::{Node, NodeData, Repr, Ast};
-use crate::ast::{AstType, SymbolTable};
+use crate::ast::{AstNodeType, SymbolTable};
 use crate::lexer::{Tokenizer, Type};
 use crate::parser::Parser;
 use anyhow::Result;
@@ -12,68 +12,73 @@ pub struct CPP<'a> {
 
 impl<'a> CPP<'a> {
 
-    fn repr_ast_ty(&self, ty: AstType) -> Result<String> {
+    fn repr_ast_ty(&self, ty: AstNodeType) -> Result<String> {
         match ty {
-            AstType::Initialize(name) => {
+            AstNodeType::NoType => {
+                unreachable!()
+            },
+            AstNodeType::Initialize(name) => {
                 Ok(format!("{}", self.repr_ast_ty(*name)?))
             }
-            AstType::Unknown => {
+            AstNodeType::Unknown => {
                 Ok("UNKNOWN".to_string())
             }
-            AstType::SignedInt(_) => {
+            AstNodeType::SignedInt(_) => {
                 Ok("int".to_string())
             }
-            AstType::UnsignedInt(_) => {
+            AstNodeType::UnsignedInt(_) => {
                 Ok("unsigned int".to_string())
             }
-            AstType::Float(_) => {
+            AstNodeType::Float(_) => {
                 Ok("float".to_string())
             }
-            AstType::Bool => {
+            AstNodeType::Bool => {
                 Ok("bool".to_string())
             }
-            AstType::Char => {
+            AstNodeType::Char => {
                 Ok("char".to_string())
             }
-            AstType::String => {
+            AstNodeType::String => {
                 Ok("std::string".to_string())
             }
-            AstType::Array(_, _) => {
+            AstNodeType::Array(_, _) => {
                 unreachable!()
             }
-            AstType::DynamicArray(_) => {
+            AstNodeType::DynamicArray(_) => {
                 unreachable!()
             }
-            AstType::TypeName(name) => {
+            AstNodeType::TypeName(name) => {
                 Ok(name)
             }
-            AstType::TypeDefStruct => {
+            AstNodeType::TypeDefStruct => {
                 Ok("".to_string())
             }
-            AstType::TypeDefEnum => {
+            AstNodeType::TypeDefEnum => {
                 Ok("".to_string())
             }
-            AstType::TypeDefUnion => {
+            AstNodeType::TypeDefUnion => {
                 Ok("".to_string())
             }
-            AstType::Ref(name) => {
+            AstNodeType::Ref(name) => {
                 Ok(format!("*{}", self.repr_ast_ty(name.deref().clone())?))
             }
-            AstType::Deref(name) => {
+            AstNodeType::Deref(name) => {
                 Ok(format!("&{}", self.repr_ast_ty(name.deref().clone())?))
 
             }
-            AstType::Void => {
+            AstNodeType::Void => {
                 Ok("void".to_string())
             }
+
+            AstNodeType::FnType(_, _) => {unreachable!()},
         }
     }
-    fn get_def_typ(&self, node: &Node) -> Result<AstType> {
+    fn get_def_typ(&self, node: &Node) -> Result<AstNodeType> {
         match &node.data {
             NodeData::Def(def) => {
                 
                 match def.expr.type_annotation {
-                    AstType::Unknown => {
+                    AstNodeType::Unknown => {
                         println!("type inference shit the bed. {:?}", def);
                         unreachable!();
                     }
@@ -99,8 +104,8 @@ impl<'a> CPP<'a> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
             match &node.data {
-                NodeData::Decl(name, ref ty) => {
-                    output.push(format!("{} {}", self.repr_ast_ty(ty.clone())?, self.repr(&name)?));
+                NodeData::Decl(name) => {
+                    output.push(format!("{} {}", self.repr_ast_ty(node.type_annotation.clone())?, name));
                 }
 
                 _ => {
@@ -115,8 +120,8 @@ impl<'a> CPP<'a> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
             match &node.data {
-                NodeData::Decl(name, ty) => {
-                    output.push(format!("\t{} {};", self.repr_ast_ty(ty.clone())?, self.repr(&name)?));
+                NodeData::Decl(name) => {
+                    output.push(format!("\t{} {};", self.repr_ast_ty(node.type_annotation.clone())?, name));
                 }
                 _ => {
                     unreachable!();
@@ -209,8 +214,8 @@ impl<'a> CPP<'a> {
             NodeData::Assign(name, val) => {
                 Ok(format!("{} = {}", self.repr(name)?, self.repr(val)?))
             }
-            NodeData::Decl(name, ty) => {
-                Ok(format!("{} {}", self.repr_ast_ty(ty.clone())?, self.repr(name)?))
+            NodeData::Decl(name) => {
+                Ok(format!("{} {}", self.repr_ast_ty(node.type_annotation.clone())?, name))
             }
 
             NodeData::ForIn(op_name, list, body) => {
@@ -219,7 +224,7 @@ impl<'a> CPP<'a> {
                     op_name = Some(Box::new(Node {
                         id: format!("_{}", -1),
                         data: NodeData::TEXT("it".to_string()),
-                        type_annotation: AstType::Unknown,
+                        type_annotation: AstNodeType::Unknown, scope: list.scope.clone(),
                     }));
                 }
                 Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr(&op_name.unwrap())?, self.repr(list)?, self.repr_block(body)?))
@@ -234,16 +239,14 @@ impl<'a> CPP<'a> {
             }
 
             NodeData::Def(def) => match &def.expr.deref().data {
-                NodeData::FnDef(proto, block) => 
-                    if let NodeData::FnPrototype(args, ret) = &proto.data {
-                        Ok(format!("{} {}({}) {{\n{}\n}}",
-                        self.repr(&*ret)?,
-                        self.repr(&*def.name)?,
-                        self.repr_fn_def_args(&args)?,
-                        self.repr_block(block)?,))
-                    } else {
-                        unreachable!()
-                    }
+                NodeData::FnDef(ref fn_def) => 
+                    Ok(format!("{} {}({}) {{\n{}\n}}",
+                        self.repr(&*fn_def.sign.ret)?,
+                        def.name,
+                        self.repr_fn_def_args(&fn_def.sign.args)?,
+                        self.repr_block(&fn_def.body)?
+                    )),
+                
 
                 NodeData::InitializeArray(ty, elems) => {
                     if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
@@ -251,7 +254,7 @@ impl<'a> CPP<'a> {
                             true => {
                                 Ok(format!("const {} {}[{}] = {{{}}}",
                                            self.repr_ast_ty(elem_ty)?,
-                                           self.repr(&def.name)?,
+                                           def.name,
                                            size,
                                            self.repr_array_elems(elems)?
                                 ))
@@ -259,7 +262,7 @@ impl<'a> CPP<'a> {
                             false => {
                                 Ok(format!("{} {}[{}] = {{{}}}",
                                            self.repr_ast_ty(elem_ty)?,
-                                           self.repr(&def.name)?,
+                                           def.name,
                                            size,
                                            self.repr_array_elems(elems)?
                                 ))
@@ -274,7 +277,7 @@ impl<'a> CPP<'a> {
 
                 NodeData::Struct(fields) => Ok(format!(
                     "struct {} {{\n{}\n}};",
-                    self.repr(&*def.name)?,
+                    def.name,
                     self.repr_struct_fields(&fields)?
                 )),
 
@@ -282,13 +285,13 @@ impl<'a> CPP<'a> {
                     if !is_union {
                         Ok(format!(
                             "enum class {} {{\n{}\n}};",
-                            self.repr(&*def.name)?,
+                            def.name,
                             self.repr_enum_variants(&variants)?
                         ))
                     } else {
                         Ok(format!(
                             "union {} {{\n{}\n}};",
-                            self.repr(&*def.name)?,
+                            def.name,
                             self.repr_union_variants(&variants)?
                         ))
                     }
@@ -301,13 +304,13 @@ impl<'a> CPP<'a> {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(def.name.deref())?,
+                            def.name,
                             fields
                         )),
                         true => Ok(format!(
                             "{} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(def.name.deref())?,
+                            def.name,
                             fields,
                         )),
                     }
@@ -326,14 +329,14 @@ impl<'a> CPP<'a> {
                     match def.mutable {
                         false => Ok(format!(
                             "const auto {} = {}{}{}",
-                            self.repr(def.name.deref())?,
+                            def.name,
                             container,
                             sep,
                             field
                         )),
                         true => Ok(format!(
                             "auto {} = {}{}{}",
-                            self.repr(def.name.deref())?,
+                            def.name,
                             container, sep, field,
                         )),
                     }
@@ -345,13 +348,13 @@ impl<'a> CPP<'a> {
                         false => Ok(format!(
                             "const {} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(def.name.deref())?,
+                            def.name,
                             self.repr(def.expr.deref())?
                         )),
                         true => Ok(format!(
                             "{} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(def.name.deref())?,
+                            def.name,
                             self.repr(def.expr.deref())?
                         )),
                     }
@@ -430,7 +433,7 @@ impl<'a> CPP<'a> {
                 return Ok(format!("{}.{}", self.repr(&cf.container)?, self.repr(&cf.field)?));
             },
             NodeData::Cmp(op, lhs, rhs) => Ok(format!("{} {} {}", self.repr(lhs)?, self.repr_operator(op)?, self.repr(rhs)?)),
-            NodeData::FnDef(_, _) => {
+            NodeData::FnDef(_) => {
                 unreachable!();
             }
 

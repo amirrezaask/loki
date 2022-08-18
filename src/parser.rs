@@ -1,4 +1,5 @@
-use crate::ast::{Def, Node, NodeData, Ast, SymbolTable, ContainerField, AstType};
+#![allow(clippy::needless_return)]
+use crate::ast::{Def, Node, NodeData, Ast, SymbolTable, ContainerField, AstNodeType, FnSignature, FnDef};
 use crate::lexer::Token;
 use crate::lexer::Tokenizer;
 use crate::lexer::Type;
@@ -22,10 +23,10 @@ impl Parser {
             self.src[self.tokens[self.cur].loc.0..=self.tokens[self.cur].loc.1].to_string(),
         )
     }
-    fn new_node(&mut self, data: NodeData, type_annotation: AstType) -> Node {
+    fn new_node(&mut self, data: NodeData, type_annotation: AstNodeType, scope: Vec<u64>) -> Node {
         let node = Node {
             id: format!("{}_{}", self.filename, self.node_counter),
-            data, type_annotation
+            data, type_annotation, scope
         };
         self.node_counter += 1;
         return node;
@@ -74,24 +75,24 @@ impl Parser {
         })
     }
 
-    fn expect_ident(&mut self) -> Result<Node> {
+    fn expect_ident(&mut self, parent_id: Vec<u64>) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
                 let name = self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
                 self.forward_token();
-                return Ok(self.new_node(NodeData::Ident(name), AstType::Unknown));
+                return Ok(self.new_node(NodeData::Ident(name), AstNodeType::Unknown, parent_id.clone()));
             }
             _ => {
                 return Err(self.err_uexpected(Type::Ident));
             }
         }
     }
-    fn expect_string_literal(&mut self) -> Result<Node> {
+    fn expect_string_literal(&mut self, parent_id: Vec<u64>) -> Result<Node> {
         match self.current_token().ty {
             Type::StringLiteral => {
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                return Ok(self.new_node(NodeData::StringLiteral(literal.to_string()), AstType::String));
+                return Ok(self.new_node(NodeData::StringLiteral(literal.to_string()), AstNodeType::String, parent_id.clone()));
             }
             _ => {
                 return Err(self.err_uexpected(Type::StringLiteral));
@@ -106,53 +107,61 @@ impl Parser {
 
         Ok(())
     }
-    fn expect_def(&mut self) -> Result<Node> {
-        let dest = self.expect_lhs()?;
+    fn expect_def(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let mut dest = self.expect_lhs(parent_id.clone())?;
 
         match self.current_token().ty {
             Type::Equal => {
                 self.forward_token();
-                let rhs = self.expect_expr()?;
-                Ok(self.new_node(NodeData::Assign(Box::new(dest), Box::new(rhs)), AstType::Unknown))
+                let rhs = self.expect_expr(parent_id.clone())?;
+                let infered_ty = rhs.type_annotation.clone();
+                dest.type_annotation = infered_ty.clone();
+                Ok(self.new_node(NodeData::Assign(Box::new(dest), Box::new(rhs)), infered_ty, parent_id.clone()))
             }
             Type::DoubleColon => {
                 self.forward_token();
-                let rhs = self.expect_expr()?;
+                let rhs = self.expect_expr(parent_id.clone())?;
+                let infered_ty = rhs.type_annotation.clone();
+                dest.type_annotation = infered_ty.clone();
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: false,
-                    name: Box::new(dest),
+                    name: dest.get_ident(),
                     expr: Box::new(rhs),
-                }), AstType::Unknown))
+                }), infered_ty, parent_id.clone()))
             }
 
             Type::Colon => {
                 self.forward_token();
-                let ty = Some(self.expect_expr()?);
+                let ty = Some(self.expect_expr(parent_id.clone())?);
                 if ty.is_none() {
                     panic!("need a valid type after colon");
                 }
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
-                    return Ok(self.new_node(NodeData::Decl(Box::new(dest), AstType::new(&ty.clone().unwrap())), AstType::new(&ty.unwrap())));
+                    return Ok(self.new_node(NodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()), parent_id.clone()));
                 }
                 let mutable = self.current_token().ty == Type::Equal;
                 self.forward_token();
-                let rhs = self.expect_expr()?;
+                let rhs = self.expect_expr(parent_id.clone())?;
+                let infered_ty = rhs.type_annotation.clone();
+                dest.type_annotation = infered_ty.clone();
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable,
-                    name: Box::new(dest),
+                    name: dest.get_ident(),
                     expr: Box::new(rhs),
-                }), AstType::new(&ty.unwrap())))
+                }), AstNodeType::new(&ty.unwrap()), parent_id.clone()))
             }
 
             Type::ColonEqual => {
                 self.forward_token();
-                let rhs = self.expect_expr()?;
+                let rhs = self.expect_expr(parent_id.clone())?;
+                let infered_ty = rhs.type_annotation.clone();
+                dest.type_annotation = infered_ty.clone();
                 Ok(self.new_node(NodeData::Def(Def {
                     mutable: true,
-                    name: Box::new(dest),
+                    name: dest.get_ident(),
                     expr: Box::new(rhs),
-                }), AstType::Unknown))
+                }), infered_ty, parent_id.clone()))
             }
             _ => {
                 return Err(self.err_uexpected(self.current_token().clone().ty));
@@ -169,9 +178,7 @@ impl Parser {
         | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
     */
 
-    fn expect_fn_def(&mut self) -> Result<Node> {
-        self.expect_token(Type::KeywordFn)?;
-        self.forward_token();
+    fn expect_fn_def(&mut self, parent_id: Vec<u64>) -> Result<Node> {
         self.expect_token(Type::OpenParen)?;
         let mut args: Vec<Node> = vec![];
         self.forward_token();
@@ -183,24 +190,24 @@ impl Parser {
                 self.forward_token();
                 break;
             }
-            let name = self.expect_ident()?;
+            let name = self.expect_ident(parent_id.clone())?;
             self.expect_token(Type::Colon)?;
             self.forward_token();
-            let ty = self.expect_expr()?;
-            args.push(self.new_node(NodeData::Decl(Box::new(name), AstType::new(&ty)), AstType::new(&ty)));
+            let ty = self.expect_expr(parent_id.clone())?;
+            args.push(self.new_node(NodeData::Decl(name.get_ident()), AstNodeType::new(&ty), parent_id.clone()));
         }
 
-        let ret_ty = self.expect_expr()?;
+        let ret_ty = self.expect_expr(parent_id.clone())?;
         self.expect_token(Type::OpenBrace)?;
 
-        let body = self.expect_block()?;
-
-        let proto = self.new_node(NodeData::FnPrototype(args, Box::new(ret_ty)), AstType::Unknown);
-        Ok(self.new_node(NodeData::FnDef(Box::new(proto), body), AstType::Unknown))
+        let body = self.expect_block(parent_id.clone())?;
+        let proto_ty = AstNodeType::make_fn_signature(&args, &ret_ty);
+        let sign = FnSignature { args, ret: Box::new(ret_ty) };
+        Ok(self.new_node(NodeData::FnDef(FnDef{ sign, body }), proto_ty, parent_id.clone()))
     }
 
-    fn expect_fn_call(&mut self) -> Result<Node> {
-        let name = self.expect_lhs()?;
+    fn expect_fn_call(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let name = self.expect_lhs(parent_id.clone())?;
         self.expect_token(Type::OpenParen)?;
         let mut args = Vec::<Node>::new();
 
@@ -210,7 +217,7 @@ impl Parser {
                 self.forward_token();
                 break;
             }
-            let arg = self.expect_expr()?;
+            let arg = self.expect_expr(parent_id.clone())?;
             args.push(arg);
             match self.current_token().ty {
                 Type::Comma => {
@@ -227,28 +234,28 @@ impl Parser {
                 }
             }
         }
-        Ok(self.new_node(NodeData::FnCall(Box::new(name), args), AstType::Unknown))
+        Ok(self.new_node(NodeData::FnCall(Box::new(name), args), AstNodeType::Unknown, parent_id.clone()))
     }
-    fn expect_expr_container_field(&mut self) -> Result<Node> {
-        let container = self.expect_expr_initialize()?;
+    fn expect_expr_container_field(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let container = self.expect_expr_initialize(parent_id.clone())?;
         match self.current_token().ty {
             Type::Dot => {
                 self.forward_token();
-                let field = self.expect_expr()?;
+                let field = self.expect_expr(parent_id.clone())?;
                 let cf = ContainerField {
                     container: Box::new(container),
                     field: Box::new(field),
                     container_is_enum: false,
                 };
-                return Ok(self.new_node(NodeData::ContainerField(cf), AstType::Unknown));
+                return Ok(self.new_node(NodeData::ContainerField(cf), AstNodeType::Unknown, parent_id.clone()));
             }
             _ => {
                 return Ok(container);
             }
         }
     }
-    fn expect_expr_initialize(&mut self) -> Result<Node> {
-        let ty = self.expect_expr_exact_expr()?;
+    fn expect_expr_initialize(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let ty = self.expect_expr_exact_expr(parent_id.clone())?;
         match self.current_token().ty {
             Type::OpenBrace => match ty.data {
                 NodeData::IntTy
@@ -293,10 +300,11 @@ impl Parser {
                                 break;
                             }
 
-                            let name = self.expect_ident()?;
+                            let mut name = self.expect_ident(parent_id.clone())?;
                             self.expect_token(Type::Equal)?;
                             self.forward_token();
-                            let value = self.expect_expr()?;
+                            let value = self.expect_expr(parent_id.clone())?;
+                            name.type_annotation = value.type_annotation.clone();
                             fields.push((name, value));
                             match self.current_token().ty {
                                 Type::Comma => {
@@ -309,7 +317,7 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
-                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(ty.clone())), fields), AstType::Initialize(Box::new( AstType::new(&ty)))));
+                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(ty.clone())), fields), AstNodeType::Initialize(Box::new( AstNodeType::new(&ty))), parent_id.clone()));
                     } else {
                         let mut fields = Vec::<Node>::new();
                         loop {
@@ -318,7 +326,7 @@ impl Parser {
                                 break;
                             }
 
-                            let val = self.expect_expr()?;
+                            let val = self.expect_expr(parent_id.clone())?;
                             fields.push(val);
                             match self.current_token().ty {
                                 Type::Comma => {
@@ -333,7 +341,7 @@ impl Parser {
                         }
 
                         return Ok(
-                            self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields), AstType::Unknown)
+                            self.new_node(NodeData::InitializeArray(Some(Box::new(ty)), fields), AstNodeType::Unknown, parent_id.clone())
                         );
                     }
                 }
@@ -344,45 +352,62 @@ impl Parser {
         }
     }
 
-    fn expect_expr_exact_expr(&mut self) -> Result<Node> {
+    fn is_fn_def(&mut self) -> bool {
+        if self.current_token().ty != Type::OpenParen {
+            return false;
+        }
+        self.forward_token();
+        if self.current_token().ty == Type::CloseParen {
+            return true;
+        }
+        if self.current_token().ty == Type::Ident {
+            self.forward_token();
+            if self.current_token().ty == Type::Colon {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fn expect_expr_exact_expr(&mut self, parent_id: Vec<u64>) -> Result<Node> {
         match self.current_token().ty {
             Type::UnsignedInt => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let literal = literal.parse::<u64>()?;
-                Ok(self.new_node(NodeData::Uint(literal), AstType::UnsignedInt(64)))
+                Ok(self.new_node(NodeData::Uint(literal), AstNodeType::UnsignedInt(64), parent_id.clone()))
             }
             Type::Float => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let literal = literal.parse::<f64>()?;
-                Ok(self.new_node(NodeData::Float(literal), AstType::Float(64)))
+                Ok(self.new_node(NodeData::Float(literal), AstNodeType::Float(64), parent_id.clone()))
             }
             Type::StringLiteral => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(NodeData::StringLiteral(literal.to_string()), AstType::String))
+                Ok(self.new_node(NodeData::StringLiteral(literal.to_string()), AstNodeType::String, parent_id.clone()))
             }
             Type::KeywordTrue => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(NodeData::Bool(literal == "true"), AstType::Bool))
+                Ok(self.new_node(NodeData::Bool(literal == "true"), AstNodeType::Bool, parent_id.clone()))
             }
             Type::KeywordFalse => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(NodeData::Bool(literal == "true"), AstType::Bool))
+                Ok(self.new_node(NodeData::Bool(literal == "true"), AstNodeType::Bool, parent_id.clone()))
             }
             Type::Char => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0+1..=src_range.loc.1-1];
-                Ok(self.new_node(NodeData::Char(literal.chars().nth(0).unwrap()), AstType::Char))
+                Ok(self.new_node(NodeData::Char(literal.chars().nth(0).unwrap()), AstNodeType::Char, parent_id.clone()))
             }
             Type::KeywordStruct => {
                 self.forward_token();
@@ -394,12 +419,13 @@ impl Parser {
                         self.forward_token();
                         break;
                     }
-                    let name = self.expect_ident()?;
+                    let mut name = self.expect_ident(parent_id.clone())?;
 
                     self.expect_token(Type::Colon)?;
                     self.forward_token();
-                    let ty = self.expect_expr()?;
-                    fields.push(self.new_node(NodeData::Decl(Box::new(name), AstType::new(&ty)), AstType::new(&ty)));
+                    let ty = self.expect_expr(parent_id.clone())?;
+                    name.type_annotation = AstNodeType::new(&ty);
+                    fields.push(self.new_node(NodeData::Decl(name.get_ident()), AstNodeType::new(&ty), parent_id.clone()));
                     match self.current_token().ty {
                         Type::Comma => {
                             self.forward_token();
@@ -413,7 +439,7 @@ impl Parser {
                     }
                 }
 
-                Ok(self.new_node(NodeData::Struct(fields), AstType::TypeDefStruct))
+                Ok(self.new_node(NodeData::Struct(fields), AstNodeType::TypeDefStruct, parent_id.clone()))
             }
             Type::KeywordEnum => {
                 self.forward_token();
@@ -432,25 +458,16 @@ impl Parser {
                         continue;
                     }
 
-                    let name = self.expect_ident()?;
+                    let mut variant = self.expect_ident(parent_id.clone())?;
+                    variant.type_annotation = AstNodeType::UnsignedInt(64);
                     match self.current_token().ty {
-                        Type::OpenParen => {
-                            // should be a union
-                            is_union = true;
-                            self.forward_token();
-                            let field_ty = self.expect_expr()?;
-
-                            self.expect_token(Type::CloseParen)?;
-                            self.forward_token();
-                            variants.push((name, Some(field_ty)));
-                        }
                         Type::Comma => {
-                            variants.push((name, None));
+                            variants.push((variant, None));
                             self.forward_token();
                             continue;
                         }
                         Type::CloseBrace => {
-                            variants.push((name, None));
+                            variants.push((variant, None));
                             self.forward_token();
                             break;
                         }
@@ -460,11 +477,16 @@ impl Parser {
                     }
                 }
 
-                Ok(self.new_node(NodeData::Enum(is_union, variants), AstType::TypeDefEnum))
+                Ok(self.new_node(NodeData::Enum(is_union, variants), AstNodeType::TypeDefEnum, parent_id.clone()))
             }
             Type::OpenParen => {
-                self.forward_token();
-                let expr = self.expect_expr()?;
+                let before_check_fn_def_cur = self.cur;
+                if self.is_fn_def() {
+                    self.cur = before_check_fn_def_cur;
+                    return Ok(self.expect_fn_def(parent_id.clone())?);
+                }
+                self.cur = before_check_fn_def_cur;
+                let expr = self.expect_expr(parent_id.clone())?;
                 self.expect_token(Type::CloseParen)?;
                 Ok(expr)
             }
@@ -472,23 +494,23 @@ impl Parser {
             Type::OpenBracket => {
                 // array type
                 self.forward_token();
-                let len = self.expect_expr()?;
+                let len = self.expect_expr(parent_id.clone())?;
                 self.expect_token(Type::CloseBracket)?;
                 self.forward_token();
-                let ty = self.expect_expr_exact_expr()?;
-                return Ok(self.new_node(NodeData::ArrayTy(len.extract_uint(), AstType::new(&ty)), AstType::Unknown));
+                let ty = self.expect_expr_exact_expr(parent_id.clone())?;
+                return Ok(self.new_node(NodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty)), AstNodeType::Unknown, parent_id.clone()));
             }
 
             Type::Asterix => {
                 self.forward_token();
-                let expr = self.expect_expr()?;
-                return Ok(self.new_node(NodeData::Deref(Box::new(expr.clone())), AstType::Ref(Box::new(expr.type_annotation.clone()))));
+                let expr = self.expect_expr(parent_id.clone())?;
+                return Ok(self.new_node(NodeData::Deref(Box::new(expr.clone())), AstNodeType::Ref(Box::new(expr.type_annotation.clone())), parent_id.clone()));
             }
             Type::Ampersand => {
                 self.forward_token();
-                let expr = self.expect_expr()?;
+                let expr = self.expect_expr(parent_id.clone())?;
 
-                return Ok(self.new_node(NodeData::Ref(Box::new(expr.clone())), AstType::Deref(Box::new(expr.type_annotation.clone()))));
+                return Ok(self.new_node(NodeData::Ref(Box::new(expr.clone())), AstNodeType::Deref(Box::new(expr.type_annotation.clone())), parent_id.clone()));
             }
             // Type::Dot => {
             //     self.forward_token();
@@ -525,11 +547,11 @@ impl Parser {
                     Type::OpenParen => {
                         //function call
                         self.backward_token();
-                        self.expect_fn_call()
+                        self.expect_fn_call(parent_id.clone())
                     }
                     _ => {
                         self.backward_token();
-                        let name = self.expect_ident()?;
+                        let name = self.expect_ident(parent_id.clone())?;
                         return Ok(name);
                             
                     },
@@ -537,79 +559,77 @@ impl Parser {
             }
             Type::KeywordVoid => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::VoidTy, AstType::Void))
+                Ok(self.new_node(NodeData::VoidTy, AstNodeType::Void, parent_id.clone()))
             }
             Type::KeywordInt => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::IntTy, AstType::SignedInt(64)))
+                Ok(self.new_node(NodeData::IntTy, AstNodeType::SignedInt(64), parent_id.clone()))
             }
             Type::KeywordInt8 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int8Ty, AstType::SignedInt(8)))
+                Ok(self.new_node(NodeData::Int8Ty, AstNodeType::SignedInt(8), parent_id.clone()))
             }
             Type::KeywordInt16 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int16Ty, AstType::SignedInt(16)))
+                Ok(self.new_node(NodeData::Int16Ty, AstNodeType::SignedInt(16), parent_id.clone()))
             }
             Type::KeywordInt32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int32Ty, AstType::SignedInt(32)))
+                Ok(self.new_node(NodeData::Int32Ty, AstNodeType::SignedInt(32), parent_id.clone()))
             }
             Type::KeywordInt64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int64Ty,AstType::SignedInt(64)))
+                Ok(self.new_node(NodeData::Int64Ty,AstNodeType::SignedInt(64), parent_id.clone()))
             }
             Type::KeywordInt128 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int128Ty,AstType::SignedInt(128)))
+                Ok(self.new_node(NodeData::Int128Ty,AstNodeType::SignedInt(128), parent_id.clone()))
             }
             Type::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::UintTy, AstType::UnsignedInt(64)))
+                Ok(self.new_node(NodeData::UintTy, AstNodeType::UnsignedInt(64), parent_id.clone()))
             }
             Type::KeywordUint8 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint8Ty, AstType::UnsignedInt(8)))
+                Ok(self.new_node(NodeData::Uint8Ty, AstNodeType::UnsignedInt(8), parent_id.clone()))
             }
             Type::KeywordUint16 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint16Ty, AstType::UnsignedInt(16)))
+                Ok(self.new_node(NodeData::Uint16Ty, AstNodeType::UnsignedInt(16), parent_id.clone()))
             }
             Type::KeywordUint32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint32Ty, AstType::UnsignedInt(32)))
+                Ok(self.new_node(NodeData::Uint32Ty, AstNodeType::UnsignedInt(32), parent_id.clone()))
             }
             Type::KeywordUint64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint64Ty, AstType::UnsignedInt(64)))
+                Ok(self.new_node(NodeData::Uint64Ty, AstNodeType::UnsignedInt(64), parent_id.clone()))
             }
             Type::KeywordUint128 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint128Ty, AstType::UnsignedInt(128)))
+                Ok(self.new_node(NodeData::Uint128Ty, AstNodeType::UnsignedInt(128), parent_id.clone()))
             }
             Type::KeywordFloat32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::FloatTy, AstType::Float(32)))
+                Ok(self.new_node(NodeData::FloatTy, AstNodeType::Float(32), parent_id.clone()))
             }
             Type::KeywordFloat64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::FloatTy, AstType::Float(64)))
+                Ok(self.new_node(NodeData::FloatTy, AstNodeType::Float(64), parent_id.clone()))
             }
             Type::KeywordChar => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::CharTy, AstType::Char))
+                Ok(self.new_node(NodeData::CharTy, AstNodeType::Char, parent_id.clone()))
             }
             Type::KeywordBool => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::BoolTy, AstType::Bool))
+                Ok(self.new_node(NodeData::BoolTy, AstNodeType::Bool, parent_id.clone()))
             }
 
             Type::KeywordString => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::StringTy, AstType::String))
+                Ok(self.new_node(NodeData::StringTy, AstNodeType::String, parent_id.clone()))
             }
-
-            Type::KeywordFn => self.expect_fn_def(),
 
             _ => {
                 println!("unknown expr: {:?}", self.current_token());
@@ -618,8 +638,8 @@ impl Parser {
         }
     }
 
-    fn expect_expr_b(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_container_field()?;
+    fn expect_expr_b(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let lhs = self.expect_expr_container_field(parent_id.clone())?;
 
         match self.current_token().ty {
             Type::LeftAngle
@@ -631,49 +651,99 @@ impl Parser {
 
                     let op = self.current_token().ty.clone();
                     self.forward_token();
-                    let rhs = self.expect_expr_container_field()?;
-                    Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs)), AstType::Unknown))
+                    let rhs = self.expect_expr_container_field(parent_id.clone())?;
+                    Ok(self.new_node(NodeData::Cmp(op, Box::new(lhs), Box::new(rhs)), AstNodeType::Bool, parent_id.clone()))
             }
 
             _ => Ok(lhs),
         }
     }
-    fn expect_expr_mul_div_mod(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_b()?;
+    fn expect_expr_mul_div_mod(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let mut lhs = self.expect_expr_b(parent_id.clone())?;
 
         match self.current_token().ty {
             Type::Asterix => {
                 self.forward_token();
-                let rhs = self.expect_expr_b()?;
-                Ok(self.new_node(NodeData::Multiply(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
+                let rhs = self.expect_expr_b(parent_id.clone())?;
+                let mut infered_ty = lhs.type_annotation.clone(); 
+                if !lhs.type_annotation.is_unknown() && !rhs.type_annotation.is_unknown() && lhs.type_annotation != rhs.type_annotation {
+                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                }
+                if rhs.type_annotation != AstNodeType::Unknown {
+                    infered_ty = rhs.type_annotation.clone();
+                }
+                if lhs.type_annotation.is_unknown() {
+                    lhs.type_annotation = rhs.type_annotation.clone();
+                }
+                Ok(self.new_node(NodeData::Multiply(Box::new(lhs), Box::new(rhs)), infered_ty.clone(), parent_id.clone()))
             }
             Type::Percent => {
                 self.forward_token();
-                let rhs = self.expect_expr_b()?;
-                Ok(self.new_node(NodeData::Mod(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
+                let rhs = self.expect_expr_b(parent_id.clone())?;
+                let mut infered_ty = lhs.type_annotation.clone(); 
+                if !lhs.type_annotation.is_unknown() && !rhs.type_annotation.is_unknown() && lhs.type_annotation != rhs.type_annotation {
+                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                }
+                if rhs.type_annotation != AstNodeType::Unknown {
+                    infered_ty = rhs.type_annotation.clone();
+                }         
+                if lhs.type_annotation.is_unknown() {
+                    lhs.type_annotation = rhs.type_annotation.clone();
+                }    
+                Ok(self.new_node(NodeData::Mod(Box::new(lhs), Box::new(rhs)), infered_ty.clone(), parent_id.clone()))
             }
             Type::ForwardSlash => {
                 self.forward_token();
-                let rhs = self.expect_expr_b()?;
-                Ok(self.new_node(NodeData::Div(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
+                let rhs = self.expect_expr_b(parent_id.clone())?;
+                let mut infered_ty = lhs.type_annotation.clone(); 
+                if !lhs.type_annotation.is_unknown() && !rhs.type_annotation.is_unknown() && lhs.type_annotation != rhs.type_annotation {
+                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                }
+                if rhs.type_annotation != AstNodeType::Unknown {
+                    infered_ty = rhs.type_annotation.clone();
+                }
+                if lhs.type_annotation.is_unknown() {
+                    lhs.type_annotation = rhs.type_annotation.clone();
+                }
+                Ok(self.new_node(NodeData::Div(Box::new(lhs), Box::new(rhs)), infered_ty.clone(), parent_id.clone()))
             }
             _ => Ok(lhs),
         }
     }
 
-    fn expect_expr(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_mul_div_mod()?;
+    fn expect_expr(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let mut lhs = self.expect_expr_mul_div_mod(parent_id.clone())?;
 
         match self.current_token().ty {
             Type::Minus => {
                 self.forward_token();
-                let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(NodeData::Subtract(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
+                let rhs = self.expect_expr_mul_div_mod(parent_id.clone())?;
+                let mut infered_ty = lhs.type_annotation.clone(); 
+                if !lhs.type_annotation.is_unknown() && !rhs.type_annotation.is_unknown() && lhs.type_annotation != rhs.type_annotation {
+                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                }
+                if rhs.type_annotation != AstNodeType::Unknown {
+                    infered_ty = rhs.type_annotation.clone();
+                }
+                if lhs.type_annotation.is_unknown() {
+                    lhs.type_annotation = rhs.type_annotation.clone();
+                }
+                Ok(self.new_node(NodeData::Subtract(Box::new(lhs), Box::new(rhs)), infered_ty, parent_id.clone()))
             }
             Type::Plus => {
                 self.forward_token();
-                let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(NodeData::Sum(Box::new(lhs), Box::new(rhs)), AstType::Unknown))
+                let rhs = self.expect_expr_mul_div_mod(parent_id.clone())?;
+                let mut infered_ty = lhs.type_annotation.clone(); 
+                if !lhs.type_annotation.is_unknown() && !rhs.type_annotation.is_unknown() && lhs.type_annotation != rhs.type_annotation {
+                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                }
+                if rhs.type_annotation != AstNodeType::Unknown {
+                    infered_ty = rhs.type_annotation.clone();
+                }
+                if lhs.type_annotation.is_unknown() {
+                    lhs.type_annotation = rhs.type_annotation.clone();
+                }
+                Ok(self.new_node(NodeData::Sum(Box::new(lhs), Box::new(rhs)), infered_ty, parent_id.clone()))
             }
 
             _ => Ok(lhs),
@@ -688,17 +758,21 @@ impl Parser {
         return Ok(());
     }
 
-    fn expect_block(&mut self) -> Result<Vec<Node>> {
+    fn expect_block(&mut self, parent_id: Vec<u64>) -> Result<Vec<Node>> {
         self.expect_token(Type::OpenBrace)?;
         self.forward_token();
         let mut stmts = Vec::<Node>::new();
+        let mut counter = 0;
         loop {
             if self.current_token().ty == Type::CloseBrace {
                 break;
             }
-            let stmt = self.expect_stmt()?;
+            let mut new_scope = parent_id.clone();
+            new_scope.push(counter);
+            let stmt = self.expect_stmt(new_scope)?;
             self.if_semicolon_forward();
             stmts.push(stmt);
+            counter += 1;
         }
         self.forward_token();
 
@@ -711,36 +785,36 @@ impl Parser {
         }
     }
 
-    fn expect_for_c(&mut self) -> Result<Node> {
-        let start = self.expect_def()?;
+    fn expect_for_c(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let start = self.expect_def(parent_id.clone())?;
         self.expect_semicolon_and_forward()?;
-        let cond = self.expect_expr()?;
+        let cond = self.expect_expr(parent_id.clone())?;
         self.expect_semicolon_and_forward()?;
-        let cont = self.expect_stmt()?;
+        let cont = self.expect_stmt(parent_id.clone())?;
         self.expect_token(Type::CloseParen)?;
         self.forward_token();
-        let body = self.expect_block()?;
+        let body = self.expect_block(parent_id.clone())?;
 
         return Ok(self.new_node(NodeData::For(
             Box::new(start),
             Box::new(cond),
             Box::new(cont),
             body,
-        ), AstType::Unknown));
+        ), AstNodeType::Unknown, parent_id.clone()));
     }
     
     // expect_dest will return a node that can be used as a lhs of an assignment.
-    fn expect_lhs(&mut self) -> Result<Node> {
+    fn expect_lhs(&mut self, parent_id: Vec<u64>) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
                 self.forward_token();
                 if self.current_token().ty == Type::Dot {
                     self.backward_token();
-                    let cf = self.expect_expr_container_field();
+                    let cf = self.expect_expr_container_field(parent_id.clone());
                     return cf;
                 } else {
                     self.backward_token();
-                    return self.expect_ident();
+                    return self.expect_ident(parent_id.clone());
                 }
             }
 
@@ -749,102 +823,119 @@ impl Parser {
             }
         }
     }
-    fn expect_for_each(&mut self) -> Result<Node> {
-        let iterator = self.expect_ident()?;
+    fn expect_for_each(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let iterator = self.expect_ident(parent_id.clone())?;
         self.forward_token();
-        let iterable = self.expect_expr()?;
+        let iterable = self.expect_expr(parent_id.clone())?;
         self.expect_token(Type::CloseParen)?;
         self.forward_token();
         self.expect_token(Type::OpenBrace)?;
-        let body = self.expect_block()?;
+        let body = self.expect_block(parent_id.clone())?;
         return Ok(self.new_node(NodeData::ForIn(
             Some(Box::new(iterator)),
             Box::new(iterable),
             body,
-        ), AstType::Unknown));
+        ), AstNodeType::Unknown, parent_id.clone()));
     }
-    fn expect_for_each_implicit_iterator(&mut self) -> Result<Node> {
-        let iterable = self.expect_expr()?;
+    fn expect_for_each_implicit_iterator(&mut self, parent_id: Vec<u64>) -> Result<Node> {
+        let iterable = self.expect_expr(parent_id.clone())?;
         self.expect_token(Type::CloseParen)?;
         self.forward_token();
         self.expect_token(Type::OpenBrace)?;
-        let body = self.expect_block()?;
-        let iterator = self.new_node(NodeData::TEXT("it".to_string()), AstType::Unknown);
+        let body = self.expect_block(parent_id.clone())?;
+        let iterator = self.new_node(NodeData::TEXT("it".to_string()), AstNodeType::Unknown, parent_id.clone());
         return Ok(self.new_node(NodeData::ForIn(
             Some(Box::new(iterator)),
             Box::new(iterable),
             body,
-        ), AstType::Unknown)); //TODO: we should handle any expression here now we just handle ident
+        ), AstNodeType::Unknown, parent_id.clone())); //TODO: we should handle any expression here now we just handle ident
     }
-    fn expect_stmt(&mut self) -> Result<Node> {
+    fn expect_stmt(&mut self, parent_id: Vec<u64>) -> Result<Node> {
         match self.current_token().ty {
             Type::Ident => {
                 let before_lhs_cur = self.cur;
-                let lhs = self.expect_lhs()?;
+                let mut lhs = self.expect_lhs(parent_id.clone())?;
                 match self.current_token().ty {
                     Type::DoubleColon | Type::Colon | Type::Equal | Type::ColonEqual => {
                         self.cur = before_lhs_cur;
-                        let def = self.expect_def()?;
+                        let def = self.expect_def(parent_id.clone())?;
                         self.expect_semicolon_and_forward()?;
                         return Ok(def);
                     }
                     Type::OpenParen => {
                         self.cur = before_lhs_cur;
-                        self.expect_fn_call()
+                        self.expect_fn_call(parent_id.clone())
                     },
                     Type::PlusEqual => {
                         self.forward_token();
-                        let rhs = self.expect_expr()?;
+                        let rhs = self.expect_expr(parent_id.clone())?;
+                        lhs.type_annotation = rhs.type_annotation.clone();
                         let inner =
-                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     Type::MinusEqual => {
                         self.forward_token();
 
-                        let rhs = self.expect_expr()?;
-                        let inner =
-                            self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                        let rhs = self.expect_expr(parent_id.clone())?;
+                        lhs.type_annotation = rhs.type_annotation.clone();
+
+                        let mut inner =
+                            self.new_node(NodeData::Subtract(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     Type::ModEqual => {
                         self.forward_token();
 
-                        let rhs = self.expect_expr()?;
-                        let inner =
-                            self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                        let rhs = self.expect_expr(parent_id.clone())?;
+                        lhs.type_annotation = rhs.type_annotation.clone();
+
+                        let mut inner =
+                            self.new_node(NodeData::Mod(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     Type::MulEqual => {
                         self.forward_token();
 
-                        let rhs = self.expect_expr()?;
+                        let rhs = self.expect_expr(parent_id.clone())?;
+                        lhs.type_annotation = rhs.type_annotation.clone();
+
                         let inner =
-                            self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                            self.new_node(NodeData::Multiply(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     Type::DivEqual => {
                         self.forward_token();
                         
-                        let rhs = self.expect_expr()?;
+                        let rhs = self.expect_expr(parent_id.clone())?;
+                        lhs.type_annotation = rhs.type_annotation.clone();
+
                         let inner =
-                            self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                            self.new_node(NodeData::Div(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     Type::DoublePlus => {
                         self.forward_token();
-                        let rhs = self.new_node(NodeData::TEXT("1".to_string()), AstType::Unknown);
+                        let rhs = self.new_node(NodeData::Uint(1), AstNodeType::UnsignedInt(64), parent_id.clone());
+                        lhs.type_annotation = rhs.type_annotation.clone();
+
                         let inner =
-                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     Type::DoubleMinus => {
                         self.forward_token();
                         
-                        let rhs = self.new_node(NodeData::TEXT("1".to_string()), AstType::Unknown);
+                        let rhs = self.new_node(NodeData::Uint(1), AstNodeType::UnsignedInt(64), parent_id.clone());
+                        lhs.type_annotation = rhs.type_annotation.clone();
+
                         let inner =
-                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs)), AstType::Unknown);
-                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstType::Unknown));
+                            self.new_node(NodeData::Sum(Box::new(lhs.clone()), Box::new(rhs.clone())), rhs.type_annotation, parent_id.clone());
+                        return Ok(self.new_node(NodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, parent_id.clone()));
                     }
                     _ => {
                         panic!("expecting stmt got {:?}", self.current_token());
@@ -856,27 +947,30 @@ impl Parser {
                 self.forward_token();
                 self.expect_token(Type::OpenParen)?;
                 self.forward_token();
-                let cond = self.expect_expr()?;
+                let cond = self.expect_expr(parent_id.clone())?;
+                if !cond.type_annotation.is_unknown() && cond.type_annotation != AstNodeType::Bool {
+                    panic!("if condition should evaluate to boolean but: {:?}", cond);
+                }
                 self.expect_token(Type::CloseParen)?;
                 self.forward_token();
                 self.expect_token(Type::OpenBrace)?;
-                let then = self.expect_block()?;
+                let then = self.expect_block(parent_id.clone())?;
                 match self.current_token().ty {
                     Type::KeywordElse => {
                         self.forward_token();
-                        let _else = self.expect_block()?;
+                        let _else = self.expect_block(parent_id.clone())?;
                         Ok(self.new_node(NodeData::If(
                             Box::new(cond),
                             then,
                             Some(_else),
-                        ), AstType::Unknown))
+                        ), AstNodeType::Unknown, parent_id.clone()))
                     }
                     _ => {
                         Ok(self.new_node(NodeData::If(
                             Box::new(cond),
                             then,
                             None,
-                        ), AstType::Unknown))
+                        ), AstNodeType::Unknown, parent_id.clone()))
                     }
                 }
             }
@@ -884,12 +978,15 @@ impl Parser {
                 self.forward_token();
                 self.expect_token(Type::OpenParen)?;
                 self.forward_token();
-                let cond = self.expect_expr()?;
+                let cond = self.expect_expr(parent_id.clone())?;
+                if !cond.type_annotation.is_unknown() && cond.type_annotation != AstNodeType::Bool {
+                    panic!("while condition should evaluate to boolean but: {:?}", cond);
+                }
                 self.forward_token();
                 self.expect_token(Type::OpenBrace)?;
-                let body = self.expect_block()?;
+                let body = self.expect_block(parent_id.clone())?;
 
-                return Ok(self.new_node(NodeData::While(Box::new(cond), body), AstType::Unknown));
+                return Ok(self.new_node(NodeData::While(Box::new(cond), body), AstNodeType::Unknown, parent_id.clone()));
             }
 
             Type::KeywordFor => {
@@ -900,35 +997,35 @@ impl Parser {
                 let starting_inside_paren = self.cur;
                 let before_node_counter = self.node_counter;
 
-                if self.expect_def().is_ok() {
+                if self.expect_def(parent_id.clone()).is_ok() {
                     self.node_counter = before_node_counter;
                     self.cur = starting_inside_paren;
-                    return self.expect_for_c();
+                    return self.expect_for_c(parent_id.clone());
                 } else {
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
                 }
 
-                if self.expect_ident().is_ok() {
+                if self.expect_ident(parent_id.clone()).is_ok() {
                     if self.expect_token(Type::KeywordIn).is_ok() {
                         self.cur = starting_inside_paren;
                         self.node_counter = before_node_counter;
-                        return self.expect_for_each();
+                        return self.expect_for_each(parent_id.clone());
                     } else {
                         self.cur = starting_inside_paren;
                         self.node_counter = before_node_counter;
-                        return self.expect_for_each_implicit_iterator();
+                        return self.expect_for_each_implicit_iterator(parent_id.clone());
                     }
                 } else {
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
                 }
 
-                if self.expect_expr().is_ok() {
+                if self.expect_expr(parent_id.clone()).is_ok() {
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
 
-                    return self.expect_for_each_implicit_iterator();
+                    return self.expect_for_each_implicit_iterator(parent_id.clone());
                 } else {
                     self.cur = starting_inside_paren;
                     self.node_counter = before_node_counter;
@@ -938,10 +1035,10 @@ impl Parser {
             }
             Type::KeywordReturn => {
                 self.forward_token();
-                let expr = self.expect_expr()?;
+                let expr = self.expect_expr(parent_id.clone())?;
                 self.expect_token(Type::SemiColon)?;
                 self.forward_token();
-                Ok(self.new_node(NodeData::Return(Box::new(expr)), AstType::Unknown))
+                Ok(self.new_node(NodeData::Return(Box::new(expr)), AstNodeType::Unknown, parent_id.clone()))
             }
 
             Type::KeywordGoto => {
@@ -951,7 +1048,7 @@ impl Parser {
             }
 
             Type::KeywordContinue => {
-                return Ok(self.new_node(NodeData::Break, AstType::Unknown));
+                return Ok(self.new_node(NodeData::Break, AstNodeType::Unknown, parent_id.clone()));
             }
 
             Type::KeywordSwitch => {
@@ -961,7 +1058,7 @@ impl Parser {
             }
 
             Type::KeywordBreak => {
-                return Ok(self.new_node(NodeData::Break, AstType::Unknown));
+                return Ok(self.new_node(NodeData::Break, AstNodeType::Unknown, parent_id.clone()));
             }
 
             _ => {
@@ -973,6 +1070,7 @@ impl Parser {
 
     pub fn get_ast(mut self, st: &mut SymbolTable) -> Result<Ast> {
         let mut top_level = Vec::<Node>::new();
+        let root_id: Vec<u64> = vec![];
         loop {
             if self.cur >= self.tokens.len() {
                 break;
@@ -988,7 +1086,7 @@ impl Parser {
                     }
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                    top_level.push(self.new_node(NodeData::Load(literal.to_string()), AstType::Unknown));
+                    top_level.push(self.new_node(NodeData::Load(literal.to_string()), AstNodeType::Unknown, root_id.clone()));
                 }
                 Type::C_CompilerFlagDirective => {
                     self.forward_token();
@@ -998,7 +1096,7 @@ impl Parser {
                     if self.current_token().ty == Type::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(NodeData::CCompilerFlag(path), AstType::Unknown));
+                    top_level.push(self.new_node(NodeData::CCompilerFlag(path), AstNodeType::Unknown, root_id.clone()));
                 }
                 Type::HostDirective => {
                     self.forward_token();
@@ -1010,10 +1108,10 @@ impl Parser {
                     }
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                    top_level.push(self.new_node(NodeData::Host(literal.to_string()), AstType::Unknown));
+                    top_level.push(self.new_node(NodeData::Host(literal.to_string()), AstNodeType::Unknown, root_id.clone()));
                 }
                 Type::Ident => {
-                    let decl = self.expect_def()?;
+                    let decl = self.expect_def(root_id.clone())?;
                     self.expect_semicolon_and_forward()?;
                     top_level.push(decl);
                 }

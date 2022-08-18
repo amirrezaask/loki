@@ -7,8 +7,8 @@ mod ast;
 use anyhow::Result;
 use std::env;
 
-const ABOUT: &'static str = "loki compiler 0.2";
-const USAGE: &'static str =
+const ABOUT: &str = "loki compiler 0.2";
+const USAGE: &str =
     "Usage: loki [filename] [flags]\n\t--emit-cpp: emits CPP code using C code backend.\n";
 
 pub fn main() -> Result<()> {

@@ -1,8 +1,9 @@
 use anyhow::Result;
+use serde::Serialize;
 
 pub type SrcLocation = (usize, usize);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
 pub enum Type {
     EOF,
     OpenBracket,
@@ -65,7 +66,6 @@ pub enum Type {
     KeywordWhile,
     KeywordContinue,
     KeywordBreak,
-    KeywordFn,
     KeywordReturn,
     KeywordTrue,
     KeywordFalse,
@@ -121,7 +121,6 @@ impl Type {
             "while" => Self::KeywordWhile,
             "continue" => Self::KeywordContinue,
             "break" => Self::KeywordBreak,
-            "fn" => Self::KeywordFn,
             "return" => Self::KeywordReturn,
             "enum" => Self::KeywordEnum,
             "else" => Self::KeywordElse,
@@ -799,7 +798,7 @@ fn const_decl() {
 
 #[test]
 fn const_decl_fn() {
-    let src = "main :: fn(x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
+    let src = "main :: (x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -811,11 +810,6 @@ fn const_decl_fn() {
     let tok = tok.unwrap();
     assert_eq!(Type::DoubleColon, tok.ty);
     assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordFn, tok.ty);
-    assert_eq!("fn", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -905,13 +899,8 @@ fn const_decl_fn() {
 
 #[test]
 fn fn_sign() {
-    let src = "fn(x: int, y: uint) void";
+    let src = "(x: int, y: uint) void";
     let mut tokenizer = Tokenizer::new(src);
-
-    let tok = tokenizer.next();
-    let tok = tok.unwrap();
-    assert_eq!(Type::KeywordFn, tok.ty);
-    assert_eq!("fn", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
