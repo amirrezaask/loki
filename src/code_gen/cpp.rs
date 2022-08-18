@@ -380,15 +380,14 @@ impl<'a> CPP<'a> {
                 }
             
             // primitive types
-            NodeData::Uint(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            NodeData::Int(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            NodeData::StringLiteral(tok_idx) => {
-                Ok(format!("\"{}\"", self.ast.get_src_for_token(*tok_idx)?))
+            NodeData::Uint(number) => Ok(format!("{}", number)),
+            NodeData::Int(number) => Ok(format!("{}", number)),
+            NodeData::StringLiteral(s) => {
+                Ok(format!("\"{}\"", s))
             }
-            NodeData::Float(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            NodeData::True(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            NodeData::False(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
-            NodeData::Char(tok_idx) => Ok(format!("{}", self.ast.get_src_for_token(*tok_idx)?)),
+            NodeData::Float(f) => Ok(format!("{}",f)),
+            NodeData::Bool(b) => Ok(format!("{}", b)),
+            NodeData::Char(c) => Ok(format!("{}", c)),
             NodeData::Ident(s) => Ok(s.clone()),
             NodeData::TEXT(s) => Ok(format!("{}", s)),
 

@@ -38,6 +38,7 @@ impl Compiler {
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         println!("{}", path);
         let main_ast = self.parse_file(path)?;
+        println!("{:?}", main_ast.top_level);
 
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.iter().count() as u64;

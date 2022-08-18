@@ -89,7 +89,9 @@ impl Parser {
     fn expect_string_literal(&mut self) -> Result<Node> {
         match self.current_token().ty {
             Type::StringLiteral => {
-                return Ok(self.new_node(NodeData::StringLiteral(self.cur), AstType::String));
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                return Ok(self.new_node(NodeData::StringLiteral(literal.to_string()), AstType::String));
             }
             _ => {
                 return Err(self.err_uexpected(Type::StringLiteral));
@@ -346,27 +348,41 @@ impl Parser {
         match self.current_token().ty {
             Type::UnsignedInt => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint(self.cur - 1), AstType::UnsignedInt(64)))
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                let literal = literal.parse::<u64>()?;
+                Ok(self.new_node(NodeData::Uint(literal), AstType::UnsignedInt(64)))
             }
             Type::Float => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Float(self.cur - 1), AstType::Float(64)))
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                let literal = literal.parse::<f64>()?;
+                Ok(self.new_node(NodeData::Float(literal), AstType::Float(64)))
             }
             Type::StringLiteral => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::StringLiteral(self.cur - 1), AstType::String))
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                Ok(self.new_node(NodeData::StringLiteral(literal.to_string()), AstType::String))
             }
             Type::KeywordTrue => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::True(self.cur - 1), AstType::Bool))
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                Ok(self.new_node(NodeData::Bool(literal == "true"), AstType::Bool))
             }
             Type::KeywordFalse => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::False(self.cur - 1), AstType::Bool))
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                Ok(self.new_node(NodeData::Bool(literal == "true"), AstType::Bool))
             }
             Type::Char => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Char(self.cur - 1), AstType::Char))
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0+1..=src_range.loc.1-1];
+                Ok(self.new_node(NodeData::Char(literal.chars().nth(0).unwrap()), AstType::Char))
             }
             Type::KeywordStruct => {
                 self.forward_token();

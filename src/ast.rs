@@ -136,33 +136,40 @@ pub enum NodeData {
     Enum(bool, Vec<(Node, Option<Node>)>),
 
     //Expressions
-    Uint(TokenIndex),
-    Int(TokenIndex),
-    StringLiteral(TokenIndex),
-    Float(TokenIndex),
-    True(TokenIndex),
-    False(TokenIndex),
-    Char(TokenIndex),
+    Uint(u64),
+    Int(i64),
+    StringLiteral(String),
+    Float(f64),
+    Bool(bool),
+    Char(char),
     Ident(String),
+    
     TEXT(String),
+    
     Sum(Box<Node>, Box<Node>),
     Subtract(Box<Node>, Box<Node>),
     Multiply(Box<Node>, Box<Node>),
     Div(Box<Node>, Box<Node>),
     Mod(Box<Node>, Box<Node>),
     ContainerField(ContainerField),
+    
+    Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
+    InitializeArray(Option<Box<Node>>, Vec<Node>),
+    
     FnPrototype(Vec<Node>, Box<Node>),
     FnDef(Box<Node>, Vec<Node>),
     FnCall(Box<Node>, Vec<Node>),
-    If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
-    Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
-    InitializeArray(Option<Box<Node>>, Vec<Node>),
+    
     Cmp(Type, Box<Node>, Box<Node>), // op, lhs, rhs
     Ref(Box<Node>),
     Deref(Box<Node>),
+    
+    If(Box<Node>, Box<Vec<Node>>, Option<Vec<Node>>),
+    
     For(Box<Node>, Box<Node>, Box<Node>, Vec<Node>),
     ForIn(Option<Box<Node>>, Box<Node>, Vec<Node>),
     While(Box<Node>, Vec<Node>),
+    
     Break,
     Continue,
 
@@ -438,8 +445,7 @@ impl SymbolTable {
             NodeData::Uint(_)
             | NodeData::Int(_)
             | NodeData::Char(_)
-            | NodeData::True(_)
-            | NodeData::False(_)
+            | NodeData::Bool(_)
             | NodeData::Float(_)
             | NodeData::StringLiteral(_)
                 => {
