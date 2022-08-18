@@ -78,7 +78,7 @@ impl AstNodeType {
         }
     }
     pub fn make_fn_signature(args: &Vec<Node>, ret: &Node) -> Self {
-        let args_ty: Vec<AstNodeType> = args.iter().map(|arg| AstNodeType::new(arg)).collect();
+        let args_ty: Vec<AstNodeType> = args.iter().map(|arg| arg.type_annotation.clone()).collect();
 
         return AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret)));
     }
@@ -96,7 +96,18 @@ impl AstNodeType {
         }
 
     }
-
+    pub fn is_fn_def(&self) -> bool {
+        match self {
+            AstNodeType::FnType(_, _) => true,
+            _ => return false
+        }
+    }
+    pub fn get_fn_ret_ty(&self) -> AstNodeType {
+        match self {
+            AstNodeType::FnType(_, sign) => *(sign.clone()),
+            _ => unreachable!()
+        }
+    }
     pub fn is_type_def_enum(&self) -> bool {
         match self {
             AstNodeType::TypeDefEnum => true,
@@ -184,7 +195,7 @@ pub enum NodeData {
     Mod(Box<Node>, Box<Node>),
     ContainerField(ContainerField),
     
-    Initialize(Option<Box<Node>>, Vec<(Node, Node)>),
+    Initialize(Box<Node>, Vec<(Node, Node)>),
     InitializeArray(Option<Box<Node>>, Vec<Node>),
     
     FnDef(FnDef),
@@ -211,7 +222,7 @@ impl Node {
         if let NodeData::Ident(ident) = &self.data {
             return ident.to_string();
         } else {
-            unreachable!()
+            panic!("expected the node to be a identifier but : {:?}", self);
         }
     }
     pub fn is_ident(&self) -> bool {
@@ -330,7 +341,7 @@ pub struct SymbolTable {
     pub file_scope_defs: HashMap<(File, Scope), Vec<(Name, AstNodeType)>>,
 }
 impl SymbolTable {
-    fn add_def_to_scope(&mut self, name: &str, ty: &AstNodeType, file: &File, scope: &Scope) {
+    fn add_symbol_to_scope(&mut self, name: &str, ty: &AstNodeType, file: &File, scope: &Scope) {
         if let std::collections::hash_map::Entry::Vacant(e) = self
             .file_scope_defs.entry((file.to_string(), scope.clone())) {
             e.insert(vec![(name.to_string(), ty.clone())]);
@@ -423,7 +434,7 @@ impl SymbolTable {
         None
     }
 
-    fn infer_type_block(
+    fn infer_types_for_block(
         &mut self,
         file: &File,
         block: &mut Vec<Node>,
@@ -432,10 +443,10 @@ impl SymbolTable {
         for (idx, node) in block.iter_mut().enumerate() {
             match node.data {
                 NodeData::Def(ref mut def) => {
-                    self.infer_type_def(file, def, scope.to_vec(), idx)?;
+                    self.infer_types_for_def(file, def, scope.to_vec(), idx)?;
                 }
                 NodeData::Decl(ref name) => {
-                    self.add_def_to_scope(name, &node.type_annotation, file, scope);
+                    self.add_symbol_to_scope(name, &node.type_annotation, file, scope);
                 }
                 NodeData::Assign(ref mut lhs, ref mut rhs) => {
                     if let NodeData::ContainerField(ref mut cf) = rhs.data {
@@ -468,7 +479,7 @@ impl SymbolTable {
         Ok(())
     }
 
-    fn infer_type_def(
+    fn infer_types_for_def(
         &mut self,
         file: &File,
         def: &mut Def,
@@ -476,10 +487,9 @@ impl SymbolTable {
         idx: usize,
     ) -> Result<()> {
         match def.expr.data {
-            NodeData::Struct(_) | NodeData::Enum(_, _) => {
-                self.add_def_to_scope(&def.name, &def.expr.type_annotation, file, &scope)
-            }
-            NodeData::Uint(_)
+            NodeData::Struct(_) 
+            | NodeData::Enum(_, _)
+            | NodeData::Uint(_)
             | NodeData::Int(_)
             | NodeData::Char(_)
             | NodeData::Bool(_)
@@ -489,14 +499,13 @@ impl SymbolTable {
                     if def.expr.type_annotation == AstNodeType::Unknown {
                         unreachable!();
                     }
-                    self.add_def_to_scope(&def.name, &def.expr.type_annotation.clone(), file, &scope)
             }
 
             NodeData::Ident(ref ident) => {
                 // look it up
                 let ty = self.lookup(ident.clone(), file, &scope, Some(idx));
                 if ty.is_none() {
-                    panic!("cannot guess {:?} type", def.name);
+                    panic!("unknown identifier: {}", def.name);
                 }
                 def.expr.type_annotation = ty.unwrap();
 
@@ -507,32 +516,59 @@ impl SymbolTable {
                 }
                 match cf.container.data {
                     NodeData::Ident(ref ident) => {
-                        // println!("st: {:?}", self);
-                        // println!("cf: {:?}", cf);
-                        // should check from symbol table the type, it should be a 
+
                         let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
                         if container_ty.is_none() {
-                            // error
                             panic!("cannot infer type of: {:?}", cf.container);
                         }
                         let container_ty = container_ty.unwrap();
-                        // if container_ty.is_type_def() && !container_ty.get_node().is_enum() {
-                        //     panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
-                        // }
                         if container_ty.is_type_def_enum() {
                             cf.container_is_enum = true;
                         }
+                        def.expr.type_annotation = container_ty;
                     }
 
-                    NodeData::Initialize(ref op_ty, _) => {
+                    NodeData::Initialize(ref ty, _) => {
+                        let container_ty = self.lookup(ty.get_ident(), file, &scope, Some(idx));
+                        if container_ty.is_none() {
+                            panic!("cannot infer type of: {:?}", ty);
+                        }
+                        let container_ty = container_ty.unwrap();
+                        if container_ty.is_type_def_enum() {
+                            cf.container_is_enum = true;
+                        }
+                        def.expr.type_annotation = container_ty;
                     }
 
-                    NodeData::FnCall(_, _) => {}
-
+                    NodeData::FnCall(ref name, _) => {
+                        let fn_sign = self.lookup(name.get_ident(), file, &scope, Some(idx));
+                        if fn_sign.is_none() {
+                            panic!("cannot infer type of function: {:?}", name);
+                        }
+                        let fn_sign = fn_sign.unwrap();
+                        if !fn_sign.is_fn_def() {
+                            panic!("Compiler bug, expected a function type but found: {:?}", fn_sign);
+                        }
+                        let fn_ret_ty = fn_sign.get_fn_ret_ty();
+                        def.expr.type_annotation = fn_ret_ty;                    
+                    }
+                    
                     _ => {
                         
                     }
                 }
+            }
+            NodeData::FnCall(ref name, _) => {
+                let fn_sign = self.lookup(name.get_ident(), file, &scope, Some(idx));
+                if fn_sign.is_none() {
+                    panic!("cannot infer type of function: {:?}", name);
+                }
+                let fn_sign = fn_sign.unwrap();
+                if !fn_sign.is_fn_def() {
+                    panic!("Compiler bug, expected a function type but found: {:?}", fn_sign);
+                }
+                let fn_ret_ty = fn_sign.get_fn_ret_ty();
+                def.expr.type_annotation = fn_ret_ty;                    
             }
             NodeData::Cmp(_, _, _) => {
                 def.expr.type_annotation = AstNodeType::Bool;
@@ -549,18 +585,27 @@ impl SymbolTable {
             NodeData::FnDef(ref mut fn_def) => {
                 let mut new_scope = scope.clone();
                 new_scope.push(idx);
-                self.add_def_to_scope(
+                self.add_symbol_to_scope(
                     &def.name,
                     &def.expr.type_annotation,
                     file,
                     &scope,
                 );
-                self.infer_type_block(file, &mut fn_def.body, &new_scope)?;
+                for arg in &fn_def.sign.args {
+                    self.add_symbol_to_scope(
+                        &arg.get_ident(),
+                        &arg.type_annotation,
+                        file,
+                        &new_scope,
+                    );
+                }
+                self.infer_types_for_block(file, &mut fn_def.body, &new_scope)?;
             }
 
             _ => {}
         }
 
+        self.add_symbol_to_scope(&def.name, &def.expr.type_annotation, file, &scope);
         Ok(())
     }
 }
@@ -620,7 +665,7 @@ impl Ast {
         for (idx, node) in self.top_level.iter_mut().enumerate() {
             match node.data {
                 NodeData::Def(ref mut def) => {
-                    st.infer_type_def(&file, def, vec![], idx)?;
+                    st.infer_types_for_def(&file, def, vec![], idx)?;
                 }
 
                 NodeData::Load(ref path) => {

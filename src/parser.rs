@@ -194,7 +194,7 @@ impl Parser {
             self.expect_token(Type::Colon)?;
             self.forward_token();
             let ty = self.expect_expr(parent_id.clone())?;
-            args.push(self.new_node(NodeData::Decl(name.get_ident()), AstNodeType::new(&ty), parent_id.clone()));
+            args.push(self.new_node(NodeData::Ident(name.get_ident()), AstNodeType::new(&ty), parent_id.clone()));
         }
 
         let ret_ty = self.expect_expr(parent_id.clone())?;
@@ -317,7 +317,7 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(Type::Comma)),
                             }
                         }
-                        return Ok(self.new_node(NodeData::Initialize(Some(Box::new(ty.clone())), fields), AstNodeType::Initialize(Box::new( AstNodeType::new(&ty))), parent_id.clone()));
+                        return Ok(self.new_node(NodeData::Initialize(Box::new(ty.clone()), fields), AstNodeType::Initialize(Box::new( AstNodeType::new(&ty))), parent_id.clone()));
                     } else {
                         let mut fields = Vec::<Node>::new();
                         loop {

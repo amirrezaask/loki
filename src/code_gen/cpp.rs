@@ -104,7 +104,7 @@ impl<'a> CPP<'a> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
             match &node.data {
-                NodeData::Decl(name) => {
+                NodeData::Ident(name) => {
                     output.push(format!("{} {}", self.repr_ast_ty(node.type_annotation.clone())?, name));
                 }
 
@@ -361,13 +361,8 @@ impl<'a> CPP<'a> {
                 }
             },
             NodeData::Initialize(ty, fields) => {
-                let ty: String = if ty.is_some() {
-                    self.repr(&ty.clone().unwrap())?
-                } else {
-                    ".".to_string()
-                };
                 let fields = self.repr_struct_init_fields(&fields)?;
-                return Ok(format!("({}){{\n{}\n}}", ty, fields));
+                return Ok(format!("({}){{\n{}\n}}", self.repr(ty)?, fields));
             }
             NodeData::InitializeArray(ty, elems) => {
                     if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
