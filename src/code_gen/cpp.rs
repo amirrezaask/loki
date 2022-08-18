@@ -18,7 +18,7 @@ impl<'a> CPP<'a> {
                 Ok(format!("{}", self.repr_ast_ty(*name)?))
             }
             AstType::Unknown => {
-                Ok("".to_string())
+                Ok("UNKNOWN".to_string())
             }
             AstType::SignedInt(_) => {
                 Ok("int".to_string())
@@ -99,8 +99,8 @@ impl<'a> CPP<'a> {
         let mut output = Vec::<String>::new();
         for node in node_tys {
             match &node.data {
-                NodeData::Decl(name, ty) => {
-                    output.push(format!("{} {}", self.repr(&ty)?, self.repr(&name)?));
+                NodeData::Decl(name, ref ty) => {
+                    output.push(format!("{} {}", self.repr_ast_ty(ty.clone())?, self.repr(&name)?));
                 }
 
                 _ => {
@@ -116,7 +116,7 @@ impl<'a> CPP<'a> {
         for node in node_tys {
             match &node.data {
                 NodeData::Decl(name, ty) => {
-                    output.push(format!("\t{} {};", self.repr(&ty)?, self.repr(&name)?));
+                    output.push(format!("\t{} {};", self.repr_ast_ty(ty.clone())?, self.repr(&name)?));
                 }
                 _ => {
                     unreachable!();
@@ -210,7 +210,7 @@ impl<'a> CPP<'a> {
                 Ok(format!("{} = {}", self.repr(name)?, self.repr(val)?))
             }
             NodeData::Decl(name, ty) => {
-                Ok(format!("{} {}", self.repr(ty)?, self.repr(name)?))
+                Ok(format!("{} {}", self.repr_ast_ty(ty.clone())?, self.repr(name)?))
             }
 
             NodeData::ForIn(op_name, list, body) => {
@@ -233,12 +233,12 @@ impl<'a> CPP<'a> {
                 Ok(format!("while ({}) {{\n{}\n}}",  self.repr(cond)?, self.repr_block(body)?))
             }
 
-            NodeData::Def(decl) => match &decl.expr.deref().data {
+            NodeData::Def(def) => match &def.expr.deref().data {
                 NodeData::FnDef(proto, block) => 
                     if let NodeData::FnPrototype(args, ret) = &proto.data {
                         Ok(format!("{} {}({}) {{\n{}\n}}",
                         self.repr(&*ret)?,
-                        self.repr(&*decl.name)?,
+                        self.repr(&*def.name)?,
                         self.repr_fn_def_args(&args)?,
                         self.repr_block(&block)?,))
                     } else {
@@ -247,11 +247,11 @@ impl<'a> CPP<'a> {
 
                 NodeData::InitializeArray(ty, elems) => {
                     if let NodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
-                        match decl.mutable {
+                        match def.mutable {
                             true => {
                                 Ok(format!("const {} {}[{}] = {{{}}}",
                                            self.repr(&elem_ty)?,
-                                           self.repr(&decl.name)?,
+                                           self.repr(&def.name)?,
                                            self.repr(&size)?,
                                            self.repr_array_elems(elems)?
                                 ))
@@ -259,7 +259,7 @@ impl<'a> CPP<'a> {
                             false => {
                                 Ok(format!("{} {}[{}] = {{{}}}",
                                            self.repr(&elem_ty)?,
-                                           self.repr(&decl.name)?,
+                                           self.repr(&def.name)?,
                                            self.repr(&size)?,
                                            self.repr_array_elems(elems)?
                                 ))
@@ -274,7 +274,7 @@ impl<'a> CPP<'a> {
 
                 NodeData::Struct(fields) => Ok(format!(
                     "struct {} {{\n{}\n}};",
-                    self.repr(&*decl.name)?,
+                    self.repr(&*def.name)?,
                     self.repr_struct_fields(&fields)?
                 )),
 
@@ -282,13 +282,13 @@ impl<'a> CPP<'a> {
                     if !is_union {
                         Ok(format!(
                             "enum class {} {{\n{}\n}};",
-                            self.repr(&*decl.name)?,
+                            self.repr(&*def.name)?,
                             self.repr_enum_variants(&variants)?
                         ))
                     } else {
                         Ok(format!(
                             "union {} {{\n{}\n}};",
-                            self.repr(&*decl.name)?,
+                            self.repr(&*def.name)?,
                             self.repr_union_variants(&variants)?
                         ))
                     }
@@ -297,17 +297,17 @@ impl<'a> CPP<'a> {
                 NodeData::Initialize(_, fields) => {
                     let ty = self.get_def_typ(node)?;
                     let fields = self.repr_struct_init_fields(&fields)?;
-                    match decl.mutable {
+                    match def.mutable {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(decl.name.deref())?,
+                            self.repr(def.name.deref())?,
                             fields
                         )),
                         true => Ok(format!(
                             "{} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(decl.name.deref())?,
+                            self.repr(def.name.deref())?,
                             fields,
                         )),
                     }
@@ -323,17 +323,17 @@ impl<'a> CPP<'a> {
                     if cf.container_is_enum {
                         sep = "::";
                     }
-                    match decl.mutable {
+                    match def.mutable {
                         false => Ok(format!(
                             "const auto {} = {}{}{}",
-                            self.repr(decl.name.deref())?,
+                            self.repr(def.name.deref())?,
                             container,
                             sep,
                             field
                         )),
                         true => Ok(format!(
                             "auto {} = {}{}{}",
-                            self.repr(decl.name.deref())?,
+                            self.repr(def.name.deref())?,
                             container, sep, field,
                         )),
                     }
@@ -341,18 +341,18 @@ impl<'a> CPP<'a> {
 
                 _ => {
                     let ty = self.get_def_typ(node)?;
-                    match decl.mutable {
+                    match def.mutable {
                         false => Ok(format!(
                             "const {} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(decl.name.deref())?,
-                            self.repr(decl.expr.deref())?
+                            self.repr(def.name.deref())?,
+                            self.repr(def.expr.deref())?
                         )),
                         true => Ok(format!(
                             "{} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            self.repr(decl.name.deref())?,
-                            self.repr(decl.expr.deref())?
+                            self.repr(def.name.deref())?,
+                            self.repr(def.expr.deref())?
                         )),
                     }
                 }
@@ -393,29 +393,29 @@ impl<'a> CPP<'a> {
             NodeData::TEXT(s) => Ok(format!("{}", s)),
 
             // keywords
-            NodeData::IntTy(_) => Ok(format!("int")),
-            NodeData::Int8Ty(_) => Ok(format!("int8_t")),
-            NodeData::Int16Ty(_) => Ok(format!("int16_t")),
-            NodeData::Int32Ty(_) => Ok(format!("int32_t")),
-            NodeData::Int64Ty(_) => Ok(format!("int64_t")),
-            NodeData::Int128Ty(_) => {
+            NodeData::IntTy => Ok(format!("int")),
+            NodeData::Int8Ty => Ok(format!("int8_t")),
+            NodeData::Int16Ty => Ok(format!("int16_t")),
+            NodeData::Int32Ty => Ok(format!("int32_t")),
+            NodeData::Int64Ty => Ok(format!("int64_t")),
+            NodeData::Int128Ty => {
                 unimplemented!()
             }
 
-            NodeData::UintTy(_) => Ok(format!("unsigned int")),
-            NodeData::Uint8Ty(_) => Ok(format!("uint8_t")),
-            NodeData::Uint16Ty(_) => Ok(format!("uint16_t")),
-            NodeData::Uint32Ty(_) => Ok(format!("uint32_t")),
-            NodeData::Uint64Ty(_) => Ok(format!("uint64_t")),
-            NodeData::Uint128Ty(_) => {
+            NodeData::UintTy => Ok(format!("unsigned int")),
+            NodeData::Uint8Ty => Ok(format!("uint8_t")),
+            NodeData::Uint16Ty => Ok(format!("uint16_t")),
+            NodeData::Uint32Ty => Ok(format!("uint32_t")),
+            NodeData::Uint64Ty => Ok(format!("uint64_t")),
+            NodeData::Uint128Ty => {
                 unimplemented!();
             }
 
-            NodeData::FloatTy(_) => Ok(format!("long")),
-            NodeData::BoolTy(_) => Ok(format!("bool")),
-            NodeData::StringTy(_) => Ok(format!("std::string")),
-            NodeData::CharTy(_) => Ok(format!("char")),
-            NodeData::VoidTy(_) => Ok(format!("void")),
+            NodeData::FloatTy => Ok(format!("long")),
+            NodeData::BoolTy => Ok(format!("bool")),
+            NodeData::StringTy => Ok(format!("std::string")),
+            NodeData::CharTy => Ok(format!("char")),
+            NodeData::VoidTy => Ok(format!("void")),
 
             //Expressions
             NodeData::Sum(lhs, rhs) => Ok(format!("({} + {})", self.repr(&lhs)?, self.repr(&rhs)?)),

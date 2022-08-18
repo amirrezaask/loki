@@ -48,6 +48,23 @@ impl AstType {
             NodeData::Ident(ref ident) => {
                 return AstType::TypeName(ident.clone());
             }
+            NodeData::UintTy => AstType::UnsignedInt(64),
+            NodeData::Uint8Ty => AstType::UnsignedInt(8),
+            NodeData::Uint16Ty => AstType::UnsignedInt(16),
+            NodeData::Uint32Ty => AstType::UnsignedInt(32),
+            NodeData::Uint64Ty => AstType::UnsignedInt(64),
+            NodeData::Uint128Ty => AstType::UnsignedInt(128),
+            NodeData::IntTy => AstType::SignedInt(64),
+            NodeData::Int8Ty => AstType::SignedInt(8),
+            NodeData::Int16Ty => AstType::SignedInt(16),
+            NodeData::Int32Ty => AstType::SignedInt(32),
+            NodeData::Int64Ty => AstType::SignedInt(64),
+            NodeData::Int128Ty => AstType::SignedInt(128),
+            NodeData::CharTy => AstType::Char,
+            NodeData::StringTy => AstType::String,
+            NodeData::BoolTy => AstType::Bool,
+            NodeData::FloatTy => AstType::Float(64),
+            NodeData::VoidTy => AstType::Void,
             _ => {
                 AstType::Unknown
             }
@@ -90,29 +107,29 @@ pub enum NodeData {
     Load(TokenIndex),
     Host(TokenIndex),
     Def(Def),
-    Decl(Box<Node>, Box<Node>),
+    Decl(Box<Node>, AstType),
     Assign(Box<Node>, Box<Node>),
 
     // Type defs
-    IntTy(TokenIndex),
-    Int8Ty(TokenIndex),
-    Int16Ty(TokenIndex),
-    Int32Ty(TokenIndex),
-    Int64Ty(TokenIndex),
-    Int128Ty(TokenIndex),
+    IntTy,
+    Int8Ty,
+    Int16Ty,
+    Int32Ty,
+    Int64Ty,
+    Int128Ty,
 
-    UintTy(TokenIndex),
-    Uint8Ty(TokenIndex),
-    Uint16Ty(TokenIndex),
-    Uint32Ty(TokenIndex),
-    Uint64Ty(TokenIndex),
-    Uint128Ty(TokenIndex),
+    UintTy,
+    Uint8Ty,
+    Uint16Ty,
+    Uint32Ty,
+    Uint64Ty,
+    Uint128Ty,
 
-    FloatTy(TokenIndex),
-    BoolTy(TokenIndex),
-    StringTy(TokenIndex),
-    CharTy(TokenIndex),
-    VoidTy(TokenIndex),
+    FloatTy,
+    BoolTy,
+    StringTy,
+    CharTy,
+    VoidTy,
     ArrayTy(Box<Node>, Box<Node>), // len ty
 
     Struct(Vec<Node>),
@@ -202,23 +219,23 @@ impl SymbolType {
             NodeData::Ident(_) => {
                 SymbolType::TypeRef(node.clone())
             }
-            NodeData::IntTy(_) |
-            NodeData::Int8Ty(_) |
-            NodeData::Int16Ty(_) |
-            NodeData::Int32Ty(_) |
-            NodeData::Int64Ty(_) |
-            NodeData::Int128Ty(_) |
-            NodeData::UintTy(_) |
-            NodeData::Uint8Ty(_) |
-            NodeData::Uint16Ty(_) |
-            NodeData::Uint32Ty(_) |
-            NodeData::Uint64Ty(_) |
-            NodeData::Uint128Ty(_) |
-            NodeData::FloatTy(_) |
-            NodeData::BoolTy(_) |
-            NodeData::StringTy(_) |
-            NodeData::CharTy(_) |
-            NodeData::VoidTy(_) 
+            NodeData::IntTy |
+            NodeData::Int8Ty |
+            NodeData::Int16Ty |
+            NodeData::Int32Ty |
+            NodeData::Int64Ty |
+            NodeData::Int128Ty |
+            NodeData::UintTy |
+            NodeData::Uint8Ty |
+            NodeData::Uint16Ty |
+            NodeData::Uint32Ty |
+            NodeData::Uint64Ty |
+            NodeData::Uint128Ty |
+            NodeData::FloatTy |
+            NodeData::BoolTy |
+            NodeData::StringTy |
+            NodeData::CharTy |
+            NodeData::VoidTy 
                 => {
                     SymbolType::Primitive(node.clone())
                 }
@@ -270,19 +287,14 @@ pub struct SymbolTable {
 }
 impl SymbolTable {
     fn add_def_to_scope(&mut self, name: &str, ty: &AstType, file: &File, scope: &Scope) {
-        if self
-            .file_scope_defs
-            .contains_key(&(file.to_string(), scope.clone()))
-        {
+        if let std::collections::hash_map::Entry::Vacant(e) = self
+            .file_scope_defs.entry((file.to_string(), scope.clone())) {
+            e.insert(vec![(name.to_string(), ty.clone())]);
+        } else {
             let val = self
                 .file_scope_defs
                 .get_mut(&(file.to_string(), scope.clone()));
             val.unwrap().push((name.to_string(), ty.clone()));
-        } else {
-            self.file_scope_defs.insert(
-                (file.to_string(), scope.clone()),
-                vec![(name.to_string(), ty.clone())],
-            );
         }
     }
     pub fn new() -> Self {
@@ -379,35 +391,28 @@ impl SymbolTable {
                     self.infer_type_def(file, def, scope.to_vec(), idx)?;
                 }
                 NodeData::Decl(ref name, ref ty) => {
-                    self.add_def_to_scope(name.get_ident().as_str(), &ty.type_annotation, file, scope);
+                    self.add_def_to_scope(name.get_ident().as_str(), &ty, file, scope);
                 }
                 NodeData::Assign(ref mut lhs, ref mut rhs) => {
-                    match rhs.data {
-                        NodeData::ContainerField(ref mut cf) => {
-                            match cf.container.data {
-                                NodeData::Ident(ref ident) => {
-                                    // println!("st: {:?}", self);
-                                    // println!("cf: {:?}", cf);
-                                    // should check from symbol table the type, it should be a 
-                                    let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
-                                    if container_ty.is_none() {
-                                        // error
-                                        panic!("cannot infer type of: {:?}", cf.container);
-                                    }
-                                    let container_ty = container_ty.unwrap();
-                                    if container_ty.is_type_def() && !container_ty.is_type_def_enum() {
-                                        panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
-                                    }
-                                    if container_ty.is_type_def_enum() {
-                                        cf.container_is_enum = true;
-                                    }
-                                }
-
-                                _ => {}
+                    if let NodeData::ContainerField(ref mut cf) = rhs.data {
+                        if let NodeData::Ident(ref ident) = cf.container.data {
+                            // println!("st: {:?}", self);
+                            // println!("cf: {:?}", cf);
+                            // should check from symbol table the type, it should be a 
+                            let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
+                            if container_ty.is_none() {
+                                // error
+                                panic!("cannot infer type of: {:?}", cf.container);
                             }
-                            
+                            let container_ty = container_ty.unwrap();
+                            if container_ty.is_type_def() && !container_ty.is_type_def_enum() {
+                                panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
+                            }
+                            if container_ty.is_type_def_enum() {
+                                cf.container_is_enum = true;
+                            }
                         }
-                        _ => {}
+    
                     }
                     
                 }
@@ -534,12 +539,8 @@ impl Ast {
     pub fn get_compiler_flags(&self) -> Vec<String> {
         let mut flags = Vec::<String>::new();
         for node in self.top_level.iter() {
-            match node.data {
-                NodeData::CCompilerFlag(flag) => {
-                    flags.push(self.get_src_for_token(flag).unwrap().to_string());
-                }
-                _ => {
-                }
+            if let NodeData::CCompilerFlag(flag) = node.data {
+                flags.push(self.get_src_for_token(flag).unwrap().to_string());
             }
         }
         return flags;

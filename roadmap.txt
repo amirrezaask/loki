@@ -1,7 +1,0 @@
-Refactor
-
-1. Lexer, produces tokens
-2. Parser, produces AST1 (AST1 is untyped and not checked at all AST).
-3. Type Inference, produces AST2 (AST2 is typed and type checked).
-4. Semantic Analyzer, produces byte_code (byte_code is a set of instructions).
-5. Target Code generator (generate code for a target, now probably only CPP).

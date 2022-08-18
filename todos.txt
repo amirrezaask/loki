@@ -1,7 +1,10 @@
-- enum/union initialization sytnax
+- foreign interface
+
 - else if
+
+------
 - slicing arrays
-- field access revised
+-------
 - generics
 - pattern matching 
 - defer

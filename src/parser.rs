@@ -131,7 +131,7 @@ impl Parser {
                 }
                 if self.current_token().ty != Type::Equal && self.current_token().ty != Type::Colon
                 {
-                    return Ok(self.new_node(NodeData::Decl(Box::new(dest), Box::new(ty.unwrap())), AstType::Unknown));
+                    return Ok(self.new_node(NodeData::Decl(Box::new(dest), AstType::new(&ty.clone().unwrap())), AstType::new(&ty.unwrap())));
                 }
                 let mutable = self.current_token().ty == Type::Equal;
                 self.forward_token();
@@ -140,7 +140,7 @@ impl Parser {
                     mutable,
                     name: Box::new(dest),
                     expr: Box::new(rhs),
-                }), AstType::Unknown))
+                }), AstType::new(&ty.unwrap())))
             }
 
             Type::ColonEqual => {
@@ -185,7 +185,7 @@ impl Parser {
             self.expect_token(Type::Colon)?;
             self.forward_token();
             let ty = self.expect_expr()?;
-            args.push(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty)), AstType::Unknown));
+            args.push(self.new_node(NodeData::Decl(Box::new(name), AstType::new(&ty)), AstType::new(&ty)));
         }
 
         let ret_ty = self.expect_expr()?;
@@ -249,22 +249,22 @@ impl Parser {
         let ty = self.expect_expr_exact_expr()?;
         match self.current_token().ty {
             Type::OpenBrace => match ty.data {
-                NodeData::IntTy(_)
-                | NodeData::Int8Ty(_)
-                | NodeData::Int32Ty(_)
-                | NodeData::Int64Ty(_)
-                | NodeData::Int128Ty(_)
-                | NodeData::UintTy(_)
-                | NodeData::Uint8Ty(_)
-                | NodeData::Uint16Ty(_)
-                | NodeData::Uint32Ty(_)
-                | NodeData::Uint64Ty(_)
-                | NodeData::Uint128Ty(_)
-                | NodeData::CharTy(_)
-                | NodeData::BoolTy(_)
-                | NodeData::StringTy(_)
-                | NodeData::FloatTy(_)
-                | NodeData::VoidTy(_) => {
+                NodeData::IntTy
+                | NodeData::Int8Ty
+                | NodeData::Int32Ty
+                | NodeData::Int64Ty
+                | NodeData::Int128Ty
+                | NodeData::UintTy
+                | NodeData::Uint8Ty
+                | NodeData::Uint16Ty
+                | NodeData::Uint32Ty
+                | NodeData::Uint64Ty
+                | NodeData::Uint128Ty
+                | NodeData::CharTy
+                | NodeData::BoolTy
+                | NodeData::StringTy
+                | NodeData::FloatTy
+                | NodeData::VoidTy => {
                     return Ok(ty);
                 }
 
@@ -383,7 +383,7 @@ impl Parser {
                     self.expect_token(Type::Colon)?;
                     self.forward_token();
                     let ty = self.expect_expr()?;
-                    fields.push(self.new_node(NodeData::Decl(Box::new(name), Box::new(ty)), AstType::Unknown));
+                    fields.push(self.new_node(NodeData::Decl(Box::new(name), AstType::new(&ty)), AstType::new(&ty)));
                     match self.current_token().ty {
                         Type::Comma => {
                             self.forward_token();
@@ -474,35 +474,35 @@ impl Parser {
 
                 return Ok(self.new_node(NodeData::Ref(Box::new(expr.clone())), AstType::Deref(Box::new(expr.type_annotation.clone()))));
             }
-            Type::Dot => {
-                self.forward_token();
-                self.expect_token(Type::OpenBrace)?;
-                self.forward_token();
-                let mut fields = Vec::<(Node, Node)>::new();
-                loop {
-                    if self.current_token().ty == Type::CloseBrace {
-                        self.forward_token();
-                        break;
-                    }
-                    let name = self.expect_ident()?;
-                    self.expect_token(Type::Equal)?;
-                    self.forward_token();
-                    let value = self.expect_expr()?;
-                    fields.push((name, value));
-                    match self.current_token().ty {
-                        Type::Comma => {
-                            self.forward_token();
-                        }
-                        Type::CloseBrace => {
-                            self.forward_token();
-                            break;
-                        }
-                        _ => return Err(self.err_uexpected(Type::Comma)),
-                    }
-                }
+            // Type::Dot => {
+            //     self.forward_token();
+            //     self.expect_token(Type::OpenBrace)?;
+            //     self.forward_token();
+            //     let mut fields = Vec::<(Node, Node)>::new();
+            //     loop {
+            //         if self.current_token().ty == Type::CloseBrace {
+            //             self.forward_token();
+            //             break;
+            //         }
+            //         let name = self.expect_ident()?;
+            //         self.expect_token(Type::Equal)?;
+            //         self.forward_token();
+            //         let value = self.expect_expr()?;
+            //         fields.push((name, value));
+            //         match self.current_token().ty {
+            //             Type::Comma => {
+            //                 self.forward_token();
+            //             }
+            //             Type::CloseBrace => {
+            //                 self.forward_token();
+            //                 break;
+            //             }
+            //             _ => return Err(self.err_uexpected(Type::Comma)),
+            //         }
+            //     }
 
-                return Ok(self.new_node(NodeData::Initialize(None, fields), AstType::Unknown));
-            }
+            //     return Ok(self.new_node(NodeData::Initialize(None, fields), AstType::Unknown));
+            // }
             Type::Ident => {
                 self.forward_token();
                 match self.current_token().ty {
@@ -521,76 +521,76 @@ impl Parser {
             }
             Type::KeywordVoid => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::VoidTy(self.cur - 1), AstType::Void))
+                Ok(self.new_node(NodeData::VoidTy, AstType::Void))
             }
             Type::KeywordInt => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::IntTy(self.cur - 1), AstType::SignedInt(64)))
+                Ok(self.new_node(NodeData::IntTy, AstType::SignedInt(64)))
             }
             Type::KeywordInt8 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int8Ty(self.cur - 1), AstType::SignedInt(8)))
+                Ok(self.new_node(NodeData::Int8Ty, AstType::SignedInt(8)))
             }
             Type::KeywordInt16 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int16Ty(self.cur - 1), AstType::SignedInt(16)))
+                Ok(self.new_node(NodeData::Int16Ty, AstType::SignedInt(16)))
             }
             Type::KeywordInt32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int32Ty(self.cur - 1), AstType::SignedInt(32)))
+                Ok(self.new_node(NodeData::Int32Ty, AstType::SignedInt(32)))
             }
             Type::KeywordInt64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int64Ty(self.cur - 1),AstType::SignedInt(64)))
+                Ok(self.new_node(NodeData::Int64Ty,AstType::SignedInt(64)))
             }
             Type::KeywordInt128 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Int128Ty(self.cur - 1),AstType::SignedInt(128)))
+                Ok(self.new_node(NodeData::Int128Ty,AstType::SignedInt(128)))
             }
             Type::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::UintTy(self.cur - 1), AstType::UnsignedInt(64)))
+                Ok(self.new_node(NodeData::UintTy, AstType::UnsignedInt(64)))
             }
             Type::KeywordUint8 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint8Ty(self.cur - 1), AstType::UnsignedInt(8)))
+                Ok(self.new_node(NodeData::Uint8Ty, AstType::UnsignedInt(8)))
             }
             Type::KeywordUint16 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint16Ty(self.cur - 1), AstType::UnsignedInt(16)))
+                Ok(self.new_node(NodeData::Uint16Ty, AstType::UnsignedInt(16)))
             }
             Type::KeywordUint32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint32Ty(self.cur - 1), AstType::UnsignedInt(32)))
+                Ok(self.new_node(NodeData::Uint32Ty, AstType::UnsignedInt(32)))
             }
             Type::KeywordUint64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint64Ty(self.cur - 1), AstType::UnsignedInt(64)))
+                Ok(self.new_node(NodeData::Uint64Ty, AstType::UnsignedInt(64)))
             }
             Type::KeywordUint128 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::Uint128Ty(self.cur - 1), AstType::UnsignedInt(128)))
+                Ok(self.new_node(NodeData::Uint128Ty, AstType::UnsignedInt(128)))
             }
             Type::KeywordFloat32 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::FloatTy(self.cur - 1), AstType::Float(32)))
+                Ok(self.new_node(NodeData::FloatTy, AstType::Float(32)))
             }
             Type::KeywordFloat64 => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::FloatTy(self.cur - 1), AstType::Float(64)))
+                Ok(self.new_node(NodeData::FloatTy, AstType::Float(64)))
             }
             Type::KeywordChar => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::CharTy(self.cur - 1), AstType::Char))
+                Ok(self.new_node(NodeData::CharTy, AstType::Char))
             }
             Type::KeywordBool => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::BoolTy(self.cur - 1), AstType::Bool))
+                Ok(self.new_node(NodeData::BoolTy, AstType::Bool))
             }
 
             Type::KeywordString => {
                 self.forward_token();
-                Ok(self.new_node(NodeData::StringTy(self.cur - 1), AstType::String))
+                Ok(self.new_node(NodeData::StringTy, AstType::String))
             }
 
             Type::KeywordFn => self.expect_fn_def(),
@@ -849,18 +849,18 @@ impl Parser {
                     Type::KeywordElse => {
                         self.forward_token();
                         let _else = self.expect_block()?;
-                        return Ok(self.new_node(NodeData::If(
+                        Ok(self.new_node(NodeData::If(
                             Box::new(cond),
                             Box::new(then),
                             Some(_else),
-                        ), AstType::Unknown));
+                        ), AstType::Unknown))
                     }
                     _ => {
-                        return Ok(self.new_node(NodeData::If(
+                        Ok(self.new_node(NodeData::If(
                             Box::new(cond),
                             Box::new(then),
                             None,
-                        ), AstType::Unknown));
+                        ), AstType::Unknown))
                     }
                 }
             }
