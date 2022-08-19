@@ -1,10 +1,16 @@
 #load "base.loki";
-
+Human :: struct {
+    age: int,
+    name: string,
+}
 main :: () int {
-    a := 2;
-    b := &a;
+    human_ptr := &Human {
+        age = 24,
+        name = "amirreza",
+    };
 
-    *b = 3;
+    age := (*human_ptr).age;
 
-    printf("a is %d\n", a);
+    printf("human_ptr age is %d\n", age);
+    return 0;
 };

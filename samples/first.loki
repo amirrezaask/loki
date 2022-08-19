@@ -102,5 +102,11 @@ main :: () int {
     printf("value is %d\n", value);
     printf("value is %d\n", *ptr_to_value);
 
+    human_ptr := &Human {
+        age = 24,
+        name = "amirreza",
+    };
+
+    printf("human_ptr age is %d\n", (*human_ptr).age);
     return 0;
 }

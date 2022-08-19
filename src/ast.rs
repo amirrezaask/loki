@@ -252,6 +252,13 @@ impl AstNode {
         return false;
     }
 
+    pub fn get_pointer_to_value(&self) -> AstNodeData {
+        if let AstNodeData::PointerTo(ref obj) = self.data {
+            return obj.data.clone();
+        }
+        panic!("expected a pointer to node found: {:?}", self);
+    }
+
     pub fn extract_uint(&self) -> u64 {
         if let AstNodeData::Uint(u) = self.data {
             return u;

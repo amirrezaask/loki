@@ -254,6 +254,35 @@ impl<'a> CPP<'a> {
             }
 
             AstNodeData::Def(def) => match &def.expr.deref().data {
+                AstNodeData::PointerTo(ref obj) => {
+                    if obj.is_initialize() {
+                        // @Refactor pointer to temporary value @HACK
+                        let hacky_name = format!("___LOKI_COMPILER_TEMP_{}___", def.name);
+                        let store_temp = format!("{} {} = {};", self.repr_ast_ty(obj.infered_type.clone())?, hacky_name, self.repr_ast_node(
+                            &AstNode {id:"".to_string(), data: def.expr.get_pointer_to_value(), infered_type: AstNodeType::Unknown, tags: vec![] }
+                        )?);
+                        let ty = self.get_def_typ(node)?;
+                        let actual = format!("{} {} = &{};", self.repr_ast_ty(ty)?, def.name, hacky_name);
+
+                        Ok(format!("{}\n{}", store_temp, actual))
+                    } else {
+                        let ty = self.get_def_typ(node)?;
+                        match def.mutable {
+                            false => Ok(format!(
+                                "const {} {} = {}",
+                                self.repr_ast_ty(ty)?,
+                                def.name,
+                                self.repr_ast_node(def.expr.deref())?
+                            )),
+                            true => Ok(format!(
+                                "{} {} = {}",
+                                self.repr_ast_ty(ty)?,
+                                def.name,
+                                self.repr_ast_node(def.expr.deref())?
+                            )),
+                    }
+                    }
+                }
                 AstNodeData::FnDef(ref fn_def) => 
                     Ok(format!("{} {}({}) {{\n{}\n}}",
                         self.repr_ast_node(&*fn_def.sign.ret)?,
@@ -404,7 +433,7 @@ impl<'a> CPP<'a> {
             AstNodeData::Ident(s) => Ok(s.clone()),
 
             AstNodeData::Deref(ptr) => {
-                Ok(format!("*{}", self.repr_ast_node(ptr)?))
+                Ok(format!("(*{})", self.repr_ast_node(ptr)?))
             }
 
             AstNodeData::PointerTo(obj) => {

@@ -486,9 +486,12 @@ impl Parser {
                     self.cur = before_check_fn_def_cur;
                     return Ok(self.expect_fn_def(parent_id.clone())?);
                 }
+
                 self.cur = before_check_fn_def_cur;
+                self.forward_token();
                 let expr = self.expect_expr(parent_id.clone())?;
                 self.expect_token(TokenType::CloseParen)?;
+                self.forward_token();
                 Ok(expr)
             }
 
@@ -511,7 +514,7 @@ impl Parser {
                 self.forward_token();
                 let expr = self.expect_expr(parent_id.clone())?;
 
-                return Ok(self.new_node(AstNodeData::PointerTo(Box::new(expr.clone())), AstNodeType::Deref(Box::new(expr.infered_type.clone())), parent_id.clone()));
+                return Ok(self.new_node(AstNodeData::PointerTo(Box::new(expr.clone())), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), parent_id.clone()));
             }
             // Type::Dot => {
             //     self.forward_token();
