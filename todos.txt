@@ -1,9 +1,17 @@
-- enums should not use host enum and just be consttants in a namespace
+- namespaces (enum/struct/union/other files should be inside a namespace access using container field)
+
+- pointers and derefrences
+
 - variadic args
+
+- automatic deref when pointer using container field
+
 - dynamic array
-- foreign interface
-- else if
+
 - slicing arrays
+
+
+------------------------ distant future
 - generics
 - pattern matching 
 - defer

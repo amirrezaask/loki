@@ -11,6 +11,8 @@ Human :: struct {
     state: State,
 }
 
+foreign_constant: int #foreign;
+
 top_level_uint_constant :: 1
 
 
@@ -89,7 +91,7 @@ main :: () int {
         printf("b1 is false\n");
     }
 
-    // this_sum :: sum(1, 2);
-    // printf("function call sum %d\n", this_sum);
-    // return 0;
+    this_sum :: sum(1, 2);
+    printf("function call sum %d\n", this_sum);
+    return 0;
 }

@@ -74,7 +74,7 @@ impl<'a> CPP<'a> {
             AstNodeType::TypeDefUnion => {
                 Ok("".to_string())
             }
-            AstNodeType::Ref(name) => {
+            AstNodeType::Pointer(name) => {
                 Ok(format!("*{}", self.repr_ast_ty(name.deref().clone())?))
             }
             AstNodeType::Deref(name) => {
@@ -239,7 +239,7 @@ impl<'a> CPP<'a> {
                     op_name = Some(Box::new(AstNode {
                         id: format!("_{}", -1),
                         data: AstNodeData::Ident("it".to_string()),
-                        infered_type: AstNodeType::Unknown,
+                        infered_type: AstNodeType::Unknown, tags: vec![]
                     }));
                 }
                 Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr_ast_node(&op_name.unwrap())?, self.repr_ast_node(list)?, self.repr_block(body)?))

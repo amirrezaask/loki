@@ -5,12 +5,7 @@ use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct Def {
-    pub mutable: bool,
-    pub name: String,
-    pub expr: Box<AstNode>,
-}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeType {
     Unknown,
@@ -35,7 +30,7 @@ pub enum AstNodeType {
     TypeDefEnum,
     TypeDefUnion,
 
-    Ref(Box<AstNodeType>),
+    Pointer(Box<AstNodeType>),
     Deref(Box<AstNodeType>),
 
     FnType(Vec<AstNodeType>, Box<AstNodeType>),
@@ -112,12 +107,17 @@ impl AstNodeType {
         }
     }
 }
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum AstTag {
+    Foreign,
+}
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstNode {
     pub id: NodeID,
     pub data: AstNodeData,
     pub infered_type: AstNodeType,
+    pub tags: Vec<AstTag>
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -159,10 +159,16 @@ pub struct AstBinaryOperation {
     pub right: Box<AstNode>
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstIf {
+pub struct AstCaseBlock {
     pub cases: Vec<(AstNode, Vec<AstNode>)>,
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct AstDef {
+    pub mutable: bool,
+    pub name: String,
+    pub expr: Box<AstNode>,
+}
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeData {
@@ -170,7 +176,7 @@ pub enum AstNodeData {
     CompilerFlags(String),
     Load(String),
     Host(String),
-    Def(Def),
+    Def(AstDef),
     Decl(String),
     Assign(Box<AstNode>, Box<AstNode>),
 
@@ -220,10 +226,10 @@ pub enum AstNodeData {
     FnDef(AstFnDef),
     FnCall(Box<AstNode>, Vec<AstNode>),
     
-    Ref(Box<AstNode>),
+    PointerTo(Box<AstNode>),
     Deref(Box<AstNode>),
     
-    If(AstIf),
+    If(AstCaseBlock),
     
     For(Box<AstNode>, Box<AstNode>, Box<AstNode>, Vec<AstNode>),
     ForIn(Option<Box<AstNode>>, Box<AstNode>, Vec<AstNode>),
@@ -271,7 +277,7 @@ impl AstNode {
         unreachable!();
     }
 
-    pub fn extract_if(&self) -> &AstIf {
+    pub fn extract_if(&self) -> &AstCaseBlock {
         if let AstNodeData::If(ref ast_if) = self.data {
             return ast_if;
         }
@@ -507,7 +513,7 @@ impl SymbolTable {
     fn infer_types_for_def(
         &mut self,
         file: &File,
-        def: &mut Def,
+        def: &mut AstDef,
         scope: Scope,
         idx: usize,
     ) -> Result<()> {

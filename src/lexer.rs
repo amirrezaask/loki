@@ -55,6 +55,7 @@ pub enum TokenType {
     LoadDirective,
     HostDirective,
     CompilerFlagDirective,
+    ForeignDirective,
 
     KeywordConst,
     KeywordVar,
@@ -108,6 +109,7 @@ impl TokenType {
             "#load" => Self::LoadDirective,
             "#host" => Self::HostDirective,
             "#compiler_flag" => Self::CompilerFlagDirective,
+            "#foreign" => Self::ForeignDirective,
 
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,

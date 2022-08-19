@@ -1,5 +1,5 @@
 #![allow(clippy::needless_return)]
-use crate::ast::{Def, AstNode, AstNodeData, Ast, SymbolTable, AstContainerField, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstIf};
+use crate::ast::{AstDef, AstNode, AstNodeData, Ast, SymbolTable, AstContainerField, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag};
 use crate::lexer::Token;
 use crate::lexer::Tokenizer;
 use crate::lexer::TokenType;
@@ -26,7 +26,7 @@ impl Parser {
     fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType, scope: Vec<u64>) -> AstNode {
         let node = AstNode {
             id: format!("{}_{}", self.filename, self.node_counter),
-            data, infered_type: type_annotation
+            data, infered_type: type_annotation, tags: vec![]
         };
         self.node_counter += 1;
         return node;
@@ -126,7 +126,7 @@ impl Parser {
                 let rhs = self.expect_expr(parent_id.clone())?;
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
-                Ok(self.new_node(AstNodeData::Def(Def {
+                Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: false,
                     name: dest.get_ident(),
                     expr: Box::new(rhs),
@@ -141,14 +141,20 @@ impl Parser {
                 }
                 if self.current_token().ty != TokenType::Equal && self.current_token().ty != TokenType::Colon
                 {
-                    return Ok(self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()), parent_id.clone()));
+                    let mut decl_node = self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()), parent_id.clone());
+                    if self.current_token().ty == TokenType::ForeignDirective {
+                        decl_node.tags.push(AstTag::Foreign);
+                        self.forward_token();
+                    } 
+                    return Ok(decl_node);
+                    
                 }
                 let mutable = self.current_token().ty == TokenType::Equal;
                 self.forward_token();
                 let rhs = self.expect_expr(parent_id.clone())?;
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
-                Ok(self.new_node(AstNodeData::Def(Def {
+                Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable,
                     name: dest.get_ident(),
                     expr: Box::new(rhs),
@@ -160,7 +166,7 @@ impl Parser {
                 let rhs = self.expect_expr(parent_id.clone())?;
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
-                Ok(self.new_node(AstNodeData::Def(Def {
+                Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: true,
                     name: dest.get_ident(),
                     expr: Box::new(rhs),
@@ -507,13 +513,13 @@ impl Parser {
             TokenType::Asterix => {
                 self.forward_token();
                 let expr = self.expect_expr(parent_id.clone())?;
-                return Ok(self.new_node(AstNodeData::Deref(Box::new(expr.clone())), AstNodeType::Ref(Box::new(expr.infered_type.clone())), parent_id.clone()));
+                return Ok(self.new_node(AstNodeData::Deref(Box::new(expr.clone())), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), parent_id.clone()));
             }
             TokenType::Ampersand => {
                 self.forward_token();
                 let expr = self.expect_expr(parent_id.clone())?;
 
-                return Ok(self.new_node(AstNodeData::Ref(Box::new(expr.clone())), AstNodeType::Deref(Box::new(expr.infered_type.clone())), parent_id.clone()));
+                return Ok(self.new_node(AstNodeData::PointerTo(Box::new(expr.clone())), AstNodeType::Deref(Box::new(expr.infered_type.clone())), parent_id.clone()));
             }
             // Type::Dot => {
             //     self.forward_token();
@@ -896,13 +902,13 @@ impl Parser {
                 for cond_then in &else_if.extract_if().cases {
                     cond_thens.push(cond_then.clone());
                 }
-                return Ok(self.new_node(AstNodeData::If(AstIf {
+                return Ok(self.new_node(AstNodeData::If(AstCaseBlock {
                     cases: cond_thens,
                 }), AstNodeType::Unknown, parent_id))
             } else if self.current_token().ty == TokenType::OpenBrace {
                 let _else = self.expect_block(parent_id.clone())?;
                 let cases = vec![(cond, then), (self.new_node(AstNodeData::Bool(true), AstNodeType::Bool, parent_id.clone()), _else)];
-                return Ok(self.new_node(AstNodeData::If(AstIf {
+                return Ok(self.new_node(AstNodeData::If(AstCaseBlock {
                     cases,
                 }), AstNodeType::Unknown, parent_id))
            
@@ -910,7 +916,7 @@ impl Parser {
                 panic!("after else keyword either if or {{ is accepted: {:?}", self.current_token());
             }
         }
-        return Ok(self.new_node(AstNodeData::If(AstIf {
+        return Ok(self.new_node(AstNodeData::If(AstCaseBlock {
             cases: vec![(cond, then)],
         }), AstNodeType::Unknown, parent_id))
     }
