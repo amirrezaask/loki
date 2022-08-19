@@ -1,4 +1,6 @@
 - enums should not use host enum and just be consttants in a namespace
+- variadic args
+- dynamic array
 - foreign interface
 - else if
 - slicing arrays

@@ -7,11 +7,12 @@ use std::time::Instant;
 // compiler that glue all parts together
 use super::parser::Parser;
 use crate::ast::{Ast, SymbolTable};
-use crate::ast::NodeData;
+use crate::ast::AstNodeData;
 use anyhow::Result;
 use serde_json::json;
 use std::io::Write;
 use std::process::Command;
+
 
 pub struct Compiler {
     total_lines: u64,
@@ -54,7 +55,7 @@ impl Compiler {
         
         for node in main_ast.top_level.iter() {
             match node.data {
-                NodeData::Load(ref path) => {
+                AstNodeData::Load(ref path) => {
                     loads.push(path.clone());
                 }
                 _ => {
@@ -95,7 +96,7 @@ impl Compiler {
             ast.add(&mut self.st, &ast.filename.clone())?;
         }
 
-        // println!("st: {:?}", self.st);
+        println!("st: {:?}", self.st);
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();

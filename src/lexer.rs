@@ -167,7 +167,7 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum State {
     Start,
     InStringLiteral(usize),
@@ -261,7 +261,7 @@ impl Tokenizer {
                 return Token::new(Type::EOF, (self.src.len(), self.src.len()));
             }
             _ => {
-                unreachable!();
+                panic!("state: {:?} emitting current token", self.state);
             }
         }
     }
@@ -291,6 +291,9 @@ impl Tokenizer {
                     return Ok(Token::new(Type::EOF, (self.src.len(), self.src.len())));
                 }
                 self.reached_eof = true;
+                if self.state == State::InLineComment {
+                    return Ok(Token::new(Type::EOF, (self.src.len(), self.src.len())));
+                }
                 return Ok(self.emit_current_token());
             }
             // println!("@current_char: {}", self.current_char());
