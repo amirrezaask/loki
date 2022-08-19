@@ -1,5 +1,5 @@
 #![allow(clippy::needless_return)]
-use crate::ast::{AstDef, AstNode, AstNodeData, Ast, SymbolTable, AstContainerField, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag};
+use crate::ast::{AstDef, AstNode, AstNodeData, Ast, SymbolTable, NamespaceAccess, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag};
 use crate::lexer::Token;
 use crate::lexer::Tokenizer;
 use crate::lexer::TokenType;
@@ -251,12 +251,13 @@ impl Parser {
             TokenType::Dot => {
                 self.forward_token();
                 let field = self.expect_expr(parent_id.clone())?;
-                let cf = AstContainerField {
-                    container: Box::new(container),
+                let cf = NamespaceAccess {
+                    namespace: Box::new(container),
                     field: Box::new(field),
-                    container_is_enum: false,
+                    namespace_is_enum: false,
+                    namespace_is_pointer: false,
                 };
-                return Ok(self.new_node(AstNodeData::ContainerField(cf), AstNodeType::Unknown, parent_id.clone()));
+                return Ok(self.new_node(AstNodeData::NamespaceAccess(cf), AstNodeType::Unknown, parent_id.clone()));
             }
             _ => {
                 return Ok(container);
@@ -267,21 +268,12 @@ impl Parser {
         let ty = self.expect_expr_exact_expr(parent_id.clone())?;
         match self.current_token().ty {
             TokenType::OpenBrace => match ty.data {
-                AstNodeData::IntTy
-                | AstNodeData::Int8Ty
-                | AstNodeData::Int32Ty
-                | AstNodeData::Int64Ty
-                | AstNodeData::Int128Ty
-                | AstNodeData::UintTy
-                | AstNodeData::Uint8Ty
-                | AstNodeData::Uint16Ty
-                | AstNodeData::Uint32Ty
-                | AstNodeData::Uint64Ty
-                | AstNodeData::Uint128Ty
+                AstNodeData::IntTy(_)
+                | AstNodeData::UintTy(_)
                 | AstNodeData::CharTy
                 | AstNodeData::BoolTy
                 | AstNodeData::StringTy
-                | AstNodeData::FloatTy
+                | AstNodeData::FloatTy(_)
                 | AstNodeData::VoidTy => {
                     return Ok(ty);
                 }
@@ -572,59 +564,59 @@ impl Parser {
             }
             TokenType::KeywordInt => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy, AstNodeType::SignedInt(64), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::IntTy(64), AstNodeType::SignedInt(64), parent_id.clone()))
             }
             TokenType::KeywordInt8 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Int8Ty, AstNodeType::SignedInt(8), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::IntTy(8), AstNodeType::SignedInt(8), parent_id.clone()))
             }
             TokenType::KeywordInt16 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Int16Ty, AstNodeType::SignedInt(16), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::IntTy(16), AstNodeType::SignedInt(16), parent_id.clone()))
             }
             TokenType::KeywordInt32 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Int32Ty, AstNodeType::SignedInt(32), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::IntTy(32), AstNodeType::SignedInt(32), parent_id.clone()))
             }
             TokenType::KeywordInt64 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Int64Ty,AstNodeType::SignedInt(64), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::IntTy(64),AstNodeType::SignedInt(64), parent_id.clone()))
             }
             TokenType::KeywordInt128 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Int128Ty,AstNodeType::SignedInt(128), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::IntTy(128),AstNodeType::SignedInt(128), parent_id.clone()))
             }
             TokenType::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy, AstNodeType::UnsignedInt(64), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::UintTy(64), AstNodeType::UnsignedInt(64), parent_id.clone()))
             }
             TokenType::KeywordUint8 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Uint8Ty, AstNodeType::UnsignedInt(8), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::UintTy(8), AstNodeType::UnsignedInt(8), parent_id.clone()))
             }
             TokenType::KeywordUint16 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Uint16Ty, AstNodeType::UnsignedInt(16), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::UintTy(16), AstNodeType::UnsignedInt(16), parent_id.clone()))
             }
             TokenType::KeywordUint32 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Uint32Ty, AstNodeType::UnsignedInt(32), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::UintTy(32), AstNodeType::UnsignedInt(32), parent_id.clone()))
             }
             TokenType::KeywordUint64 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Uint64Ty, AstNodeType::UnsignedInt(64), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::UintTy(64), AstNodeType::UnsignedInt(64), parent_id.clone()))
             }
             TokenType::KeywordUint128 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Uint128Ty, AstNodeType::UnsignedInt(128), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::UintTy(128), AstNodeType::UnsignedInt(128), parent_id.clone()))
             }
             TokenType::KeywordFloat32 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::FloatTy, AstNodeType::Float(32), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::FloatTy(32), AstNodeType::Float(32), parent_id.clone()))
             }
             TokenType::KeywordFloat64 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::FloatTy, AstNodeType::Float(64), parent_id.clone()))
+                Ok(self.new_node(AstNodeData::FloatTy(64), AstNodeType::Float(64), parent_id.clone()))
             }
             TokenType::KeywordChar => {
                 self.forward_token();
@@ -1022,6 +1014,19 @@ impl Parser {
                         panic!("expecting stmt got {:?}", self.current_token());
                     },
                 }
+            }
+
+            TokenType::Asterix => {
+                self.forward_token();
+                let deref = self.expect_expr(parent_id.clone())?;
+                let deref = self.new_node(AstNodeData::Deref(Box::new(deref)), AstNodeType::Unknown, parent_id.clone());
+                self.expect_token(TokenType::Equal)?;
+                self.forward_token();
+                let expr = self.expect_expr(parent_id.clone())?;
+
+                let node = self.new_node(AstNodeData::Assign(Box::new(deref), Box::new(expr)), AstNodeType::NoType, parent_id.clone());
+
+                return Ok(node);
             }
 
             TokenType::KeywordIf => {

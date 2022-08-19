@@ -93,5 +93,14 @@ main :: () int {
 
     this_sum :: sum(1, 2);
     printf("function call sum %d\n", this_sum);
+
+
+    value := 2;
+    ptr_to_value := &value;
+    printf("value is %d\n", value);
+    *ptr_to_value = 3;
+    printf("value is %d\n", value);
+    printf("value is %d\n", *ptr_to_value);
+
     return 0;
 }

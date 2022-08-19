@@ -1,23 +1,10 @@
 #load "base.loki";
 
-Direction :: enum {
-    Up,
-    Down
-};
-
-Vector :: struct {
-    x: int,
-};
-
-Game :: struct {
-    a: Vector,
-    direction: Direction,
-};
-
 main :: () int {
-    g : Game;
-    g.a.x = 2;
-    g.direction = Direction.Up;
-    a := Direction.Up;
-    printf("hello world! %d", 2);
+    a := 2;
+    b := &a;
+
+    *b = 3;
+
+    printf("a is %d\n", a);
 };

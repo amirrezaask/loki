@@ -1,6 +1,7 @@
-- namespaces (enum/struct/union/other files should be inside a namespace access using container field)
 
 - pointers and derefrences
+
+- namespaces (enum/struct/union/other files should be inside a namespace access using container field)
 
 - variadic args
 

@@ -10,9 +10,9 @@ pub type NodeID = String;
 pub enum AstNodeType {
     Unknown,
     NoType,
-    SignedInt(i32),
-    UnsignedInt(i32),
-    Float(i8),
+    SignedInt(BitSize),
+    UnsignedInt(BitSize),
+    Float(BitSize),
 
     Bool,
 
@@ -46,22 +46,12 @@ impl AstNodeType {
                 return AstNodeType::TypeName(ident.clone());
             }
             
-            AstNodeData::UintTy => AstNodeType::UnsignedInt(64),
-            AstNodeData::Uint8Ty => AstNodeType::UnsignedInt(8),
-            AstNodeData::Uint16Ty => AstNodeType::UnsignedInt(16),
-            AstNodeData::Uint32Ty => AstNodeType::UnsignedInt(32),
-            AstNodeData::Uint64Ty => AstNodeType::UnsignedInt(64),
-            AstNodeData::Uint128Ty => AstNodeType::UnsignedInt(128),
-            AstNodeData::IntTy => AstNodeType::SignedInt(64),
-            AstNodeData::Int8Ty => AstNodeType::SignedInt(8),
-            AstNodeData::Int16Ty => AstNodeType::SignedInt(16),
-            AstNodeData::Int32Ty => AstNodeType::SignedInt(32),
-            AstNodeData::Int64Ty => AstNodeType::SignedInt(64),
-            AstNodeData::Int128Ty => AstNodeType::SignedInt(128),
+            AstNodeData::UintTy(bitsize) => AstNodeType::UnsignedInt(bitsize),
+            AstNodeData::IntTy(bitsize) => AstNodeType::SignedInt(bitsize),
             AstNodeData::CharTy => AstNodeType::Char,
             AstNodeData::StringTy => AstNodeType::String,
             AstNodeData::BoolTy => AstNodeType::Bool,
-            AstNodeData::FloatTy => AstNodeType::Float(64),
+            AstNodeData::FloatTy(bitsize) => AstNodeType::Float(bitsize),
             AstNodeData::VoidTy => AstNodeType::Void,
             _ => {
                 AstNodeType::Unknown
@@ -121,10 +111,11 @@ pub struct AstNode {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstContainerField {
-    pub container: Box<AstNode>,
+pub struct NamespaceAccess {
+    pub namespace: Box<AstNode>,
     pub field: Box<AstNode>,
-    pub container_is_enum: bool,
+    pub namespace_is_enum: bool,
+    pub namespace_is_pointer: bool,
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstFnSignature {
@@ -170,6 +161,8 @@ pub struct AstDef {
     pub expr: Box<AstNode>,
 }
 
+pub type BitSize = usize;
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeData {
     //top level items
@@ -181,21 +174,10 @@ pub enum AstNodeData {
     Assign(Box<AstNode>, Box<AstNode>),
 
     // Type defs
-    IntTy,
-    Int8Ty,
-    Int16Ty,
-    Int32Ty,
-    Int64Ty,
-    Int128Ty,
+    IntTy(BitSize), // bitsize
+    UintTy(BitSize), 
 
-    UintTy,
-    Uint8Ty,
-    Uint16Ty,
-    Uint32Ty,
-    Uint64Ty,
-    Uint128Ty,
-
-    FloatTy,
+    FloatTy(BitSize),
     BoolTy,
     StringTy,
     CharTy,
@@ -218,7 +200,7 @@ pub enum AstNodeData {
     
     BinaryOperation(AstBinaryOperation),
 
-    ContainerField(AstContainerField),
+    NamespaceAccess(NamespaceAccess),
     
     Initialize(Box<AstNode>, Vec<(AstNode, AstNode)>),
     InitializeArray(Option<Box<AstNode>>, Vec<AstNode>),
@@ -305,19 +287,9 @@ impl SymbolType {
             AstNodeData::Ident(_) => {
                 SymbolType::TypeRef(node.clone())
             }
-            AstNodeData::IntTy |
-            AstNodeData::Int8Ty |
-            AstNodeData::Int16Ty |
-            AstNodeData::Int32Ty |
-            AstNodeData::Int64Ty |
-            AstNodeData::Int128Ty |
-            AstNodeData::UintTy |
-            AstNodeData::Uint8Ty |
-            AstNodeData::Uint16Ty |
-            AstNodeData::Uint32Ty |
-            AstNodeData::Uint64Ty |
-            AstNodeData::Uint128Ty |
-            AstNodeData::FloatTy |
+            AstNodeData::IntTy(_) |
+            AstNodeData::UintTy(_) |
+            AstNodeData::FloatTy(_) |
             AstNodeData::BoolTy |
             AstNodeData::StringTy |
             AstNodeData::CharTy |
@@ -451,20 +423,6 @@ impl SymbolTable {
         None
     }
 
-    fn lookup_pos(&self, name: Name, file: &File, scope: &Scope) -> Option<usize> {
-        let defs = self
-            .file_scope_defs
-            .get(&(file.clone(), scope.clone()))
-            .unwrap();
-        for (idx, def) in defs.iter().enumerate() {
-            if def.0 == name {
-                return Some(idx);
-            }
-        }
-
-        None
-    }
-
     fn infer_types_for_block(
         &mut self,
         file: &File,
@@ -480,22 +438,19 @@ impl SymbolTable {
                     self.add_symbol_to_scope(name, &node.infered_type, file, scope);
                 }
                 AstNodeData::Assign(ref mut lhs, ref mut rhs) => {
-                    if let AstNodeData::ContainerField(ref mut cf) = rhs.data {
-                        if let AstNodeData::Ident(ref ident) = cf.container.data {
-                            // println!("st: {:?}", self);
-                            // println!("cf: {:?}", cf);
-                            // should check from symbol table the type, it should be a 
+                    if let AstNodeData::NamespaceAccess(ref mut cf) = rhs.data {
+                        if let AstNodeData::Ident(ref ident) = cf.namespace.data {
                             let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
                             if container_ty.is_none() {
                                 // error
-                                panic!("cannot infer type of: {:?}", cf.container);
+                                panic!("cannot infer type of: {:?}", cf.namespace);
                             }
                             let container_ty = container_ty.unwrap();
                             if container_ty.is_type_def() && !container_ty.is_type_def_enum() {
                                 panic!("cannot use a not enum def as container for a field access: {:?}", container_ty);
                             }
                             if container_ty.is_type_def_enum() {
-                                cf.container_is_enum = true;
+                                cf.namespace_is_enum = true;
                             }
                         }
     
@@ -541,20 +496,30 @@ impl SymbolTable {
                 def.expr.infered_type = ty.unwrap();
 
             }
-            AstNodeData::ContainerField(ref mut cf) => {
+            AstNodeData::PointerTo(ref obj) => {
+                if obj.is_ident() {
+                    let ty = self.lookup(obj.get_ident(), file, &scope, Some(idx));
+                    if ty.is_none() {
+                        panic!("unknown identifier: {}", obj.get_ident());
+                    }
+
+                    def.expr.infered_type = AstNodeType::Pointer(Box::new(ty.unwrap()));
+                }
+            }
+            AstNodeData::NamespaceAccess(ref mut cf) => {
                 if def.expr.infered_type != AstNodeType::Unknown { // user explicitly said the type
                     return Ok(());
                 }
-                match cf.container.data {
+                match cf.namespace.data {
                     AstNodeData::Ident(ref ident) => {
 
                         let container_ty = self.lookup(ident.clone(), file, &scope, Some(idx));
                         if container_ty.is_none() {
-                            panic!("cannot infer type of: {:?}", cf.container);
+                            panic!("cannot infer type of: {:?}", cf.namespace);
                         }
                         let container_ty = container_ty.unwrap();
                         if container_ty.is_type_def_enum() {
-                            cf.container_is_enum = true;
+                            cf.namespace_is_enum = true;
                         }
                         def.expr.infered_type = container_ty;
                     }
@@ -566,7 +531,7 @@ impl SymbolTable {
                         }
                         let container_ty = container_ty.unwrap();
                         if container_ty.is_type_def_enum() {
-                            cf.container_is_enum = true;
+                            cf.namespace_is_enum = true;
                         }
                         def.expr.infered_type = container_ty;
                     }
@@ -582,7 +547,7 @@ impl SymbolTable {
                         }
                         let fn_ret_ty = fn_sign.get_fn_ret_ty();
                         if fn_ret_ty.is_type_def_enum() {
-                            cf.container_is_enum = true;
+                            cf.namespace_is_enum = true;
                         }
                         def.expr.infered_type = fn_ret_ty;                    
                     }

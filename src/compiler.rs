@@ -96,7 +96,6 @@ impl Compiler {
             ast.add(&mut self.st, &ast.filename.clone())?;
         }
 
-        println!("st: {:?}", self.st);
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();
@@ -105,6 +104,7 @@ impl Compiler {
             let code = codegen.generate()?;
             codes.push(code);
         }
+        println!("st: {:?}", self.st);
         let mut compiler_flags_by_user = Vec::<String>::new();
         for ast in asts.iter() {
             compiler_flags_by_user.append(&mut ast.get_compiler_flags());

@@ -75,7 +75,7 @@ impl<'a> CPP<'a> {
                 Ok("".to_string())
             }
             AstNodeType::Pointer(name) => {
-                Ok(format!("*{}", self.repr_ast_ty(name.deref().clone())?))
+                Ok(format!("{}*", self.repr_ast_ty(name.deref().clone())?))
             }
             AstNodeType::Deref(name) => {
                 Ok(format!("&{}", self.repr_ast_ty(name.deref().clone())?))
@@ -331,14 +331,14 @@ impl<'a> CPP<'a> {
                     }
                 }
 
-                AstNodeData::ContainerField(cf) => {
-                    let container = &cf.container;
+                AstNodeData::NamespaceAccess(cf) => {
+                    let container = &cf.namespace;
                     let field = &cf.field;
                     //TODO make type inference work for this when I got hosele
                     let container = self.repr_ast_node(&container)?;
                     let field = self.repr_ast_node(&field)?;
                     let mut sep = ".";
-                    if cf.container_is_enum {
+                    if cf.namespace_is_enum {
                         sep = "::";
                     }
                     match def.mutable {
@@ -403,26 +403,20 @@ impl<'a> CPP<'a> {
             AstNodeData::Char(c) => Ok(format!("{}", c)),
             AstNodeData::Ident(s) => Ok(s.clone()),
 
-            // keywords
-            AstNodeData::IntTy => Ok(format!("int")),
-            AstNodeData::Int8Ty => Ok(format!("int8_t")),
-            AstNodeData::Int16Ty => Ok(format!("int16_t")),
-            AstNodeData::Int32Ty => Ok(format!("int32_t")),
-            AstNodeData::Int64Ty => Ok(format!("int64_t")),
-            AstNodeData::Int128Ty => {
-                unimplemented!()
+            AstNodeData::Deref(ptr) => {
+                Ok(format!("*{}", self.repr_ast_node(ptr)?))
             }
 
-            AstNodeData::UintTy => Ok(format!("unsigned int")),
-            AstNodeData::Uint8Ty => Ok(format!("uint8_t")),
-            AstNodeData::Uint16Ty => Ok(format!("uint16_t")),
-            AstNodeData::Uint32Ty => Ok(format!("uint32_t")),
-            AstNodeData::Uint64Ty => Ok(format!("uint64_t")),
-            AstNodeData::Uint128Ty => {
-                unimplemented!();
+            AstNodeData::PointerTo(obj) => {
+                Ok(format!("&{}", self.repr_ast_node(obj)?))
             }
 
-            AstNodeData::FloatTy => Ok(format!("long")),
+            AstNodeData::IntTy(size) => Ok(format!("int")),
+
+            AstNodeData::UintTy(size) => Ok(format!("unsigned int")),
+            
+            AstNodeData::FloatTy(size) => Ok(format!("long")),
+
             AstNodeData::BoolTy => Ok(format!("bool")),
             AstNodeData::StringTy => Ok(format!("std::string")),
             AstNodeData::CharTy => Ok(format!("char")),
@@ -432,12 +426,12 @@ impl<'a> CPP<'a> {
             AstNodeData::BinaryOperation(ref binary_operation) => {
                 Ok(format!("{} {} {}", self.repr_ast_node(&*binary_operation.left)?, self.repr_ast_op(&binary_operation.operation)?, self.repr_ast_node(&*binary_operation.right)?))
             }
-            AstNodeData::ContainerField(ref cf) => {
-                if cf.container_is_enum {
-                    return Ok(format!("{}::{}", self.repr_ast_node(&cf.container)?, self.repr_ast_node(&cf.field)?));
+            AstNodeData::NamespaceAccess(ref cf) => {
+                if cf.namespace_is_enum {
+                    return Ok(format!("{}::{}", self.repr_ast_node(&cf.namespace)?, self.repr_ast_node(&cf.field)?));
 
                 }
-                return Ok(format!("{}.{}", self.repr_ast_node(&cf.container)?, self.repr_ast_node(&cf.field)?));
+                return Ok(format!("{}.{}", self.repr_ast_node(&cf.namespace)?, self.repr_ast_node(&cf.field)?));
             },
             AstNodeData::FnDef(_) => {
                 unreachable!();
