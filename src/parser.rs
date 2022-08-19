@@ -1,20 +1,23 @@
 #![allow(clippy::needless_return)]
-use crate::ast::{AstDef, AstNode, AstNodeData, Ast, SymbolTable, NamespaceAccess, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag};
+use crate::ast::{AstDef, AstNode, AstNodeData, Ast, NamespaceAccess, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag, NodeID};
 use crate::lexer::Token;
 use crate::lexer::Tokenizer;
 use crate::lexer::TokenType;
 use anyhow::{anyhow, Result};
+use crate::node_manager::AstNodeManager;
 
-#[derive(Debug, Default)]
-pub struct Parser {
+
+#[derive(Debug)]
+pub struct Parser<'a> {
     filename: String,
     src: String,
     tokens: Vec<Token>,
     cur: usize,
     pub node_counter: i64,
+    pub node_manager: &'a mut AstNodeManager,
 }
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
-impl Parser {
+impl<'a> Parser<'a> {
     fn err_uexpected(&self, what: TokenType) -> anyhow::Error {
         anyhow!(
             "Expected {:?}, found {:?} at \"{}\"",
@@ -24,11 +27,12 @@ impl Parser {
         )
     }
     fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType) -> AstNode {
+        self.node_counter += 1;
         let node = AstNode {
             id: format!("{}_{}", self.filename, self.node_counter),
             data, infered_type: type_annotation, tags: vec![]
         };
-        self.node_counter += 1;
+        self.node_manager.add_node(node.clone());
         return node;
     }
     fn current_token(&self) -> &Token {
@@ -43,7 +47,7 @@ impl Parser {
     fn backward_token(&mut self) {
         self.cur -= 1;
     }
-    pub fn new_with_tokens(filename: String ,src: String, tokens: Vec<Token>) -> Result<Self> {
+    pub fn new_with_tokens(filename: String ,src: String, tokens: Vec<Token>, node_manager: &'a mut AstNodeManager) -> Result<Self> {
         //        println!("tokens: {:?}", tokens);
         Ok(Self {
             filename,
@@ -51,9 +55,10 @@ impl Parser {
             tokens,
             cur: 0,
             node_counter: 0,
+            node_manager
         })
     }
-    fn new(filename: String, src: &'static str) -> Result<Self> {
+    fn new(filename: String, src: &'static str, node_manager: &'a mut AstNodeManager) -> Result<Self> {
         let mut tokenizer = Tokenizer::new(src);
         let mut tokens = Vec::<Token>::new();
 
@@ -75,6 +80,7 @@ impl Parser {
             tokens,
             cur: 0,
             node_counter: 0,
+            node_manager
         })
     }
 
@@ -95,7 +101,7 @@ impl Parser {
             TokenType::StringLiteral => {
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                return Ok(self.new_node(AstNodeData::StringLiteral(literal.to_string()), AstNodeType::String, ));
+                return Ok(self.new_node(AstNodeData::StringLiteral(literal.to_string()), AstNodeType::String));
             }
             _ => {
                 return Err(self.err_uexpected(TokenType::StringLiteral));
@@ -119,7 +125,7 @@ impl Parser {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
-                Ok(self.new_node(AstNodeData::Assign(Box::new(dest), Box::new(rhs)), infered_ty, ))
+                Ok(self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType))
             }
             TokenType::DoubleColon => {
                 self.forward_token();
@@ -129,8 +135,8 @@ impl Parser {
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: false,
                     name: dest.get_ident(),
-                    expr: Box::new(rhs),
-                }), infered_ty, ))
+                    expr: rhs.id,
+                }), AstNodeType::NoType))
             }
 
             TokenType::Colon => {
@@ -141,7 +147,7 @@ impl Parser {
                 }
                 if self.current_token().ty != TokenType::Equal && self.current_token().ty != TokenType::Colon
                 {
-                    let mut decl_node = self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()), );
+                    let mut decl_node = self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()));
                     if self.current_token().ty == TokenType::ForeignDirective {
                         decl_node.tags.push(AstTag::Foreign);
                         self.forward_token();
@@ -153,12 +159,12 @@ impl Parser {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                dest.infered_type = infered_ty.clone();
+                dest.infered_type = infered_ty;
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable,
                     name: dest.get_ident(),
-                    expr: Box::new(rhs),
-                }), AstNodeType::new(&ty.unwrap()), ))
+                    expr: rhs.id,
+                }), AstNodeType::NoType))
             }
 
             TokenType::ColonEqual => {
@@ -169,8 +175,8 @@ impl Parser {
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: true,
                     name: dest.get_ident(),
-                    expr: Box::new(rhs),
-                }), infered_ty, ))
+                    expr: rhs.id,
+                }), AstNodeType::NoType))
             }
             _ => {
                 return Err(self.err_uexpected(self.current_token().clone().ty));
@@ -189,7 +195,7 @@ impl Parser {
 
     fn expect_fn_def(&mut self) -> Result<AstNode> {
         self.expect_token(TokenType::OpenParen)?;
-        let mut args: Vec<AstNode> = vec![];
+        let mut args: Vec<NodeID> = vec![];
         self.forward_token();
         loop {
             if self.current_token().ty == TokenType::Comma {
@@ -203,22 +209,23 @@ impl Parser {
             self.expect_token(TokenType::Colon)?;
             self.forward_token();
             let ty = self.expect_expr()?;
-            args.push(self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty), ));
+            let n = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty));
+            args.push(n.id);
         }
 
         let ret_ty = self.expect_expr()?;
         self.expect_token(TokenType::OpenBrace)?;
 
         let body = self.expect_block()?;
-        let proto_ty = AstNodeType::make_fn_signature(&args, &ret_ty);
-        let sign = AstFnSignature { args, ret: Box::new(ret_ty) };
+        let proto_ty = AstNodeType::make_fn_signature(&self.node_manager, &args, &ret_ty);
+        let sign = AstFnSignature { args, ret: ret_ty.id };
         Ok(self.new_node(AstNodeData::FnDef(AstFnDef{ sign, body }), proto_ty, ))
     }
 
     fn expect_fn_call(&mut self) -> Result<AstNode> {
         let name = self.expect_lhs()?;
         self.expect_token(TokenType::OpenParen)?;
-        let mut args = Vec::<AstNode>::new();
+        let mut args = Vec::<NodeID>::new();
 
         self.forward_token();
         loop {
@@ -227,7 +234,7 @@ impl Parser {
                 break;
             }
             let arg = self.expect_expr()?;
-            args.push(arg);
+            args.push(arg.id);
             match self.current_token().ty {
                 TokenType::Comma => {
                     self.forward_token();
@@ -243,7 +250,7 @@ impl Parser {
                 }
             }
         }
-        Ok(self.new_node(AstNodeData::FnCall(Box::new(name), args), AstNodeType::Unknown, ))
+        Ok(self.new_node(AstNodeData::FnCall(name.id, args), AstNodeType::Unknown, ))
     }
     fn expect_expr_container_field(&mut self) -> Result<AstNode> {
         let container = self.expect_expr_initialize()?;
@@ -252,8 +259,8 @@ impl Parser {
                 self.forward_token();
                 let field = self.expect_expr()?;
                 let cf = NamespaceAccess {
-                    namespace: Box::new(container),
-                    field: Box::new(field),
+                    namespace: container.id,
+                    field: field.id,
                     namespace_is_enum: false,
                     namespace_is_pointer: false,
                 };
@@ -294,7 +301,7 @@ impl Parser {
 
                     if is_struct_init {
                         self.forward_token();
-                        let mut fields = Vec::<(AstNode, AstNode)>::new();
+                        let mut fields = Vec::<(NodeID, NodeID)>::new();
                         loop {
                             if self.current_token().ty == TokenType::CloseBrace {
                                 self.forward_token();
@@ -306,7 +313,7 @@ impl Parser {
                             self.forward_token();
                             let value = self.expect_expr()?;
                             name.infered_type = value.infered_type.clone();
-                            fields.push((name, value));
+                            fields.push((name.id, value.id));
                             match self.current_token().ty {
                                 TokenType::Comma => {
                                     self.forward_token();
@@ -318,9 +325,9 @@ impl Parser {
                                 _ => return Err(self.err_uexpected(TokenType::Comma)),
                             }
                         }
-                        return Ok(self.new_node(AstNodeData::Initialize(Box::new(ty.clone()), fields), AstNodeType::Initialize(Box::new( AstNodeType::new(&ty))), ));
+                        return Ok(self.new_node(AstNodeData::Initialize(ty.id.clone(), fields), AstNodeType::Initialize(Box::new( AstNodeType::new(&ty))), ));
                     } else {
-                        let mut fields = Vec::<AstNode>::new();
+                        let mut fields = Vec::<NodeID>::new();
                         loop {
                             if self.current_token().ty == TokenType::CloseBrace {
                                 self.forward_token();
@@ -328,7 +335,7 @@ impl Parser {
                             }
 
                             let val = self.expect_expr()?;
-                            fields.push(val);
+                            fields.push(val.id);
                             match self.current_token().ty {
                                 TokenType::Comma => {
                                     self.forward_token();
@@ -342,7 +349,7 @@ impl Parser {
                         }
 
                         return Ok(
-                            self.new_node(AstNodeData::InitializeArray(Some(Box::new(ty)), fields), AstNodeType::Unknown, )
+                            self.new_node(AstNodeData::InitializeArray(Some(ty.id), fields), AstNodeType::Unknown, )
                         );
                     }
                 }
@@ -414,7 +421,7 @@ impl Parser {
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
                 self.forward_token();
-                let mut fields = Vec::<AstNode>::new();
+                let mut fields = Vec::<NodeID>::new();
                 loop {
                     if self.current_token().ty == TokenType::CloseBrace {
                         self.forward_token();
@@ -426,7 +433,8 @@ impl Parser {
                     self.forward_token();
                     let ty = self.expect_expr()?;
                     name.infered_type = AstNodeType::new(&ty);
-                    fields.push(self.new_node(AstNodeData::Decl(name.get_ident()), AstNodeType::new(&ty), ));
+                    let field = self.new_node(AstNodeData::Decl(name.get_ident()), AstNodeType::new(&ty)); 
+                    fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
                             self.forward_token();
@@ -446,7 +454,7 @@ impl Parser {
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
                 self.forward_token();
-                let mut variants = Vec::<(AstNode, Option<AstNode>)>::new();
+                let mut variants = Vec::<(NodeID, Option<NodeID>)>::new();
                 let mut is_union = false;
                 loop {
                     if self.current_token().ty == TokenType::CloseBrace {
@@ -463,12 +471,12 @@ impl Parser {
                     variant.infered_type = AstNodeType::UnsignedInt(64);
                     match self.current_token().ty {
                         TokenType::Comma => {
-                            variants.push((variant, None));
+                            variants.push((variant.id, None));
                             self.forward_token();
                             continue;
                         }
                         TokenType::CloseBrace => {
-                            variants.push((variant, None));
+                            variants.push((variant.id, None));
                             self.forward_token();
                             break;
                         }
@@ -508,43 +516,14 @@ impl Parser {
             TokenType::Asterix => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(AstNodeData::Deref(Box::new(expr.clone())), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), ));
+                return Ok(self.new_node(AstNodeData::Deref(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), ));
             }
             TokenType::Ampersand => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
 
-                return Ok(self.new_node(AstNodeData::PointerTo(Box::new(expr.clone())), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), ));
+                return Ok(self.new_node(AstNodeData::PointerTo(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), ));
             }
-            // Type::Dot => {
-            //     self.forward_token();
-            //     self.expect_token(Type::OpenBrace)?;
-            //     self.forward_token();
-            //     let mut fields = Vec::<(Node, Node)>::new();
-            //     loop {
-            //         if self.current_token().ty == Type::CloseBrace {
-            //             self.forward_token();
-            //             break;
-            //         }
-            //         let name = self.expect_ident()?;
-            //         self.expect_token(Type::Equal)?;
-            //         self.forward_token();
-            //         let value = self.expect_expr()?;
-            //         fields.push((name, value));
-            //         match self.current_token().ty {
-            //             Type::Comma => {
-            //                 self.forward_token();
-            //             }
-            //             Type::CloseBrace => {
-            //                 self.forward_token();
-            //                 break;
-            //             }
-            //             _ => return Err(self.err_uexpected(Type::Comma)),
-            //         }
-            //     }
-
-            //     return Ok(self.new_node(NodeData::Initialize(None, fields), AstType::Unknown));
-            // }
             TokenType::Ident => {
                 self.forward_token();
                 match self.current_token().ty {
@@ -670,7 +649,7 @@ impl Parser {
                     let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                     self.forward_token();
                     let rhs = self.expect_expr_container_field()?;
-                    let binary_operation = AstBinaryOperation { operation: op, left: Box::new(lhs), right: Box::new(rhs) };
+                    let binary_operation = AstBinaryOperation { operation: op, left: lhs.id, right: rhs.id };
 
                     Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), AstNodeType::Bool, ))
             }
@@ -695,7 +674,7 @@ impl Parser {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation { operation: AstOperation::Multiply, left: Box::new(lhs), right: Box::new(rhs) };
+                let binary_operation = AstBinaryOperation { operation: AstOperation::Multiply, left: lhs.id, right: rhs.id };
                 Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty.clone(), ))
             }
             TokenType::Percent => {
@@ -711,7 +690,7 @@ impl Parser {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }    
-                let binary_operation = AstBinaryOperation { operation: AstOperation::Modulu, left: Box::new(lhs), right: Box::new(rhs) };
+                let binary_operation = AstBinaryOperation { operation: AstOperation::Modulu, left: lhs.id, right: rhs.id };
 
                 Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty.clone(), ))
             }
@@ -729,7 +708,7 @@ impl Parser {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
 
-                let binary_operation = AstBinaryOperation { operation: AstOperation::Multiply, left: Box::new(lhs), right: Box::new(rhs) };
+                let binary_operation = AstBinaryOperation { operation: AstOperation::Multiply, left: lhs.id, right: rhs.id };
                 Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty.clone(), ))
             }
             _ => Ok(lhs),
@@ -753,7 +732,7 @@ impl Parser {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation { operation: AstOperation::Subtract, left: Box::new(lhs), right: Box::new(rhs) };
+                let binary_operation = AstBinaryOperation { operation: AstOperation::Subtract, left: lhs.id, right: rhs.id };
                 Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, ))
             }
             TokenType::Plus => {
@@ -769,7 +748,7 @@ impl Parser {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation { operation: AstOperation::Sum, left: Box::new(lhs), right: Box::new(rhs) };
+                let binary_operation = AstBinaryOperation { operation: AstOperation::Sum, left: lhs.id, right: rhs.id };
                 Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, ))
             }
 
@@ -785,10 +764,10 @@ impl Parser {
         return Ok(());
     }
 
-    fn expect_block(&mut self) -> Result<Vec<AstNode>> {
+    fn expect_block(&mut self) -> Result<Vec<NodeID>> {
         self.expect_token(TokenType::OpenBrace)?;
         self.forward_token();
-        let mut stmts = Vec::<AstNode>::new();
+        let mut stmts = Vec::<NodeID>::new();
         let mut counter = 0;
         loop {
             if self.current_token().ty == TokenType::CloseBrace {
@@ -796,7 +775,7 @@ impl Parser {
             }
             let stmt = self.expect_stmt()?;
             self.if_semicolon_forward();
-            stmts.push(stmt);
+            stmts.push(stmt.id);
             counter += 1;
         }
         self.forward_token();
@@ -821,11 +800,11 @@ impl Parser {
         let body = self.expect_block()?;
 
         return Ok(self.new_node(AstNodeData::For(
-            Box::new(start),
-            Box::new(cond),
-            Box::new(cont),
+            start.id,
+            cond.id,
+            cont.id,
             body,
-        ), AstNodeType::Unknown, ));
+        ), AstNodeType::Unknown));
     }
     
     // expect_dest will return a node that can be used as a lhs of an assignment.
@@ -857,8 +836,8 @@ impl Parser {
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block()?;
         return Ok(self.new_node(AstNodeData::ForIn(
-            Some(Box::new(iterator)),
-            Box::new(iterable),
+            iterator.id,
+            iterable.id,
             body,
         ), AstNodeType::Unknown, ));
     }
@@ -870,10 +849,10 @@ impl Parser {
         let body = self.expect_block()?;
         let iterator = self.new_node(AstNodeData::Ident("it".to_string()), AstNodeType::Unknown, );
         return Ok(self.new_node(AstNodeData::ForIn(
-            Some(Box::new(iterator)),
-            Box::new(iterable),
+            iterator.id,
+            iterable.id,
             body,
-        ), AstNodeType::Unknown, )); //TODO: we should handle any expression here now we just handle ident
+        ), AstNodeType::Unknown));
     }
     fn expect_if(&mut self) -> Result<AstNode> {
         self.forward_token();
@@ -891,7 +870,7 @@ impl Parser {
             self.forward_token();
             if self.current_token().ty == TokenType::KeywordIf {
                 let else_if = self.expect_if()?;
-                let mut cond_thens = vec![(cond, then)];
+                let mut cond_thens = vec![(cond.id, then)];
                 for cond_then in &else_if.extract_if().cases {
                     cond_thens.push(cond_then.clone());
                 }
@@ -900,7 +879,8 @@ impl Parser {
                 }), AstNodeType::Unknown))
             } else if self.current_token().ty == TokenType::OpenBrace {
                 let _else = self.expect_block()?;
-                let cases = vec![(cond, then), (self.new_node(AstNodeData::Bool(true), AstNodeType::Bool, ), _else)];
+                let default_case = self.new_node(AstNodeData::Bool(true), AstNodeType::Bool);
+                let cases = vec![(cond.id, then), (default_case.id, _else)];
                 return Ok(self.new_node(AstNodeData::If(AstCaseBlock {
                     cases,
                 }), AstNodeType::Unknown))
@@ -910,7 +890,7 @@ impl Parser {
             }
         }
         return Ok(self.new_node(AstNodeData::If(AstCaseBlock {
-            cases: vec![(cond, then)],
+            cases: vec![(cond.id, then)],
         }), AstNodeType::Unknown))
     }
     fn expect_stmt(&mut self) -> Result<AstNode> {
@@ -933,11 +913,11 @@ impl Parser {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Sum, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Sum, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );
-                        return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                        return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::MinusEqual => {
                         self.forward_token();
@@ -945,11 +925,11 @@ impl Parser {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Subtract, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Subtract, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );
-                        return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                        return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::ModEqual => {
                         self.forward_token();
@@ -957,11 +937,11 @@ impl Parser {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Modulu, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Modulu, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );
-                        return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                        return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::MulEqual => {
                         self.forward_token();
@@ -969,11 +949,11 @@ impl Parser {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Multiply, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Multiply, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );
-                        return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                        return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::DivEqual => {
                         self.forward_token();
@@ -981,23 +961,23 @@ impl Parser {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Divide, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Divide, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );
 
-                        return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                        return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::DoublePlus => {
                         self.forward_token();
                         let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), );
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Sum, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Sum, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );
-                        return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                        return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::DoubleMinus => {
                         self.forward_token();
@@ -1005,11 +985,11 @@ impl Parser {
                         let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), );
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation { operation: AstOperation::Subtract, left: Box::new(lhs.clone()), right: Box::new(rhs.clone()) };
+                        let binary_operation = AstBinaryOperation { operation: AstOperation::Subtract, left: lhs.id.clone(), right: rhs.id };
                         let infered_ty = rhs.infered_type;
                         let inner =
                             self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, );                        
-                            return Ok(self.new_node(AstNodeData::Assign(Box::new(lhs), Box::new(inner)), AstNodeType::NoType, ));
+                            return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     _ => {
                         panic!("expecting stmt got {:?}", self.current_token());
@@ -1020,12 +1000,12 @@ impl Parser {
             TokenType::Asterix => {
                 self.forward_token();
                 let deref = self.expect_expr()?;
-                let deref = self.new_node(AstNodeData::Deref(Box::new(deref)), AstNodeType::Unknown, );
+                let deref = self.new_node(AstNodeData::Deref(deref.id), AstNodeType::Unknown, );
                 self.expect_token(TokenType::Equal)?;
                 self.forward_token();
                 let expr = self.expect_expr()?;
 
-                let node = self.new_node(AstNodeData::Assign(Box::new(deref), Box::new(expr)), AstNodeType::NoType, );
+                let node = self.new_node(AstNodeData::Assign(deref.id, expr.id), AstNodeType::NoType, );
 
                 return Ok(node);
             }
@@ -1045,7 +1025,7 @@ impl Parser {
                 self.expect_token(TokenType::OpenBrace)?;
                 let body = self.expect_block()?;
 
-                return Ok(self.new_node(AstNodeData::While(Box::new(cond), body), AstNodeType::Unknown, ));
+                return Ok(self.new_node(AstNodeData::While(cond.id, body), AstNodeType::Unknown, ));
             }
 
             TokenType::KeywordFor => {
@@ -1054,40 +1034,32 @@ impl Parser {
                 self.forward_token();
 
                 let starting_inside_paren = self.cur;
-                let before_node_counter = self.node_counter;
 
                 if self.expect_def().is_ok() {
-                    self.node_counter = before_node_counter;
                     self.cur = starting_inside_paren;
                     return self.expect_for_c();
                 } else {
                     self.cur = starting_inside_paren;
-                    self.node_counter = before_node_counter;
                 }
 
                 if self.expect_ident().is_ok() {
                     if self.expect_token(TokenType::KeywordIn).is_ok() {
                         self.cur = starting_inside_paren;
-                        self.node_counter = before_node_counter;
                         return self.expect_for_each();
                     } else {
                         self.cur = starting_inside_paren;
-                        self.node_counter = before_node_counter;
                         return self.expect_for_each_implicit_iterator();
                     }
                 } else {
                     self.cur = starting_inside_paren;
-                    self.node_counter = before_node_counter;
                 }
 
                 if self.expect_expr().is_ok() {
                     self.cur = starting_inside_paren;
-                    self.node_counter = before_node_counter;
 
                     return self.expect_for_each_implicit_iterator();
                 } else {
                     self.cur = starting_inside_paren;
-                    self.node_counter = before_node_counter;
 
                     unreachable!();
                 }
@@ -1096,7 +1068,7 @@ impl Parser {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Return(Box::new(expr)), AstNodeType::Unknown, ))
+                Ok(self.new_node(AstNodeData::Return(expr.id), AstNodeType::Unknown, ))
             }
 
             TokenType::KeywordGoto => {
@@ -1126,8 +1098,8 @@ impl Parser {
         }
     }
 
-    pub fn get_ast(mut self, st: &mut SymbolTable) -> Result<Ast> {
-        let mut top_level = Vec::<AstNode>::new();
+    pub fn get_ast(mut self) -> Result<Ast> {
+        let mut top_level = Vec::<NodeID>::new();
         let root_id: Vec<u64> = vec![];
         loop {
             if self.cur >= self.tokens.len() {
@@ -1144,7 +1116,8 @@ impl Parser {
                     }
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                    top_level.push(self.new_node(AstNodeData::Load(literal.to_string()), AstNodeType::Unknown));
+                    let top = self.new_node(AstNodeData::Load(literal.to_string()), AstNodeType::Unknown);
+                    top_level.push(top.id);
                 }
                 TokenType::CompilerFlagDirective => {
                     self.forward_token();
@@ -1154,7 +1127,8 @@ impl Parser {
                     if self.current_token().ty == TokenType::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(self.new_node(AstNodeData::CompilerFlags(path.to_string()), AstNodeType::Unknown));
+                    let top = self.new_node(AstNodeData::CompilerFlags(path.to_string()), AstNodeType::Unknown);
+                    top_level.push(top.id);
                 }
                 TokenType::HostDirective => {
                     self.forward_token();
@@ -1166,14 +1140,15 @@ impl Parser {
                     }
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                    top_level.push(self.new_node(AstNodeData::Host(literal.to_string()), AstNodeType::Unknown));
+                    let top = self.new_node(AstNodeData::Host(literal.to_string()), AstNodeType::Unknown);
+                    top_level.push(top.id);
                 }
                 TokenType::Ident => {
                     let decl = self.expect_def()?;
                     if self.current_token().ty == TokenType::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(decl);
+                    top_level.push(decl.id);
                 }
                 _ => {
                     println!("expecting a top level item found: {:?}", self.current_token());
@@ -1181,6 +1156,6 @@ impl Parser {
                 }
             }
         }
-        Ast::new(self.filename, self.src, self.tokens, top_level, st)
+        Ast::new(self.filename, self.src, self.tokens, top_level, self.node_manager)
     }
 }
