@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
 use crate::ast::{AstNodeType, SymbolTable, AstOperation};
-use crate::lexer::{Tokenizer, Type};
+use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
 use anyhow::Result;
 
@@ -194,14 +194,14 @@ impl<'a> CPP<'a> {
         Ok(output.join("."))
     }
 
-    fn repr_operator(&self, op: &Type) -> Result<String> {
+    fn repr_operator(&self, op: &TokenType) -> Result<String> {
         match op {
-            Type::LeftAngle => Ok("<".to_string()),
-            Type::RightAngle => Ok(">".to_string()),
-            Type::LessEqual => Ok("<=".to_string()),
-            Type::GreaterEqual => Ok(">=".to_string()),
-            Type::DoubleEqual => Ok("==".to_string()),
-            Type::NotEqual => Ok("!=".to_string()),
+            TokenType::LeftAngle => Ok("<".to_string()),
+            TokenType::RightAngle => Ok(">".to_string()),
+            TokenType::LessEqual => Ok("<=".to_string()),
+            TokenType::GreaterEqual => Ok(">=".to_string()),
+            TokenType::DoubleEqual => Ok("==".to_string()),
+            TokenType::NotEqual => Ok("!=".to_string()),
             _ => {
                 panic!("unsupported operator: {:?}", op);
            }
@@ -448,23 +448,16 @@ impl<'a> CPP<'a> {
                 self.repr_ast_node(&name)?,
                 self.repr_vec_node(&args, ",")?
             )),
-            AstNodeData::If(cond, then, _else) => {
-                let mut base = format!(
-                    "if ({}) {{\n{}\n\t}}",
-                    self.repr_ast_node(&cond)?,
-                    self.repr_block(&then)?
-                );
-
-                if _else.is_some() {
-                    base += &format!(
-                        " else {{\n{}\n\t}}",
-                        self.repr_block(&_else.clone().unwrap())?
-                    );
+            AstNodeData::If(ref ast_if) => {
+                let mut cases = Vec::<String>::new();
+                cases.push(format!("if ({} == true) {{\n{}\n}}", self.repr_ast_node(&ast_if.cases[0].0)?, self.repr_block(&ast_if.cases[0].1)?));
+                for case in &ast_if.cases[1..] {
+                    cases.push(format!("else if ({} == true) {{\n{}\n}}", self.repr_ast_node(&case.0)?, self.repr_block(&case.1)?))
                 }
-
-                Ok(base)
+                Ok(cases.join("\n"))
             }
             AstNodeData::Return(expr) => Ok(format!("return {}", self.repr_ast_node(&expr)?)),
+            AstNodeData::Break => Ok(format!("break")),
             AstNodeData::CompilerFlags(_) => { Ok ("".to_string()) },
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);

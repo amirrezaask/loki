@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
 
-use crate::lexer::{Token, Type};
+use crate::lexer::{Token, TokenType};
 use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
@@ -158,6 +158,11 @@ pub struct AstBinaryOperation {
     pub left: Box<AstNode>,
     pub right: Box<AstNode>
 }
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct AstIf {
+    pub cases: Vec<(AstNode, Vec<AstNode>)>,
+}
+
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeData {
@@ -218,7 +223,7 @@ pub enum AstNodeData {
     Ref(Box<AstNode>),
     Deref(Box<AstNode>),
     
-    If(Box<AstNode>, Vec<AstNode>, Option<Vec<AstNode>>),
+    If(AstIf),
     
     For(Box<AstNode>, Box<AstNode>, Box<AstNode>, Vec<AstNode>),
     ForIn(Option<Box<AstNode>>, Box<AstNode>, Vec<AstNode>),
@@ -262,6 +267,13 @@ impl AstNode {
     pub fn extract_uint(&self) -> u64 {
         if let AstNodeData::Uint(u) = self.data {
             return u;
+        }
+        unreachable!();
+    }
+
+    pub fn extract_if(&self) -> &AstIf {
+        if let AstNodeData::If(ref ast_if) = self.data {
+            return ast_if;
         }
         unreachable!();
     }

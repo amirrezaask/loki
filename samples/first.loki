@@ -37,7 +37,7 @@ main :: () int {
     number/=3;
     number%=1;
     
-    b := true;
+    some_bool := true;
     
     c :: 'c';
     
@@ -78,15 +78,18 @@ main :: () int {
     for (numbers) {
         printf("for each syntax: %d\n", it);
     }
-
-    if (b) {
+    b := 1;
+    if (b == 1) {
         printf("b1 is true\n");
+    } 
+    else if (b == 2) {
+        printf("b is two\n");
     }
-    else {
+     else {
         printf("b1 is false\n");
     }
 
-    this_sum :: sum(1, 2);
-    printf("function call sum %d\n", this_sum);
-    return 0;
+    // this_sum :: sum(1, 2);
+    // printf("function call sum %d\n", this_sum);
+    // return 0;
 }

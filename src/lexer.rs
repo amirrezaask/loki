@@ -4,7 +4,7 @@ use serde::Serialize;
 pub type SrcLocation = (usize, usize);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
-pub enum Type {
+pub enum TokenType {
     EOF,
     OpenBracket,
     CloseBracket,
@@ -102,7 +102,7 @@ pub enum Type {
     StringLiteral,
 }
 
-impl Type {
+impl TokenType {
     fn from_str(s: &str) -> Self {
         match s {
             "#load" => Self::LoadDirective,
@@ -154,12 +154,12 @@ impl Type {
 }
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token {
-    pub ty: Type,
+    pub ty: TokenType,
     pub loc: SrcLocation,
 }
 
 impl Token {
-    pub fn new(ty: Type, loc: (usize, usize)) -> Self {
+    pub fn new(ty: TokenType, loc: (usize, usize)) -> Self {
         Self {
             ty,
             loc: (loc.0, loc.1),
@@ -230,35 +230,35 @@ impl Tokenizer {
                 self.state = State::Start;
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(Type::from_str(&ident_or_keyword), (start, self.cur - 1));
+                let tok = Token::new(TokenType::from_str(&ident_or_keyword), (start, self.cur - 1));
                 return tok;
             }
 
             State::Integer(start) => {
                 self.state = State::Start;
-                return Token::new(Type::UnsignedInt, (start, self.cur - 1));
+                return Token::new(TokenType::UnsignedInt, (start, self.cur - 1));
             }
             State::Float(start) => {
                 self.state = State::Start;
-                return Token::new(Type::Float, (start, self.cur - 1));
+                return Token::new(TokenType::Float, (start, self.cur - 1));
             }
             State::IdentOrKeyword(start) => {
                 self.state = State::Start;
 
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(Type::from_str(&ident_or_keyword), (start, self.cur - 1));
+                let tok = Token::new(TokenType::from_str(&ident_or_keyword), (start, self.cur - 1));
 
                 return tok;
             }
             State::InStringLiteral(start) => {
                 self.state = State::Start;
-                let tok = Token::new(Type::StringLiteral, (start + 1, self.cur - 1));
+                let tok = Token::new(TokenType::StringLiteral, (start + 1, self.cur - 1));
                 self.forward_char();
                 return tok;
             }
             State::Start => {
-                return Token::new(Type::EOF, (self.src.len(), self.src.len()));
+                return Token::new(TokenType::EOF, (self.src.len(), self.src.len()));
             }
             _ => {
                 panic!("state: {:?} emitting current token", self.state);
@@ -271,7 +271,7 @@ impl Tokenizer {
         loop {
             let tok = self.next()?;
             match tok.ty {
-                Type::EOF => {
+                TokenType::EOF => {
                     break;
                 }
                 _ => {
@@ -288,11 +288,11 @@ impl Tokenizer {
 
             if self.eof() {
                 if (self.reached_eof) {
-                    return Ok(Token::new(Type::EOF, (self.src.len(), self.src.len())));
+                    return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len())));
                 }
                 self.reached_eof = true;
                 if self.state == State::InLineComment {
-                    return Ok(Token::new(Type::EOF, (self.src.len(), self.src.len())));
+                    return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len())));
                 }
                 return Ok(self.emit_current_token());
             }
@@ -302,28 +302,28 @@ impl Tokenizer {
                     match self.current_char() {
                         '{' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::OpenBrace, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::OpenBrace, (self.cur - 1, self.cur - 1)));
                         }
                         '}' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::CloseBrace, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::CloseBrace, (self.cur - 1, self.cur - 1)));
                         }
                         '(' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::OpenParen, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::OpenParen, (self.cur - 1, self.cur - 1)));
                         }
                         ')' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::CloseParen, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::CloseParen, (self.cur - 1, self.cur - 1)));
                         }
                         '[' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::OpenBracket, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::OpenBracket, (self.cur - 1, self.cur - 1)));
                         }
                         ']' => {
                             self.forward_char();
                             return Ok(Token::new(
-                                Type::CloseBracket,
+                                TokenType::CloseBracket,
                                 (self.cur - 1, self.cur - 1),
                             ));
                         }
@@ -354,7 +354,7 @@ impl Tokenizer {
                         }
                         '&' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::Ampersand, (self.cur-1, self.cur-1)));
+                            return Ok(Token::new(TokenType::Ampersand, (self.cur-1, self.cur-1)));
                         }
                         '=' => {
                             self.state = State::SawEqual;
@@ -364,7 +364,7 @@ impl Tokenizer {
                         '^' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(Type::Hat, (self.cur-1, self.cur-1)));
+                            return Ok(Token::new(TokenType::Hat, (self.cur-1, self.cur-1)));
                         }
                         '"' => {
                             self.state = State::InStringLiteral(self.cur);
@@ -398,13 +398,13 @@ impl Tokenizer {
                         }
                         ',' => {
                             self.forward_char();
-                            return Ok(Token::new(Type::Comma, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::Comma, (self.cur - 1, self.cur - 1)));
                         }
 
                         '.' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(Type::Dot, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::Dot, (self.cur - 1, self.cur - 1)));
                         }
 
                         ':' => {
@@ -415,7 +415,7 @@ impl Tokenizer {
                         ';' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(Type::SemiColon, (self.cur - 1, self.cur - 1)));
+                            return Ok(Token::new(TokenType::SemiColon, (self.cur - 1, self.cur - 1)));
                         }
                         ' ' | '\t' | '\r' | '\n' => {
                             self.forward_char();
@@ -455,34 +455,34 @@ impl Tokenizer {
                             unreachable!();
                         }
                         self.forward_char();
-                        return Ok(Token::new(Type::Char, (c - 1, c + 1)));
+                        return Ok(Token::new(TokenType::Char, (c - 1, c + 1)));
                     }
                 },
                 State::SawBang => match self.current_char() {
                     '=' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(Type::NotEqual, (self.cur - 2, self.cur - 1)));
+                        return Ok(Token::new(TokenType::NotEqual, (self.cur - 2, self.cur - 1)));
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(Type::Bang, (self.cur - 1, self.cur - 1)));
+                        return Ok(Token::new(TokenType::Bang, (self.cur - 1, self.cur - 1)));
                     }
                 },
                 State::SawColon => match self.current_char() {
                     ':' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(Type::DoubleColon, (self.cur - 2, self.cur - 1)));
+                        return Ok(Token::new(TokenType::DoubleColon, (self.cur - 2, self.cur - 1)));
                     }
                     '=' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(Type::ColonEqual, (self.cur - 2, self.cur - 1)));
+                        return Ok(Token::new(TokenType::ColonEqual, (self.cur - 2, self.cur - 1)));
                     }
                     _ => {
                         self.state = State::Start;
-                        let tok = Token::new(Type::Colon, (self.cur - 1, self.cur - 1));
+                        let tok = Token::new(TokenType::Colon, (self.cur - 1, self.cur - 1));
                         return Ok(tok);
                     }
                 },
@@ -490,11 +490,11 @@ impl Tokenizer {
                     '=' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(Type::DoubleEqual, (self.cur - 1, self.cur)));
+                        return Ok(Token::new(TokenType::DoubleEqual, (self.cur - 1, self.cur)));
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(Type::Equal, (self.cur - 1, self.cur - 1)));
+                        return Ok(Token::new(TokenType::Equal, (self.cur - 1, self.cur - 1)));
                     }
                 },
                 State::InStringLiteral(start) => match self.current_char() {
@@ -508,25 +508,25 @@ impl Tokenizer {
                 },
                 State::SawLeftAngleBracket => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(Type::LessEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::LessEqual, (self.cur - 1, self.cur));
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(Type::LeftAngle, (self.cur - 1, self.cur - 1)));
+                        return Ok(Token::new(TokenType::LeftAngle, (self.cur - 1, self.cur - 1)));
                     }
                 },
                 State::SawRightAngleBracket => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(Type::GreaterEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::GreaterEqual, (self.cur - 1, self.cur));
                         self.forward_char();
                         self.state = State::Start;
                         return Ok(tok);
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(Type::RightAngle, (self.cur - 1, self.cur - 1)));
+                        return Ok(Token::new(TokenType::RightAngle, (self.cur - 1, self.cur - 1)));
                     }
                 },
 
@@ -570,19 +570,19 @@ impl Tokenizer {
                 },
                 State::SawPlus => match self.current_char() {
                     '+' => {
-                        let tok = Token::new(Type::DoublePlus, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::DoublePlus, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     '=' => {
-                        let tok = Token::new(Type::PlusEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::PlusEqual, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(Type::Plus, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::Plus, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -590,19 +590,19 @@ impl Tokenizer {
 
                 State::SawMinus => match self.current_char() {
                     '-' => {
-                        let tok = Token::new(Type::DoubleMinus, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::DoubleMinus, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     '=' => {
-                        let tok = Token::new(Type::MinusEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::MinusEqual, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(Type::Minus, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::Minus, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -614,7 +614,7 @@ impl Tokenizer {
                         continue;
                     }
                     '=' => {
-                        let tok = Token::new(Type::DivEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::DivEqual, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
@@ -625,7 +625,7 @@ impl Tokenizer {
                         continue;
                     }
                     _ => {
-                        let tok = Token::new(Type::ForwardSlash, (self.cur - 1, self.cur - 1));
+                        let tok = Token::new(TokenType::ForwardSlash, (self.cur - 1, self.cur - 1));
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -649,26 +649,26 @@ impl Tokenizer {
                 },
                 State::SawAstrix => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(Type::MulEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::MulEqual, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(Type::Asterix, (self.cur - 1, self.cur - 1));
+                        let tok = Token::new(TokenType::Asterix, (self.cur - 1, self.cur - 1));
                         self.state = State::Start;
                         return Ok(tok);
                     }
                 },
                 State::SawPercent => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(Type::ModEqual, (self.cur - 1, self.cur));
+                        let tok = Token::new(TokenType::ModEqual, (self.cur - 1, self.cur));
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(Type::Asterix, (self.cur - 1, self.cur - 1));
+                        let tok = Token::new(TokenType::Asterix, (self.cur - 1, self.cur - 1));
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -700,7 +700,7 @@ fn floats() {
     assert!(num.is_ok());
     let num = num.unwrap();
     assert_eq!("123.123", &src[num.loc.0..=num.loc.1]);
-    assert_eq!(Type::Float, num.ty);
+    assert_eq!(TokenType::Float, num.ty);
 }
 #[test]
 fn integers() {
@@ -721,19 +721,19 @@ fn const_decl_char() -> Result<()> {
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("c", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::DoubleColon, tok.ty);
+    assert_eq!(TokenType::DoubleColon, tok.ty);
     assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Char, tok.ty);
+    assert_eq!(TokenType::Char, tok.ty);
     assert_eq!("'c'", &src[tok.loc.0..=tok.loc.1]);
 
     Ok(())
@@ -746,31 +746,31 @@ fn const_decl_with_ti() -> Result<()> {
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordUint32, tok.ty);
+    assert_eq!(TokenType::KeywordUint32, tok.ty);
     assert_eq!("uint32", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 
     Ok(())
@@ -789,14 +789,14 @@ fn const_decl() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::DoubleColon, tok.ty);
+    assert_eq!(TokenType::DoubleColon, tok.ty);
     assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -807,97 +807,97 @@ fn const_decl_fn() {
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("main", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::DoubleColon, tok.ty);
+    assert_eq!(TokenType::DoubleColon, tok.ty);
     assert_eq!("::", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("x", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordInt, tok.ty);
+    assert_eq!(TokenType::KeywordInt, tok.ty);
     assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Comma, tok.ty);
+    assert_eq!(TokenType::Comma, tok.ty);
     assert_eq!(",", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("y", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordUint, tok.ty);
+    assert_eq!(TokenType::KeywordUint, tok.ty);
     assert_eq!("uint", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordVoid, tok.ty);
+    assert_eq!(TokenType::KeywordVoid, tok.ty);
     assert_eq!("void", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!(TokenType::OpenBrace, tok.ty);
     assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("printf", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::StringLiteral, tok.ty);
+    assert_eq!(TokenType::StringLiteral, tok.ty);
     assert_eq!("Hello World", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!(TokenType::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -908,52 +908,52 @@ fn fn_sign() {
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("x", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordInt, tok.ty);
+    assert_eq!(TokenType::KeywordInt, tok.ty);
     assert_eq!("int", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Comma, tok.ty);
+    assert_eq!(TokenType::Comma, tok.ty);
     assert_eq!(",", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("y", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordUint, tok.ty);
+    assert_eq!(TokenType::KeywordUint, tok.ty);
     assert_eq!("uint", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordVoid, tok.ty);
+    assert_eq!(TokenType::KeywordVoid, tok.ty);
     assert_eq!("void", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -970,14 +970,14 @@ fn var_decl() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::ColonEqual, tok.ty);
+    assert_eq!(TokenType::ColonEqual, tok.ty);
     assert_eq!(":=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -989,31 +989,31 @@ fn var_decl_with_ti() -> Result<()> {
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("f", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Colon, tok.ty);
+    assert_eq!(TokenType::Colon, tok.ty);
     assert_eq!(":", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordUint32, tok.ty);
+    assert_eq!(TokenType::KeywordUint32, tok.ty);
     assert_eq!("uint32", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!(TokenType::Equal, tok.ty);
     assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("12", &src[tok.loc.0..=tok.loc.1]);
 
     Ok(())
@@ -1038,19 +1038,19 @@ fn load_directive() {
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::LoadDirective, tok.ty);
+    assert_eq!(TokenType::LoadDirective, tok.ty);
     assert_eq!("#load", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::StringLiteral, tok.ty);
+    assert_eq!(TokenType::StringLiteral, tok.ty);
     assert_eq!("stdio", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -1062,19 +1062,19 @@ fn host_directive() {
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::HostDirective, tok.ty);
+    assert_eq!(TokenType::HostDirective, tok.ty);
     assert_eq!("#host", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::StringLiteral, tok.ty);
+    assert_eq!(TokenType::StringLiteral, tok.ty);
     assert_eq!("cstdio", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 }
 #[test]
@@ -1086,133 +1086,133 @@ fn for_c() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordFor, tok.ty);
+    assert_eq!(TokenType::KeywordFor, tok.ty);
     assert_eq!("for", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordVar, tok.ty);
+    assert_eq!(TokenType::KeywordVar, tok.ty);
     assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Equal, tok.ty);
+    assert_eq!(TokenType::Equal, tok.ty);
     assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("0", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::LeftAngle, tok.ty);
+    assert_eq!(TokenType::LeftAngle, tok.ty);
     assert_eq!("<", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("10", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::DoublePlus, tok.ty);
+    assert_eq!(TokenType::DoublePlus, tok.ty);
     assert_eq!("++", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!(TokenType::OpenBrace, tok.ty);
     assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("print", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!(TokenType::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 #[test]
@@ -1224,77 +1224,77 @@ fn for_while() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordFor, tok.ty);
+    assert_eq!(TokenType::KeywordFor, tok.ty);
     assert_eq!("for", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::LeftAngle, tok.ty);
+    assert_eq!(TokenType::LeftAngle, tok.ty);
     assert_eq!("<", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("10", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!(TokenType::OpenBrace, tok.ty);
     assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("print", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!(TokenType::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 #[test]
@@ -1306,75 +1306,75 @@ fn for_each() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordFor, tok.ty);
+    assert_eq!(TokenType::KeywordFor, tok.ty);
     assert_eq!("for", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordIn, tok.ty);
+    assert_eq!(TokenType::KeywordIn, tok.ty);
     assert_eq!("in", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("items", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!(TokenType::OpenBrace, tok.ty);
     assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("print", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!(TokenType::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -1387,75 +1387,75 @@ fn if_stmt() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::KeywordIf, tok.ty);
+    assert_eq!(TokenType::KeywordIf, tok.ty);
     assert_eq!("if", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::LeftAngle, tok.ty);
+    assert_eq!(TokenType::LeftAngle, tok.ty);
     assert_eq!("<", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::UnsignedInt, tok.ty);
+    assert_eq!(TokenType::UnsignedInt, tok.ty);
     assert_eq!("10", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenBrace, tok.ty);
+    assert_eq!(TokenType::OpenBrace, tok.ty);
     assert_eq!("{", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("print", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::OpenParen, tok.ty);
+    assert_eq!(TokenType::OpenParen, tok.ty);
     assert_eq!("(", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::Ident, tok.ty);
+    assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseParen, tok.ty);
+    assert_eq!(TokenType::CloseParen, tok.ty);
     assert_eq!(")", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::SemiColon, tok.ty);
+    assert_eq!(TokenType::SemiColon, tok.ty);
     assert_eq!(";", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
-    assert_eq!(Type::CloseBrace, tok.ty);
+    assert_eq!(TokenType::CloseBrace, tok.ty);
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 
@@ -1468,16 +1468,16 @@ fn struct_def() -> Result<()> {
     assert_eq!(
         tokens,
         vec![
-            Token::new(Type::KeywordStruct, (0, 5)),
-            Token::new(Type::OpenBrace, (7, 7)),
-            Token::new(Type::Ident, (9, 9)),
-            Token::new(Type::Colon, (10, 10)),
-            Token::new(Type::KeywordInt, (12, 14)),
-            Token::new(Type::Comma, (15, 15)),
-            Token::new(Type::Ident, (17, 17)),
-            Token::new(Type::Colon, (18, 18)),
-            Token::new(Type::KeywordString, (20, 25)),
-            Token::new(Type::CloseBrace, (27, 27))
+            Token::new(TokenType::KeywordStruct, (0, 5)),
+            Token::new(TokenType::OpenBrace, (7, 7)),
+            Token::new(TokenType::Ident, (9, 9)),
+            Token::new(TokenType::Colon, (10, 10)),
+            Token::new(TokenType::KeywordInt, (12, 14)),
+            Token::new(TokenType::Comma, (15, 15)),
+            Token::new(TokenType::Ident, (17, 17)),
+            Token::new(TokenType::Colon, (18, 18)),
+            Token::new(TokenType::KeywordString, (20, 25)),
+            Token::new(TokenType::CloseBrace, (27, 27))
         ]
     );
 
@@ -1493,16 +1493,16 @@ fn struct_init() -> Result<()> {
     assert_eq!(
         tokens,
         vec![
-            Token::new(Type::OpenBrace, (0, 0)),
-            Token::new(Type::Ident, (2, 2)),
-            Token::new(Type::Equal, (4, 4)),
-            Token::new(Type::UnsignedInt, (6, 7)),
-            Token::new(Type::Comma, (8, 8)),
-            Token::new(Type::Ident, (10, 10)),
-            Token::new(Type::Equal, (12, 12)),
-            Token::new(Type::StringLiteral, (15, 22)),
-            Token::new(Type::CloseBrace, (25, 25)),
-            Token::new(Type::SemiColon, (26, 26))
+            Token::new(TokenType::OpenBrace, (0, 0)),
+            Token::new(TokenType::Ident, (2, 2)),
+            Token::new(TokenType::Equal, (4, 4)),
+            Token::new(TokenType::UnsignedInt, (6, 7)),
+            Token::new(TokenType::Comma, (8, 8)),
+            Token::new(TokenType::Ident, (10, 10)),
+            Token::new(TokenType::Equal, (12, 12)),
+            Token::new(TokenType::StringLiteral, (15, 22)),
+            Token::new(TokenType::CloseBrace, (25, 25)),
+            Token::new(TokenType::SemiColon, (26, 26))
         ]
     );
 
@@ -1532,8 +1532,8 @@ fn ident_deref() -> Result<()> {
     let tokens = tokenizer.all()?;
 
     assert_eq!(tokens, vec![
-        Token::new(Type::Asterix, (0, 0)),
-        Token::new(Type::Ident, (1,1)),
+        Token::new(TokenType::Asterix, (0, 0)),
+        Token::new(TokenType::Ident, (1,1)),
     ]);
 
     Ok(())
@@ -1546,8 +1546,8 @@ fn ident_ref() -> Result<()> {
     let tokens = tokenizer.all()?;
 
     assert_eq!(tokens, vec![
-        Token::new(Type::Ampersand, (0, 0)),
-        Token::new(Type::Ident, (1,1))
+        Token::new(TokenType::Ampersand, (0, 0)),
+        Token::new(TokenType::Ident, (1,1))
     ]);
 
     Ok(())
@@ -1560,9 +1560,9 @@ fn div_equal_ref() -> Result<()> {
     let tokens = tokenizer.all()?;
 
     assert_eq!(tokens, vec![
-        Token::new(Type::Ident, (0, 5)),
-        Token::new(Type::DivEqual, (6,7)),
-        Token::new(Type::UnsignedInt, (8,8))
+        Token::new(TokenType::Ident, (0, 5)),
+        Token::new(TokenType::DivEqual, (6,7)),
+        Token::new(TokenType::UnsignedInt, (8,8))
 
     ]);
 
