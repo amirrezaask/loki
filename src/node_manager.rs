@@ -39,12 +39,18 @@ impl AstNodeManager {
         }
     }
 
-    pub fn find_ident_def(&self, ident: String) -> NodeID {
+    pub fn find_ident_ast_type(&self, ident: String) -> (NodeID, AstNodeType) {
         for (node_id, node) in self.nodes.iter() {
             match node.data {
                 AstNodeData::Def(ref def) => {
                     if def.name == ident {
-                        return node_id.clone();
+                        let def_expr = self.get_node(def.expr.clone());
+                        return (def.expr.clone(), def_expr.infered_type);
+                    }
+                }
+                AstNodeData::Decl(ref name) => {
+                    if name.clone() == ident {
+                        return (node.id.clone(), node.infered_type.clone());
                     }
                 }
 
@@ -60,24 +66,19 @@ impl AstNodeManager {
             let mut unknown_node = self.nodes.get(&unknown_id).unwrap().clone();
             match unknown_node.data {
                 AstNodeData::Ident(ref ident) => {
-                    let def_id = self.find_ident_def(ident.clone());
-                    let def = self.get_node(def_id);
-                    if !def.is_def() {
-                        panic!("nemidoonam");
-                    }
-                    let def_expr_id = def.get_def().expr;
-                    let def_expr = self.get_node(def_expr_id.clone());
-                    if def_expr.infered_type == AstNodeType::Unknown {
+                    let (ref_id, ty) = self.find_ident_ast_type(ident.clone());
+                   
+                    if ty == AstNodeType::Unknown {
                         /*
                             a := 1
                             b := a
                             c := b
                          */
-                        self.unknowns.insert(def_expr_id, ());
+                        self.unknowns.insert(ref_id, ());
                         self.unknowns.insert(unknown_id.clone(), ());
                         continue;
                     }
-                    unknown_node.infered_type = def_expr.infered_type;
+                    unknown_node.infered_type = ty;
                     self.add_node(unknown_node)?;
 
                 }

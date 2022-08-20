@@ -1,5 +1,5 @@
 // #host "cstdio";
-// #host "string";
+#host "string";
 
 someUknownConst :: 10;
 
