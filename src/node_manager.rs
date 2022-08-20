@@ -6,7 +6,7 @@ use serde::Serialize;
 use anyhow::Result;
 
 
-use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData};
+use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag};
 
 // this struct will hold all nodes data of your whole compilation.
 #[derive(Debug, PartialEq, Clone, Serialize, Default)]
@@ -32,6 +32,17 @@ impl AstNodeManager {
         }
     }
 
+    pub fn add_type_inference(&mut self, id: &NodeID, type_infer: AstNodeType) {
+        let mut node = self.nodes.get_mut(id).unwrap();
+        node.infered_type = type_infer;
+    }
+
+    pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
+        let node = self.nodes.get_mut(id).unwrap();
+        node.tags.push(tag);
+
+    }
+
     pub fn get_node(&self, id: NodeID) -> AstNode {
         match self.nodes.get(&id) {
             Some(n) => n.clone(),
@@ -46,6 +57,11 @@ impl AstNodeManager {
                     if def.name == ident {
                         let def_expr = self.get_node(def.expr.clone());
                         return (def.expr.clone(), def_expr.infered_type);
+                    }
+                }
+                AstNodeData::Ident(ref name) => {
+                    if ident == name.clone() {
+                        return (node_id.clone(), node.infered_type.clone());
                     }
                 }
                 AstNodeData::Decl(ref name) => {

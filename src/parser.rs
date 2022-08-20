@@ -124,14 +124,14 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                dest.infered_type = infered_ty.clone();
+                self.node_manager.add_type_inference(&dest.id, infered_ty);
                 Ok(self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType))
             }
             TokenType::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                dest.infered_type = infered_ty.clone();
+                self.node_manager.add_type_inference(&dest.id, infered_ty);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: false,
                     name: dest.get_ident(),
@@ -147,20 +147,12 @@ impl<'a> Parser<'a> {
                 }
                 if self.current_token().ty != TokenType::Equal && self.current_token().ty != TokenType::Colon
                 {
-                    let mut node = AstNode {
-                        id: format!("{}_{}", self.filename, self.node_counter),
-                        data: AstNodeData::Decl(dest.get_ident()),
-                        infered_type: AstNodeType::new(&ty.unwrap()),
-                        tags: vec![]
-                    };
+                    let decl_node = self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()));
                     if self.current_token().ty == TokenType::ForeignDirective {
-                        node.tags.push(AstTag::Foreign);
+                        self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
                         self.forward_token();
-                    }
-                    self.node_counter += 1;
-                    
-                    self.node_manager.add_node(node.clone())?;
-                    return Ok(node);
+                    } 
+                    return Ok(decl_node);
                     
                 }
                 let mutable = self.current_token().ty == TokenType::Equal;
@@ -180,6 +172,7 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
+                self.node_manager.add_type_inference(&dest.id, infered_ty);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: true,
                     name: dest.get_ident(),
@@ -225,9 +218,9 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenType::OpenBrace)?;
 
         let body = self.expect_block()?;
-        let proto_ty = AstNodeType::make_fn_signature(&self.node_manager, &args, &ret_ty);
+        let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty);
         let sign = AstFnSignature { args, ret: ret_ty.id };
-        Ok(self.new_node(AstNodeData::FnDef(AstFnDef{ sign, body }), proto_ty, ))
+        Ok(self.new_node(AstNodeData::FnDef(AstFnDef{ sign, body }), proto_ty))
     }
 
     fn expect_fn_call(&mut self) -> Result<AstNode> {
@@ -1124,7 +1117,7 @@ impl<'a> Parser<'a> {
                     }
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                    let top = self.new_node(AstNodeData::Load(literal.to_string()), AstNodeType::Unknown);
+                    let top = self.new_node(AstNodeData::Load(literal.to_string()), AstNodeType::NoType);
                     top_level.push(top.id);
                 }
                 TokenType::CompilerFlagDirective => {
@@ -1135,7 +1128,7 @@ impl<'a> Parser<'a> {
                     if self.current_token().ty == TokenType::SemiColon {
                         self.forward_token();
                     }
-                    let top = self.new_node(AstNodeData::CompilerFlags(path.to_string()), AstNodeType::Unknown);
+                    let top = self.new_node(AstNodeData::CompilerFlags(path.to_string()), AstNodeType::NoType);
                     top_level.push(top.id);
                 }
                 TokenType::HostDirective => {
@@ -1148,7 +1141,7 @@ impl<'a> Parser<'a> {
                     }
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                    let top = self.new_node(AstNodeData::Host(literal.to_string()), AstNodeType::Unknown);
+                    let top = self.new_node(AstNodeData::Host(literal.to_string()), AstNodeType::NoType);
                     top_level.push(top.id);
                 }
                 TokenType::Ident => {
