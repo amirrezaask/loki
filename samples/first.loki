@@ -11,7 +11,11 @@
 //     state: State,
 // }
 
-// foreign_constant: int #foreign;
+// print_num :: (num: int) void {
+//     printf("%d\n", num);
+// }
+
+foreign_constant: int #foreign;
 
 top_level_uint_constant :: 1
 

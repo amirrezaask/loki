@@ -55,7 +55,7 @@ impl Compiler {
         let main_ast = self.parse_file(path)?;
         Self::dump_ast(path, &main_ast)?;
         self.total_lines += main_ast.src.lines().count() as u64;
-        self.total_tokens += main_ast.tokens.iter().count() as u64;
+        self.total_tokens += main_ast.tokens.len() as u64;
         let mut loads = Vec::<String>::new();
         let mut asts = Vec::<Ast>::new();
         

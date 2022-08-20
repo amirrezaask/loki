@@ -147,12 +147,20 @@ impl<'a> Parser<'a> {
                 }
                 if self.current_token().ty != TokenType::Equal && self.current_token().ty != TokenType::Colon
                 {
-                    let mut decl_node = self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()));
+                    let mut node = AstNode {
+                        id: format!("{}_{}", self.filename, self.node_counter),
+                        data: AstNodeData::Decl(dest.get_ident()),
+                        infered_type: AstNodeType::new(&ty.unwrap()),
+                        tags: vec![]
+                    };
                     if self.current_token().ty == TokenType::ForeignDirective {
-                        decl_node.tags.push(AstTag::Foreign);
+                        node.tags.push(AstTag::Foreign);
                         self.forward_token();
-                    } 
-                    return Ok(decl_node);
+                    }
+                    self.node_counter += 1;
+                    
+                    self.node_manager.add_node(node.clone())?;
+                    return Ok(node);
                     
                 }
                 let mutable = self.current_token().ty == TokenType::Equal;

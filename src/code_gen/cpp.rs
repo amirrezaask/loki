@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
 use crate::node_manager::AstNodeManager;
-use crate::ast::{AstNodeType, AstOperation, NodeID};
+use crate::ast::{AstNodeType, AstOperation, NodeID, AstTag};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
 use anyhow::Result;
@@ -235,6 +235,9 @@ impl<'a> CPP<'a> {
                 Ok(format!("{} = {}", self.repr_ast_node(name.clone())?, self.repr_ast_node(val.clone())?))
             }
             AstNodeData::Decl(name) => {
+                if node.tags.contains(&AstTag::Foreign) {
+                    return Ok("".to_string());
+                }
                 Ok(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name))
             }
 
@@ -494,7 +497,11 @@ impl<'a> CPP<'a> {
     pub fn generate(&mut self) -> Result<String> {
         let mut out: Vec<String> = vec![];
         for node in self.ast.top_level.iter() {
-            out.push(format!("{};", self.repr_ast_node(node.clone())?));
+            let repr = self.repr_ast_node(node.clone())?;
+            if repr == "" {
+                continue;
+            }
+            out.push(format!("{};", repr));
         }
         
         Ok(out.join("\n"))
