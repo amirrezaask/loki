@@ -89,7 +89,7 @@ impl<'a> Parser<'a> {
             TokenType::Ident => {
                 let name = self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
                 self.forward_token();
-                return Ok(self.new_node(AstNodeData::Ident(name), AstNodeType::Unknown, ));
+                return Ok(self.new_node(AstNodeData::Ident(name), AstNodeType::Unknown));
             }
             _ => {
                 return Err(self.err_uexpected(TokenType::Ident));
@@ -416,7 +416,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0+1..=src_range.loc.1-1];
-                Ok(self.new_node(AstNodeData::Char(literal.chars().nth(0).unwrap()), AstNodeType::Char, ))
+                Ok(self.new_node(AstNodeData::Char(literal.chars().next().unwrap()), AstNodeType::Char))
             }
             TokenType::KeywordStruct => {
                 self.forward_token();
@@ -897,19 +897,21 @@ impl<'a> Parser<'a> {
     fn expect_stmt(&mut self) -> Result<AstNode> {
         match self.current_token().ty {
             TokenType::Ident => {
-                let before_lhs_cur = self.cur;
-                let mut lhs = self.expect_lhs()?;
+                self.forward_token();
                 match self.current_token().ty {
                     TokenType::DoubleColon | TokenType::Colon | TokenType::Equal | TokenType::ColonEqual => {
-                        self.cur = before_lhs_cur;
+                        self.backward_token();
                         let def = self.expect_def()?;
                         return Ok(def);
                     }
                     TokenType::OpenParen => {
-                        self.cur = before_lhs_cur;
+                        self.backward_token();
                         self.expect_fn_call()
                     },
                     TokenType::PlusEqual => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
+
                         self.forward_token();
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
@@ -921,6 +923,8 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::MinusEqual => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -933,6 +937,8 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::ModEqual => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -945,6 +951,8 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::MulEqual => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -957,6 +965,8 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::DivEqual => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
                         self.forward_token();
                         
                         let rhs = self.expect_expr()?;
@@ -970,6 +980,8 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::DoublePlus => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
                         self.forward_token();
                         let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), );
                         lhs.infered_type = rhs.infered_type.clone();
@@ -981,6 +993,8 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, ));
                     }
                     TokenType::DoubleMinus => {
+                        self.backward_token();
+                        let mut lhs = self.expect_lhs()?;
                         self.forward_token();
                         
                         let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), );

@@ -1,16 +1,5 @@
-#load "base.loki";
-Human :: struct {
-    age: int,
-    name: string,
-}
+top_level_uint_constant :: 1;
+
 main :: () int {
-    human_ptr := &Human {
-        age = 24,
-        name = "amirreza",
-    };
-
-    age := (*human_ptr).age;
-
-    printf("human_ptr age is %d\n", age);
-    return 0;
+    z :: top_level_uint_constant;
 };

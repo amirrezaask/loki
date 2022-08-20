@@ -12,18 +12,18 @@ use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag};
 #[derive(Debug, PartialEq, Clone, Serialize, Default)]
 pub struct AstNodeManager {
     pub nodes: HashMap<NodeID, AstNode>,
-    unknowns: HashMap<NodeID, ()>,
+    unknowns: Vec<NodeID>,
 }
 
 impl AstNodeManager {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), unknowns: HashMap::new() }
+        Self { nodes: HashMap::new(), unknowns: vec![] }
     }
 
     // on duplicate node id error.
     pub fn add_node(&mut self, node: AstNode) -> Result<()> {
         if node.infered_type == AstNodeType::Unknown {
-            self.unknowns.insert(node.id.clone(), ());
+            self.unknowns.push(node.id.clone());
         }
         
         match self.nodes.insert(node.id.clone(), node) {
@@ -31,10 +31,22 @@ impl AstNodeManager {
             Some(n) => Ok(())
         }
     }
+    fn add_unknown(&mut self, id: NodeID) {
+        if !self.unknowns.contains(&id) {
+            self.unknowns.push(id);
+        }
+    }
 
     pub fn add_type_inference(&mut self, id: &NodeID, type_infer: AstNodeType) {
         let mut node = self.nodes.get_mut(id).unwrap();
         node.infered_type = type_infer;
+
+        match self.unknowns.iter().position(|i| i.clone() == id.clone()) {
+            Some(idx) => {
+                self.unknowns.remove(idx);
+            }
+            None => {}
+        }
     }
 
     pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
@@ -50,23 +62,32 @@ impl AstNodeManager {
         }
     }
 
-    pub fn find_ident_ast_type(&self, ident: String) -> (NodeID, AstNodeType) {
+    pub fn find_ident_ast_type(&self, ident: String) -> AstNodeType {
         for (node_id, node) in self.nodes.iter() {
             match node.data {
                 AstNodeData::Def(ref def) => {
                     if def.name == ident {
                         let def_expr = self.get_node(def.expr.clone());
-                        return (def.expr.clone(), def_expr.infered_type);
+                        if def_expr.infered_type == AstNodeType::Unknown {
+                            continue;
+                        }
+                        return def_expr.infered_type;
                     }
                 }
                 AstNodeData::Ident(ref name) => {
+                    if node.infered_type == AstNodeType::Unknown {
+                        continue;
+                    }
                     if ident == name.clone() {
-                        return (node_id.clone(), node.infered_type.clone());
+                        return node.infered_type.clone();
                     }
                 }
                 AstNodeData::Decl(ref name) => {
+                    if node.infered_type == AstNodeType::Unknown {
+                        continue;
+                    }
                     if name.clone() == ident {
-                        return (node.id.clone(), node.infered_type.clone());
+                        return node.infered_type.clone();
                     }
                 }
 
@@ -78,30 +99,35 @@ impl AstNodeManager {
     }
 
     pub fn infer_types(&mut self) -> Result<()> {
-        for (unknown_id, _) in self.unknowns.clone() {
-            let mut unknown_node = self.nodes.get(&unknown_id).unwrap().clone();
-            match unknown_node.data {
-                AstNodeData::Ident(ref ident) => {
-                    let (ref_id, ty) = self.find_ident_ast_type(ident.clone());
-                   
-                    if ty == AstNodeType::Unknown {
-                        /*
-                            a := 1
-                            b := a
-                            c := b
-                         */
-                        self.unknowns.insert(ref_id, ());
-                        self.unknowns.insert(unknown_id.clone(), ());
-                        continue;
-                    }
-                    unknown_node.infered_type = ty;
-                    self.add_node(unknown_node)?;
-
+        let mut counter = 0;
+        loop {
+            // if counter > 100 {
+            //     break;
+            // }
+            if self.unknowns.is_empty() {
+                break;
+            }
+            counter += 1;
+            for (idx, unknown_id) in self.unknowns.clone().iter().enumerate() {
+                let unknown_node = self.nodes.get(unknown_id).unwrap();
+                self.unknowns.remove(idx);
+                if unknown_node.infered_type != AstNodeType::Unknown {
+                    break;
                 }
-
-                _ => {}
+                if let AstNodeData::Ident(ref ident) = unknown_node.data {
+                    // println!("lookiing for {:?}", unknown_node);
+                    let ty = self.find_ident_ast_type(ident.clone());
+                    self.add_type_inference(unknown_id, ty.clone());
+                    break
+                }
             }
         }
+
+
+        println!("unknowns: {:?}", self.unknowns);
+
+
+       
 
 
         Ok(())

@@ -1,15 +1,15 @@
-// #load "base.loki" // Load directive loads a loki file as a part of compilation
+#load "base.loki" // Load directive loads a loki file as a part of compilation
 
 // State :: enum {
 //     Alive,
 //     Dead
 // }
 
-// Human :: struct {
-//     age: int,
-//     name: string,
-//     state: State,
-// }
+Human :: struct {
+    age: int,
+    name: string,
+    // state: State,
+}
 
 // print_num :: (num: int) void {
 //     printf("%d\n", num);
@@ -19,43 +19,43 @@
 
 top_level_uint_constant :: 1;
 
-
 main :: () int {
     
-    // state := State.Alive;
+// //     // state := State.Alive;
     
+
+//     // uu := someUknownConst;
     z := top_level_uint_constant;
+    
+    y := 10;
+    x := y;
+ 
+    
+    infer_bool := 1 == 1;
+    number := 0;
 
-    uu := someUknownConst;
+    number++;
+    number--;
+    number = number + 10;
+    number+=10;
+    number-=3;
+    number*=2;
+    number/=3;
+    number%=1;
     
-    // y := 10;
-    // x := y;
+    some_bool := true;
     
-    // infer_bool := 1 == 1;
-    // number := 0;
+    c :: 'c';
+    
+    s :: "Amirreza";
 
-    // number++;
-    // number--;
-    // number = number + 10;
-    // number+=10;
-    // number-=3;
-    // number*=2;
-    // number/=3;
-    // number%=1;
-    
-    // some_bool := true;
-    
-    // c :: 'c';
-    
-    // s :: "Amirreza";
+    a: bool;
+    a = true;
 
-    // a: bool;
-    // a = true;
-
-    // amirreza := Human {
-    //     age = 24,
-    //     name = "amirreza",
-    // };
+    amirreza := Human {
+        age = 24,
+        name = "amirreza",
+    };
 
     // amirreza.age = 25;
 
