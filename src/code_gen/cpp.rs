@@ -30,6 +30,7 @@ impl<'a> CPP<'a> {
         }
     }
     fn repr_ast_ty(&self, ty: AstNodeType) -> Result<String> {
+        println!("ty: {:?}", ty);
         match ty {
             AstNodeType::LoadedFile => {
                 Ok("".to_string())
@@ -141,8 +142,8 @@ impl<'a> CPP<'a> {
         for node_id in node_tys {
             let node = self.node_manager.get_node(node_id.clone());
             match &node.data {
-                AstNodeData::Decl(name) => {
-                    output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, name));
+                AstNodeData::Decl(name_id) => {
+                    output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name_id.clone())?));
                 }
                 _ => {
                     unreachable!();
@@ -277,7 +278,7 @@ impl<'a> CPP<'a> {
                 AstNodeData::FnDef(ref fn_def) => 
                     Ok(format!("{} {}({}) {{\n{}\n}}",
                         self.repr_ast_node(fn_def.sign.ret.clone())?,
-                        def.name,
+                        self.repr_ast_node(def.name.clone())?,
                         self.repr_fn_def_args(&fn_def.sign.args)?,
                         self.repr_block(&fn_def.body)?
                     )),
@@ -285,7 +286,7 @@ impl<'a> CPP<'a> {
 
                 AstNodeData::Struct(fields) => Ok(format!(
                     "struct {} {{\n{}\n}};",
-                    def.name,
+                    self.repr_ast_node(def.name.clone())?,
                     self.repr_struct_fields(fields)?
                 )),
 
@@ -293,13 +294,13 @@ impl<'a> CPP<'a> {
                     if !is_union {
                         Ok(format!(
                             "enum class {} {{\n{}\n}};",
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             self.repr_enum_variants(&variants)?
                         ))
                     } else {
                         Ok(format!(
                             "union {} {{\n{}\n}};",
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             self.repr_union_variants(&variants)?
                         ))
                     }
@@ -312,13 +313,13 @@ impl<'a> CPP<'a> {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             fields
                         )),
                         true => Ok(format!(
                             "{} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             fields,
                         )),
                     }
@@ -334,13 +335,13 @@ impl<'a> CPP<'a> {
                         false => Ok(format!(
                             "const {} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             self.repr_ast_node(def.expr.clone())?
                         )),
                         true => Ok(format!(
                             "{} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             self.repr_ast_node(def.expr.clone())?
                         )),
                     }

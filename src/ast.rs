@@ -171,7 +171,7 @@ pub struct AstCaseBlock {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstDef {
     pub mutable: bool,
-    pub name: String,
+    pub name: NodeID,
     pub expr: NodeID,
 }
 
@@ -194,7 +194,7 @@ pub enum AstNodeData {
     Load(String),
     Host(String),
     Def(AstDef),
-    Decl(String),
+    Decl(NodeID),
     Assign(NodeID, NodeID),
 
     // Type defs

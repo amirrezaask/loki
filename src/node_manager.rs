@@ -67,7 +67,8 @@ impl AstNodeManager {
         for (_, node) in self.nodes.iter() {
             match node.data {
                 AstNodeData::Def(ref def) => {
-                    if def.name == ident {
+                    let name_node = self.get_node(def.name.clone());
+                    if name_node.get_ident() == ident {
                         let def_expr = self.get_node(def.expr.clone());
                         if def_expr.infered_type == AstNodeType::Unknown {
                             continue;
@@ -83,11 +84,12 @@ impl AstNodeManager {
                         return node.infered_type.clone();
                     }
                 }
-                AstNodeData::Decl(ref name) => {
+                AstNodeData::Decl(ref name_id) => {
+                    let name_node = self.get_node(name_id.clone());
                     if node.infered_type == AstNodeType::Unknown {
                         continue;
                     }
-                    if name.clone() == ident {
+                    if name_node.get_ident().clone() == ident {
                         return node.infered_type.clone();
                     }
                 }
@@ -100,7 +102,6 @@ impl AstNodeManager {
     }
 
     pub fn infer_types(&mut self) -> Result<()> {
-        println!("unknowns => {:?}", self.unknowns);
         //@Refactor: possible usage of Queue like datastructure will make this code much simpler.
         loop {
             if self.unknowns.is_empty() {

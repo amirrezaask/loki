@@ -134,7 +134,7 @@ impl<'a> Parser<'a> {
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: false,
-                    name: dest.get_ident(),
+                    name: dest.id,
                     expr: rhs.id,
                 }), AstNodeType::NoType))
             }
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
                 }
                 if self.current_token().ty != TokenType::Equal && self.current_token().ty != TokenType::Colon
                 {
-                    let decl_node = self.new_node(AstNodeData::Decl(dest.get_ident()), AstNodeType::new(&ty.unwrap()));
+                    let decl_node = self.new_node(AstNodeData::Decl(dest.id), AstNodeType::new(&ty.unwrap()));
                     if self.current_token().ty == TokenType::ForeignDirective {
                         self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
                         self.forward_token();
@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
                 dest.infered_type = infered_ty;
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable,
-                    name: dest.get_ident(),
+                    name: dest.id,
                     expr: rhs.id,
                 }), AstNodeType::NoType))
             }
@@ -175,7 +175,7 @@ impl<'a> Parser<'a> {
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: true,
-                    name: dest.get_ident(),
+                    name: dest.id,
                     expr: rhs.id,
                 }), AstNodeType::NoType))
             }
@@ -432,7 +432,7 @@ impl<'a> Parser<'a> {
                     self.forward_token();
                     let ty = self.expect_expr()?;
                     name.infered_type = AstNodeType::new(&ty);
-                    let field = self.new_node(AstNodeData::Decl(name.get_ident()), AstNodeType::new(&ty)); 
+                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty)); 
                     fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -520,7 +520,6 @@ impl<'a> Parser<'a> {
             TokenType::Ampersand => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                println!("expr in & {:?}", expr);
                 return Ok(self.new_node(AstNodeData::PointerTo(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type))));
             }
             TokenType::Ident => {
