@@ -30,7 +30,6 @@ impl<'a> CPP<'a> {
         }
     }
     fn repr_ast_ty(&self, ty: AstNodeType) -> Result<String> {
-        println!("ty: {:?}", ty);
         match ty {
             AstNodeType::LoadedFile => {
                 Ok("".to_string())

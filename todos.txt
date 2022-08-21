@@ -3,6 +3,8 @@
 
 - scopes for node_manager
 
+- new syntax for pointers and derefs (">>" pointer to something) ("<<" deref of something)
+
 - variadic args
 
 - defer

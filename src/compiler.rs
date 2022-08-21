@@ -45,15 +45,22 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn dump_node_manager(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("node_manager_dump.json")?;
+    pub fn dump_node_manager_before(&self) -> Result<()> {
+        let mut out_file = std::fs::File::create("node_manager_before_infer_dump.json")?;
+        out_file.write_all(serde_json::to_string(&self.node_manager).unwrap().as_bytes())?;
+
+        Ok(())
+    }
+
+    pub fn dump_node_manager_after(&self) -> Result<()> {
+        let mut out_file = std::fs::File::create("node_manager_after_infer_dump.json")?;
         out_file.write_all(serde_json::to_string(&self.node_manager).unwrap().as_bytes())?;
 
         Ok(())
     }
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         let main_ast = self.parse_file(path)?;
-        Self::dump_ast(path, &main_ast)?;
+        // Self::dump_ast(path, &main_ast)?;
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.len() as u64;
         let mut loads = Vec::<String>::new();
@@ -102,9 +109,11 @@ impl Compiler {
         let mut asts = self.get_ast_for(path)?;
         let mut codes = Vec::<String>::new();
 
+        self.dump_node_manager_before()?;
 
         self.node_manager.infer_types()?;
-        self.dump_node_manager()?;
+
+        self.dump_node_manager_after()?;
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();

@@ -1,6 +1,6 @@
 #![allow(clippy::single_match)]
 
-use std::{collections::HashMap, cell::RefCell};
+use std::collections::HashMap;
 
 use serde::Serialize;
 use anyhow::Result;
@@ -48,6 +48,10 @@ impl AstNodeManager {
             }
             None => {}
         }
+
+        if node.infered_type.is_unknown() {
+            self.unknowns.push(node.id.clone());
+        }
     }
 
     pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
@@ -70,14 +74,14 @@ impl AstNodeManager {
                     let name_node = self.get_node(def.name.clone());
                     if name_node.get_ident() == ident {
                         let def_expr = self.get_node(def.expr.clone());
-                        if def_expr.infered_type == AstNodeType::Unknown {
+                        if def_expr.is_unknown() {
                             continue;
                         }
                         return def_expr.infered_type;
                     }
                 }
                 AstNodeData::Ident(ref name) => {
-                    if node.infered_type == AstNodeType::Unknown {
+                    if node.infered_type.is_unknown() {
                         continue;
                     }
                     if ident == name.clone() {
@@ -86,7 +90,7 @@ impl AstNodeManager {
                 }
                 AstNodeData::Decl(ref name_id) => {
                     let name_node = self.get_node(name_id.clone());
-                    if node.infered_type == AstNodeType::Unknown {
+                    if node.infered_type.is_unknown() {
                         continue;
                     }
                     if name_node.get_ident().clone() == ident {
@@ -158,7 +162,7 @@ impl AstNodeManager {
         }
 
 
-        println!("unknowns: {:?}", self.unknowns);
+        // println!("unknowns: {:?}", self.unknowns);
 
 
        
