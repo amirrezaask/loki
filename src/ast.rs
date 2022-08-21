@@ -11,6 +11,8 @@ pub type NodeID = String;
 pub enum AstNodeType {
     Unknown,
     NoType,
+
+    LoadedFile,
     SignedInt(BitSize),
     UnsignedInt(BitSize),
     Float(BitSize),
@@ -27,14 +29,15 @@ pub enum AstNodeType {
 
     Initialize(Box<AstNodeType>),
 
-    TypeDefStruct,
-    TypeDefEnum,
-    TypeDefUnion,
+    Struct,
+    Enum,
+    Union,
 
     Pointer(Box<AstNodeType>),
-    Deref(Box<AstNodeType>),
 
     FnType(Vec<AstNodeType>, Box<AstNodeType>),
+
+    NamespaceAccess(Box<AstNodeType>, Box<AstNodeType>),
 
     Void,
 
@@ -71,7 +74,7 @@ impl AstNodeType {
     }
     pub fn is_type_def(&self) -> bool {
         match self {
-            AstNodeType::TypeDefStruct | AstNodeType::TypeDefUnion | AstNodeType::TypeDefEnum => true,
+            AstNodeType::Struct | AstNodeType::Union | AstNodeType::Enum => true,
             _ => return false
         }
     }
@@ -79,6 +82,12 @@ impl AstNodeType {
     pub fn is_unknown(&self) -> bool {
         match self {
             AstNodeType::Unknown => true,
+            AstNodeType::Pointer(obj) => {
+                if obj.is_unknown() {
+                    return true;
+                }
+                return false;
+            }
             _ => return false
         }
 
@@ -97,10 +106,18 @@ impl AstNodeType {
     }
     pub fn is_type_def_enum(&self) -> bool {
         match self {
-            AstNodeType::TypeDefEnum => true,
+            AstNodeType::Enum => true,
             _ => return false
         }
     }
+
+    pub fn is_pointer(&self) -> bool {
+        match self {
+            AstNodeType::Pointer(_) => true,
+            _ => return false
+        }
+    }
+    
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstTag {
@@ -111,8 +128,6 @@ pub enum AstTag {
 pub struct NamespaceAccess {
     pub namespace: NodeID,
     pub field: NodeID,
-    pub namespace_is_enum: bool,
-    pub namespace_is_pointer: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -247,6 +262,10 @@ impl AstNode {
         return false;
 
     }
+
+    pub fn is_unknown(&self) -> bool {
+        return self.infered_type.is_unknown();
+    }
     pub fn is_enum(&self) -> bool {
         if let AstNodeData::Enum(_, _) = self.data {
             return true;
@@ -254,6 +273,12 @@ impl AstNode {
         return false;
     }
 
+    pub fn is_pointer(&self) -> bool {
+        if let AstNodeData::PointerTo(_) = self.data {
+            return true;
+        }
+        return false;
+    }
     pub fn is_def(&self) -> bool {
         if let AstNodeData::Def(_) = self.data {
             return true;

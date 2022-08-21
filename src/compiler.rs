@@ -103,8 +103,8 @@ impl Compiler {
         let mut codes = Vec::<String>::new();
 
 
-        self.dump_node_manager()?;
         self.node_manager.infer_types()?;
+        self.dump_node_manager()?;
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();

@@ -1,5 +1,16 @@
-top_level_uint_constant :: 1;
+#load "base.loki"
+
+Human :: struct {
+    age: int,
+    name: string,
+}
 
 main :: () int {
-    z :: top_level_uint_constant;
+    human := Human {
+        age = 24,
+        name = "amirreza",
+    };
+
+    human_ptr := &human;
+    // age := human_ptr.age;
 };

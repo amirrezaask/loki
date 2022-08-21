@@ -1,10 +1,12 @@
 
 - namespaces (enum/struct/union/other files should be inside a namespace access using container field)
 
+- scopes for node_manager
+
 - variadic args
 
-- automatic deref when pointer using container field
-
+- defer
+    *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - dynamic array
 
 - slicing arrays
@@ -13,5 +15,4 @@
 ------------------------ distant future
 - generics
 - pattern matching 
-- defer
 - memory stuff

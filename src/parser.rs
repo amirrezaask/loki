@@ -32,7 +32,7 @@ impl<'a> Parser<'a> {
             id: format!("{}_{}", self.filename, self.node_counter),
             data, infered_type: type_annotation, tags: vec![]
         };
-        self.node_manager.add_node(node.clone());
+        self.node_manager.add_node(node.clone()).unwrap();
         return node;
     }
     fn current_token(&self) -> &Token {
@@ -262,10 +262,8 @@ impl<'a> Parser<'a> {
                 let cf = NamespaceAccess {
                     namespace: container.id,
                     field: field.id,
-                    namespace_is_enum: false,
-                    namespace_is_pointer: false,
                 };
-                return Ok(self.new_node(AstNodeData::NamespaceAccess(cf), AstNodeType::Unknown, ));
+                return Ok(self.new_node(AstNodeData::NamespaceAccess(cf), AstNodeType::Unknown));
             }
             _ => {
                 return Ok(container);
@@ -449,7 +447,7 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Ok(self.new_node(AstNodeData::Struct(fields), AstNodeType::TypeDefStruct, ))
+                Ok(self.new_node(AstNodeData::Struct(fields), AstNodeType::Struct, ))
             }
             TokenType::KeywordEnum => {
                 self.forward_token();
@@ -487,7 +485,7 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Ok(self.new_node(AstNodeData::Enum(is_union, variants), AstNodeType::TypeDefEnum, ))
+                Ok(self.new_node(AstNodeData::Enum(is_union, variants), AstNodeType::Enum, ))
             }
             TokenType::OpenParen => {
                 let before_check_fn_def_cur = self.cur;
@@ -517,13 +515,13 @@ impl<'a> Parser<'a> {
             TokenType::Asterix => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(AstNodeData::Deref(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), ));
+                return Ok(self.new_node(AstNodeData::Deref(expr.id), expr.infered_type));
             }
             TokenType::Ampersand => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-
-                return Ok(self.new_node(AstNodeData::PointerTo(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type.clone())), ));
+                println!("expr in & {:?}", expr);
+                return Ok(self.new_node(AstNodeData::PointerTo(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type))));
             }
             TokenType::Ident => {
                 self.forward_token();
@@ -899,7 +897,7 @@ impl<'a> Parser<'a> {
             TokenType::Ident => {
                 self.forward_token();
                 match self.current_token().ty {
-                    TokenType::DoubleColon | TokenType::Colon | TokenType::Equal | TokenType::ColonEqual => {
+                    TokenType::DoubleColon | TokenType::Colon | TokenType::Equal | TokenType::ColonEqual | TokenType::Dot => {
                         self.backward_token();
                         let def = self.expect_def()?;
                         return Ok(def);

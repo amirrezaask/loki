@@ -1,3 +1,4 @@
+#![allow(clippy::needless_return)]
 mod code_gen;
 mod parser;
 mod lexer;
