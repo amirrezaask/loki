@@ -1,16 +1,11 @@
 #load "base.loki"
 
-Human :: struct {
-    age: int,
-    name: string,
+State :: enum {
+    Alive,
+    Dead
 }
 
 main :: () int {
-    human := Human {
-        age = 24,
-        name = "amirreza",
-    };
-
-    human_ptr := &human;
-    // age := human_ptr.age;
+    state := State.Alive;
+    
 };

@@ -139,25 +139,39 @@ impl AstNodeManager {
                     }
                 }
 
-                // if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
-                //     let namespace_access = ns.clone();
-                //     let namespace = self.get_node(namespace_access.namespace.clone());
-                //     let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
-                //     if namespace.is_unknown() {
-                //         self.add_unknown(namespace.id.clone());
-                //         self.add_unknown(unknown_id.clone());
-                //         break;
-                //     }
-                //     if field.is_unknown() {
-                //         self.add_unknown(field.id.clone());
-                //         self.add_unknown(unknown_id.clone());
-                //         break;
-                //     }
-                //     self.add_type_inference(&namespace_access.namespace, namespace.infered_type);
-                //     self.add_type_inference(&namespace_access.field, field.infered_type);
+                if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
+                    let namespace_access = ns.clone();
+                    let namespace = self.get_node(namespace_access.namespace.clone());
+                    let mut namespace_ty = namespace.infered_type.clone();
+                    if namespace_ty.is_unknown() {
+                        namespace_ty = self.find_ident_ast_type(namespace.get_ident());
+                    }
 
+                    let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
+                    let mut field_ty = field.infered_type.clone();
+                    if field_ty.is_unknown() {
+                        field_ty = self.find_ident_ast_type(field.get_ident());
+                    }
+                    if namespace_ty.is_unknown() {
+                        self.add_unknown(&namespace.id.clone());
+                        self.add_unknown(&unknown_id.clone());
+                    }
+                    
+                    if field_ty.is_unknown() {
+                        self.add_unknown(&field.id.clone());
+                        self.add_unknown(&unknown_id.clone());
+                    }
 
-                // }
+                    if namespace_ty.is_unknown() || field_ty.is_unknown() {
+                        break;
+                    }
+
+                    self.add_type_inference(&namespace_access.namespace, namespace_ty);
+                    self.add_type_inference(&namespace_access.field, field_ty.clone());
+                    self.add_type_inference(unknown_id, field_ty.clone());
+                    break;
+
+                }
             }
         }
 

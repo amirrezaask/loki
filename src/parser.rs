@@ -468,6 +468,7 @@ impl<'a> Parser<'a> {
 
                     let mut variant = self.expect_ident()?;
                     variant.infered_type = AstNodeType::UnsignedInt(64);
+                    self.node_manager.add_type_inference(&variant.id.clone(), AstNodeType::UnsignedInt(64));
                     match self.current_token().ty {
                         TokenType::Comma => {
                             variants.push((variant.id, None));

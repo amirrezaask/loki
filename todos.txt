@@ -1,4 +1,3 @@
-
 - namespaces (enum/struct/union/other files should be inside a namespace access using container field)
 
 - scopes for node_manager

@@ -5,7 +5,11 @@ use crate::lexer::{Token, TokenType};
 use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
-
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct NamespaceAccessType {
+    pub namespace: Box<AstNodeType>, 
+    pub field: Box<AstNodeType>,
+}
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeType {
@@ -37,7 +41,7 @@ pub enum AstNodeType {
 
     FnType(Vec<AstNodeType>, Box<AstNodeType>),
 
-    NamespaceAccess(Box<AstNodeType>, Box<AstNodeType>),
+    NamespaceAccess(NamespaceAccessType),
 
     Void,
 
@@ -76,6 +80,13 @@ impl AstNodeType {
         match self {
             AstNodeType::Struct | AstNodeType::Union | AstNodeType::Enum => true,
             _ => return false
+        }
+    }
+
+    pub fn is_enum(&self) -> bool {
+        match self {
+            AstNodeType::Enum => true,
+            _ => return false,
         }
     }
 
@@ -266,12 +277,7 @@ impl AstNode {
     pub fn is_unknown(&self) -> bool {
         return self.infered_type.is_unknown();
     }
-    pub fn is_enum(&self) -> bool {
-        if let AstNodeData::Enum(_, _) = self.data {
-            return true;
-        }
-        return false;
-    }
+
 
     pub fn is_pointer(&self) -> bool {
         if let AstNodeData::PointerTo(_) = self.data {

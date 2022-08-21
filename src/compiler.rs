@@ -47,14 +47,14 @@ impl Compiler {
 
     pub fn dump_node_manager_before(&self) -> Result<()> {
         let mut out_file = std::fs::File::create("node_manager_before_infer_dump.json")?;
-        out_file.write_all(serde_json::to_string(&self.node_manager).unwrap().as_bytes())?;
+        out_file.write_all(serde_json::to_string_pretty(&self.node_manager).unwrap().as_bytes())?;
 
         Ok(())
     }
 
     pub fn dump_node_manager_after(&self) -> Result<()> {
         let mut out_file = std::fs::File::create("node_manager_after_infer_dump.json")?;
-        out_file.write_all(serde_json::to_string(&self.node_manager).unwrap().as_bytes())?;
+        out_file.write_all(serde_json::to_string_pretty(&self.node_manager).unwrap().as_bytes())?;
 
         Ok(())
     }

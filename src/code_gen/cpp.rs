@@ -82,8 +82,8 @@ impl<'a> CPP<'a> {
             AstNodeType::Pointer(name) => {
                 Ok(format!("{}*", self.repr_ast_ty(name.deref().clone())?))
             }
-            AstNodeType::NamespaceAccess(_, field) => {
-                Ok(self.repr_ast_ty(field.deref().clone())?)
+            AstNodeType::NamespaceAccess(nsa) => {
+                Ok(self.repr_ast_ty(nsa.field.deref().clone())?)
             }
             AstNodeType::Void => {
                 Ok("void".to_string())
@@ -216,13 +216,12 @@ impl<'a> CPP<'a> {
 
     fn repr_namespace_access(&self, nsa: &NamespaceAccess) -> Result<String> {
         let ns_ty = self.node_manager.get_node(nsa.namespace.clone());
-        let field_ty = self.node_manager.get_node(nsa.field.clone());
-
-        if ns_ty.is_enum() {
+        let _ = self.node_manager.get_node(nsa.field.clone());
+        if ns_ty.infered_type.is_enum() {
             return Ok(format!("{}::{}", self.repr_ast_node(nsa.namespace.clone())?, self.repr_ast_node(nsa.field.clone())?));
         }
 
-        if ns_ty.is_pointer() {
+        if ns_ty.infered_type.is_pointer() {
             return Ok(format!("{}->{}", self.repr_ast_node(nsa.namespace.clone())?, self.repr_ast_node(nsa.field.clone())?));
         }
 
@@ -255,7 +254,7 @@ impl<'a> CPP<'a> {
                 if node.tags.contains(&AstTag::Foreign) {
                     return Ok("".to_string());
                 }
-                Ok(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name))
+                Ok(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name.clone())?))
             }
 
             AstNodeData::ForIn(op_name, list, body) => {
@@ -292,7 +291,7 @@ impl<'a> CPP<'a> {
                 AstNodeData::Enum(is_union, variants) => {
                     if !is_union {
                         Ok(format!(
-                            "enum class {} {{\n{}\n}};",
+                            "enum {} {{\n{}\n}};",
                             self.repr_ast_node(def.name.clone())?,
                             self.repr_enum_variants(&variants)?
                         ))
