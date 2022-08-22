@@ -6,7 +6,7 @@ use serde::Serialize;
 use anyhow::Result;
 
 
-use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag};
+use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation};
 
 // this struct will hold all nodes data of your whole compilation.
 #[derive(Debug, PartialEq, Clone, Serialize, Default)]
@@ -186,8 +186,30 @@ impl AstNodeManager {
                 continue;
 
             }
+            if let AstNodeData::BinaryOperation(ref bop) = unknown_node.data {
+                match bop.operation {
+                    AstOperation::Equal 
+                    | AstOperation::NotEqual
+                    | AstOperation::Greater
+                    | AstOperation::GreaterEqual
+                    | AstOperation::Less
+                    | AstOperation::LessEqual 
+                    
+                    => {
+                        self.add_type_inference(&unknown_id, AstNodeType::Bool);
+                    }
+                    AstOperation::Sum => {
+                        // we should check both sides, first they should be same type
+                        // then we use their type as node type.
+                    }
+                    AstOperation::Divide => {}
+                    AstOperation::Modulu => {}
+                    AstOperation::Subtract => {}
+                    AstOperation::Multiply => {}
+                }
+            }
 
-                // TODO: Initialize, InitializeArray, FnCall, BinaryOperation
+            // TODO: Initialize, InitializeArray, FnCall, BinaryOperation
         }
 
 

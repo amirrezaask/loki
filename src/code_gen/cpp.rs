@@ -20,7 +20,6 @@ impl<'a> CPP<'a> {
             AstOperation::Divide => Ok("/".to_string()),
             AstOperation::Modulu => Ok("%".to_string()),
             AstOperation::Multiply => Ok("*".to_string()),
-            AstOperation::MemberAcces => Ok(".".to_string()),
             AstOperation::Greater =>  Ok(">".to_string()),
             AstOperation::GreaterEqual =>  Ok(">=".to_string()),
             AstOperation::Less =>  Ok("<".to_string()),

@@ -178,7 +178,6 @@ pub enum AstOperation {
     LessEqual,
     Equal,
     NotEqual,
-    MemberAcces,
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstBinaryOperation {

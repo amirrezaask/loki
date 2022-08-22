@@ -1081,7 +1081,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Return(expr.id), AstNodeType::Unknown, ))
+                Ok(self.new_node(AstNodeData::Return(expr.id), AstNodeType::NoType))
             }
 
             TokenType::KeywordGoto => {
@@ -1091,7 +1091,7 @@ impl<'a> Parser<'a> {
             }
 
             TokenType::KeywordContinue => {
-                return Ok(self.new_node(AstNodeData::Break, AstNodeType::Unknown, ));
+                return Ok(self.new_node(AstNodeData::Continue, AstNodeType::NoType));
             }
 
             TokenType::KeywordSwitch => {
@@ -1101,7 +1101,7 @@ impl<'a> Parser<'a> {
             }
 
             TokenType::KeywordBreak => {
-                return Ok(self.new_node(AstNodeData::Break, AstNodeType::Unknown, ));
+                return Ok(self.new_node(AstNodeData::Break, AstNodeType::NoType));
             }
 
             _ => {
