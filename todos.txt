@@ -9,11 +9,14 @@
 
 - slicing arrays
 
+- enums should not depend on host language, they should just be normal constants.
+
 - unions
 
 - file load scoping
 
+
+
 ------------------------ distant future
 - generics
-- pattern matching 
 - memory stuff

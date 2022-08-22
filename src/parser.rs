@@ -1,5 +1,5 @@
 #![allow(clippy::needless_return)]
-use crate::ast::{AstDef, AstNode, AstNodeData, Ast, NamespaceAccess, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag, NodeID};
+use crate::ast::{AstDef, AstNode, AstNodeData, Ast, NamespaceAccess, AstNodeType, AstFnSignature, AstFnDef, AstOperation, AstBinaryOperation, AstCaseBlock, AstTag, NodeID, Scope, ScopeType};
 use crate::lexer::Token;
 use crate::lexer::Tokenizer;
 use crate::lexer::TokenType;
@@ -30,7 +30,7 @@ impl<'a> Parser<'a> {
         self.node_counter += 1;
         let node = AstNode {
             id: format!("{}_{}", self.filename, self.node_counter),
-            data, infered_type: type_annotation, tags: vec![]
+            data, infered_type: type_annotation, tags: vec![], scope:Default::default(),
         };
         self.node_manager.add_node(node.clone()).unwrap();
         return node;
@@ -116,7 +116,7 @@ impl<'a> Parser<'a> {
 
         Ok(())
     }
-    fn expect_def(&mut self) -> Result<AstNode> {
+    fn expect_def(&mut self, scope: Scope) -> Result<AstNode> {
         let mut dest = self.expect_lhs()?;
 
         match self.current_token().ty {
@@ -125,6 +125,7 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
+                self.node_manager.add_scope(&dest.id, scope);
                 Ok(self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType))
             }
             TokenType::DoubleColon => {
@@ -132,6 +133,7 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
+                self.node_manager.add_scope(&dest.id, scope);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: false,
                     name: dest.id,
@@ -147,7 +149,8 @@ impl<'a> Parser<'a> {
                 }
                 if self.current_token().ty != TokenType::Equal && self.current_token().ty != TokenType::Colon
                 {
-                    let decl_node = self.new_node(AstNodeData::Decl(dest.id), AstNodeType::new(&ty.unwrap()));
+                    let decl_node = self.new_node(AstNodeData::Decl(dest.id.clone()), AstNodeType::new(&ty.unwrap()));
+                    self.node_manager.add_scope(&dest.id, scope);
                     if self.current_token().ty == TokenType::ForeignDirective {
                         self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
                         self.forward_token();
@@ -159,7 +162,8 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                dest.infered_type = infered_ty;
+                self.node_manager.add_scope(&dest.id, scope);
+                self.node_manager.add_type_inference(&dest.id, infered_ty);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable,
                     name: dest.id,
@@ -173,6 +177,7 @@ impl<'a> Parser<'a> {
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
+                self.node_manager.add_scope(&dest.id, scope);
                 Ok(self.new_node(AstNodeData::Def(AstDef {
                     mutable: true,
                     name: dest.id,
@@ -789,7 +794,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_for_c(&mut self) -> Result<AstNode> {
-        let start = self.expect_def()?;
+        let start = self.expect_def(Scope {scope_type: ScopeType::Unknown})?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
         self.expect_semicolon_and_forward()?;
@@ -899,7 +904,7 @@ impl<'a> Parser<'a> {
                 match self.current_token().ty {
                     TokenType::DoubleColon | TokenType::Colon | TokenType::Equal | TokenType::ColonEqual | TokenType::Dot => {
                         self.backward_token();
-                        let def = self.expect_def()?;
+                        let def = self.expect_def(Scope {scope_type: ScopeType::Unknown})?;
                         return Ok(def);
                     }
                     TokenType::OpenParen => {
@@ -1048,7 +1053,7 @@ impl<'a> Parser<'a> {
 
                 let starting_inside_paren = self.cur;
 
-                if self.expect_def().is_ok() {
+                if self.expect_def(Scope {scope_type: ScopeType::Unknown}).is_ok() {
                     self.cur = starting_inside_paren;
                     return self.expect_for_c();
                 } else {
@@ -1113,7 +1118,6 @@ impl<'a> Parser<'a> {
 
     pub fn get_ast(mut self) -> Result<Ast> {
         let mut top_level = Vec::<NodeID>::new();
-        let root_id: Vec<u64> = vec![];
         loop {
             if self.cur >= self.tokens.len() {
                 break;
@@ -1157,11 +1161,11 @@ impl<'a> Parser<'a> {
                     top_level.push(top.id);
                 }
                 TokenType::Ident => {
-                    let decl = self.expect_def()?;
+                    let def = self.expect_def(Scope {location: (-1, -1), scope_type: ScopeType::File(self.filename.clone())})?;
                     if self.current_token().ty == TokenType::SemiColon {
                         self.forward_token();
                     }
-                    top_level.push(decl.id);
+                    top_level.push(def.id);
                 }
                 _ => {
                     println!("expecting a top level item found: {:?}", self.current_token());

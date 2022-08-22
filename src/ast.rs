@@ -1,3 +1,4 @@
+use std::default;
 use std::{collections::HashMap};
 
 use crate::node_manager::AstNodeManager;
@@ -200,10 +201,37 @@ pub struct AstDef {
 pub type BitSize = usize;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum ScopeType {
+    Unknown,
+    Function,
+    While,
+    For,
+    ForIn,
+    If,
+    ElseIf,
+    Else,
+    File(String),
+    Switch,
+
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct Scope {
+    pub scope_type: ScopeType,
+    pub location: (isize, isize), // start and end token
+}
+impl Default for Scope {
+    fn default() -> Self {
+        Self { scope_type: ScopeType::Unknown, location: (0, 0) }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstNode {
     pub id: NodeID,
     pub data: AstNodeData,
     pub infered_type: AstNodeType,
+    pub scope: Scope,
     pub tags: Vec<AstTag>
 }
 

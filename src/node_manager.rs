@@ -6,7 +6,7 @@ use serde::Serialize;
 use anyhow::Result;
 
 
-use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation};
+use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation, Scope};
 
 // this struct will hold all nodes data of your whole compilation.
 #[derive(Debug, PartialEq, Clone, Serialize, Default)]
@@ -52,6 +52,12 @@ impl AstNodeManager {
         if node.infered_type.is_unknown() {
             self.unknowns.push(node.id.clone());
         }
+    }
+
+    pub fn add_scope(&mut self, id: &NodeID, scope: Scope) {
+        let mut node = self.nodes.get_mut(id).unwrap();
+        node.scope = scope;
+
     }
 
     pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
