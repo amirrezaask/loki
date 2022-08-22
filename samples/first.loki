@@ -111,7 +111,7 @@ main :: () int {
         name = "amirreza",
     };
 
-    human_ptr := &human;
+    human_ptr := >>human;
     human_age := human_ptr.age;
 
 

@@ -513,12 +513,12 @@ impl<'a> Parser<'a> {
                 return Ok(self.new_node(AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty)), AstNodeType::Unknown, ));
             }
 
-            TokenType::Asterix => {
+            TokenType::Asterix | TokenType::DoubleLeftAngle => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 return Ok(self.new_node(AstNodeData::Deref(expr.id), expr.infered_type));
             }
-            TokenType::Ampersand => {
+            TokenType::Ampersand | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 return Ok(self.new_node(AstNodeData::PointerTo(expr.id), AstNodeType::Pointer(Box::new(expr.infered_type))));

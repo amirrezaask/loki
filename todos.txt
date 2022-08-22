@@ -1,17 +1,20 @@
-- namespaces (enum/struct/union/other files should be inside a namespace access using container field)
+- new syntax for pointers and derefs (">>" pointer to something) ("<<" deref of something)
 
 - scopes for node_manager
 
-- new syntax for pointers and derefs (">>" pointer to something) ("<<" deref of something)
 
 - variadic args
 
 - defer
     *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
+
 - dynamic array
 
 - slicing arrays
 
+- unions
+
+- file load scoping
 
 ------------------------ distant future
 - generics

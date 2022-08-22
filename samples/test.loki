@@ -5,7 +5,18 @@ State :: enum {
     Dead
 }
 
+Human :: struct {
+    age: int,
+    name: string,
+    // state: State,
+}
 main :: () int {
-    state := State.Alive;
-    
+    human := Human {
+        age = 24,
+        name = "amirreza",
+    };
+
+    human_ptr := >>human;
+    // human2 := *human_ptr; //FIXME bug infer hangs
+    human_age := human_ptr.age;
 };
