@@ -106,88 +106,88 @@ impl AstNodeManager {
     }
 
     pub fn infer_types(&mut self) -> Result<()> {
-        //@Refactor: possible usage of Queue like datastructure will make this code much simpler.
         loop {
             if self.unknowns.is_empty() {
                 break;
             }
-            for (idx, unknown_id) in self.unknowns.clone().iter().enumerate() {
-                let unknown_node = self.nodes.get(unknown_id).unwrap();
-                self.unknowns.remove(idx);
-                if !unknown_node.infered_type.is_unknown() {
-                    break;
+            let unknown_id = self.unknowns.get(0).unwrap().clone(); // treating like a queue, always get first element, remove it and process it.
+            let unknown_node = self.nodes.get(&unknown_id).unwrap();
+            self.unknowns.remove(0);
+            if !unknown_node.infered_type.is_unknown() {
+                continue;
+            }
+            if let AstNodeData::Ident(ref ident) = unknown_node.data {
+                let ty = self.find_ident_ast_type(ident.clone());
+                if ty.is_unknown() {
+                    self.add_unknown(&unknown_id);
+                    continue;
                 }
-                if let AstNodeData::Ident(ref ident) = unknown_node.data {
-                    let ty = self.find_ident_ast_type(ident.clone());
-                    if ty.is_unknown() {
-                        self.add_unknown(unknown_id);
-                        break;
+                self.add_type_inference(&unknown_id, ty.clone());
+                continue
+            }
+            
+            if let AstNodeData::Deref(ref object) = unknown_node.data {
+                let pointer = self.get_node(object.clone());
+                if pointer.infered_type.is_unknown() {
+                    self.add_unknown(&object.clone());
+                    self.add_unknown(&unknown_id);
+                    continue;
+                } else {
+                    if !pointer.infered_type.is_pointer() {
+                        panic!("deref needs a pointer: {:?}", pointer);
                     }
-                    self.add_type_inference(unknown_id, ty.clone());
-                    break
-                }
-                
-                if let AstNodeData::Deref(ref object) = unknown_node.data {
-                    let pointer = self.get_node(object.clone());
-                    if pointer.infered_type.is_unknown() {
-                        self.add_unknown(&object.clone());
-                        self.add_unknown(unknown_id);
-                        break;
-                    } else {
-                        if !pointer.infered_type.is_pointer() {
-                            panic!("deref needs a pointer: {:?}", pointer);
-                        }
-                        self.add_type_inference(unknown_id, pointer.infered_type.get_pointer_pointee());
-                        break
-                    }
-                }
-
-                if let AstNodeData::PointerTo(ref object) = unknown_node.data {
-                    let pointee = self.get_node(object.clone());
-                    if pointee.infered_type.is_unknown() {
-                        self.add_unknown(&object.clone());
-                        self.add_unknown(unknown_id);
-                        break;
-                    } else {
-                        self.add_type_inference(unknown_id, AstNodeType::Pointer(Box::new(pointee.infered_type)));
-                        break
-                    }
-                }
-
-                if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
-                    let namespace_access = ns.clone();
-                    let namespace = self.get_node(namespace_access.namespace.clone());
-                    let mut namespace_ty = namespace.infered_type.clone();
-                    if namespace_ty.is_unknown() {
-                        namespace_ty = self.find_ident_ast_type(namespace.get_ident());
-                    }
-
-                    let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
-                    let mut field_ty = field.infered_type.clone();
-                    if field_ty.is_unknown() {
-                        field_ty = self.find_ident_ast_type(field.get_ident());
-                    }
-                    if namespace_ty.is_unknown() {
-                        self.add_unknown(&namespace.id.clone());
-                        self.add_unknown(&unknown_id.clone());
-                    }
-                    
-                    if field_ty.is_unknown() {
-                        self.add_unknown(&field.id.clone());
-                        self.add_unknown(&unknown_id.clone());
-                    }
-
-                    if namespace_ty.is_unknown() || field_ty.is_unknown() {
-                        break;
-                    }
-
-                    self.add_type_inference(&namespace_access.namespace, namespace_ty);
-                    self.add_type_inference(&namespace_access.field, field_ty.clone());
-                    self.add_type_inference(unknown_id, field_ty.clone());
-                    break;
-
+                    self.add_type_inference(&unknown_id, pointer.infered_type.get_pointer_pointee());
+                    continue
                 }
             }
+
+            if let AstNodeData::PointerTo(ref object) = unknown_node.data {
+                let pointee = self.get_node(object.clone());
+                if pointee.infered_type.is_unknown() {
+                    self.add_unknown(&object.clone());
+                    self.add_unknown(&unknown_id);
+                    continue;
+                } else {
+                    self.add_type_inference(&unknown_id, AstNodeType::Pointer(Box::new(pointee.infered_type)));
+                    continue
+                }
+            }
+
+            if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
+                let namespace_access = ns.clone();
+                let namespace = self.get_node(namespace_access.namespace.clone());
+                let mut namespace_ty = namespace.infered_type.clone();
+                if namespace_ty.is_unknown() {
+                    namespace_ty = self.find_ident_ast_type(namespace.get_ident());
+                }
+
+                let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
+                let mut field_ty = field.infered_type.clone();
+                if field_ty.is_unknown() {
+                    field_ty = self.find_ident_ast_type(field.get_ident());
+                }
+                if namespace_ty.is_unknown() {
+                    self.add_unknown(&namespace.id.clone());
+                    self.add_unknown(&unknown_id.clone());
+                }
+                
+                if field_ty.is_unknown() {
+                    self.add_unknown(&field.id.clone());
+                    self.add_unknown(&unknown_id.clone());
+                }
+
+                if namespace_ty.is_unknown() || field_ty.is_unknown() {
+                    continue;
+                }
+
+                self.add_type_inference(&namespace_access.namespace, namespace_ty);
+                self.add_type_inference(&namespace_access.field, field_ty.clone());
+                self.add_type_inference(&unknown_id, field_ty.clone());
+                continue;
+
+            }
+
+                // TODO: Initialize, InitializeArray, FnCall, BinaryOperation
         }
 
 
