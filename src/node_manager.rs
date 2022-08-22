@@ -126,6 +126,21 @@ impl AstNodeManager {
                     self.add_type_inference(unknown_id, ty.clone());
                     break
                 }
+                
+                if let AstNodeData::Deref(ref object) = unknown_node.data {
+                    let pointer = self.get_node(object.clone());
+                    if pointer.infered_type.is_unknown() {
+                        self.add_unknown(&object.clone());
+                        self.add_unknown(unknown_id);
+                        break;
+                    } else {
+                        if !pointer.infered_type.is_pointer() {
+                            panic!("deref needs a pointer: {:?}", pointer);
+                        }
+                        self.add_type_inference(unknown_id, pointer.infered_type.get_pointer_pointee());
+                        break
+                    }
+                }
 
                 if let AstNodeData::PointerTo(ref object) = unknown_node.data {
                     let pointee = self.get_node(object.clone());

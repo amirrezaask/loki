@@ -90,6 +90,18 @@ impl AstNodeType {
         }
     }
 
+    pub fn get_pointer_pointee(&self) -> AstNodeType {
+        match self {
+            AstNodeType::Pointer(obj) => {
+                return *obj.clone();
+            },
+
+            _ => {
+                panic!("expected pointer found: {:?}", self);
+            }
+        }
+    }
+
     pub fn is_unknown(&self) -> bool {
         match self {
             AstNodeType::Unknown => true,

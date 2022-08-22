@@ -1,7 +1,4 @@
-- new syntax for pointers and derefs (">>" pointer to something) ("<<" deref of something)
-
 - scopes for node_manager
-
 
 - variadic args
 
