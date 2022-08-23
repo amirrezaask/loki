@@ -6,18 +6,20 @@ use serde::Serialize;
 use anyhow::Result;
 
 
-use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation, Scope};
+use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation, Scope, ScopeID, ScopeType};
 
 // this struct will hold all nodes data of your whole compilation.
 #[derive(Debug, PartialEq, Clone, Serialize, Default)]
 pub struct AstNodeManager {
     pub nodes: HashMap<NodeID, AstNode>,
+    pub scopes: Vec<Scope>,
+    pub scope_stack: Vec<ScopeID>, 
     unknowns: Vec<NodeID>,
 }
 
 impl AstNodeManager {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), unknowns: vec![] }
+        Self { nodes: HashMap::new(), unknowns: vec![], scopes: vec![], scope_stack: Vec::new() }
     }
 
     // on duplicate node id error.
@@ -32,6 +34,27 @@ impl AstNodeManager {
             Some(n) => Ok(())
         }
     }
+
+    pub fn push_to_scope_stack(&mut self, id: ScopeID) {
+        self.scope_stack.push(id);
+    }
+
+    pub fn remove_from_scope_stack(&mut self) {
+        self.scope_stack.pop();
+    }
+
+    pub fn top_of_scope_stack(&self) -> ScopeID {
+        return match self.scope_stack.last() {
+            Some(i) => *i,
+            None => -1,
+        }
+    }
+    pub fn register_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
+        self.scopes.push(Scope { scope_type: scope_ty, parent: self.top_of_scope_stack(), start, end });
+        self.scope_stack.push((self.scopes.len()-1) as isize);
+        return (self.scopes.len()-1) as isize;
+    }
+
     fn add_unknown(&mut self, id: &NodeID) {
         if !self.unknowns.contains(&id) {
             self.unknowns.push(id.clone());
@@ -54,10 +77,15 @@ impl AstNodeManager {
         }
     }
 
-    pub fn add_scope(&mut self, id: &NodeID, scope: Scope) {
+    pub fn add_scope_to_node(&mut self, id: &NodeID, scope: ScopeID) {
         let mut node = self.nodes.get_mut(id).unwrap();
         node.scope = scope;
+    }
 
+    pub fn add_scope_to_def_or_decl(&mut self, id: &NodeID, scope: ScopeID) {
+        let def_node = self.get_node(id.clone());
+        let name = def_node.get_name_for_defs_and_decls(self).unwrap();
+        self.add_scope_to_node(&name, scope.clone());
     }
 
     pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {

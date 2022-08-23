@@ -203,6 +203,8 @@ pub type BitSize = usize;
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum ScopeType {
     Unknown,
+
+    // all use expect_block, they all know where block starts and expect_block knows where it will end.
     Function,
     While,
     For,
@@ -210,19 +212,22 @@ pub enum ScopeType {
     If,
     ElseIf,
     Else,
+    
     File(String),
-    Switch,
-
 }
 
+pub type TokenIndex = isize;
+pub type ScopeID = isize;
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Scope {
     pub scope_type: ScopeType,
-    pub location: (isize, isize), // start and end token
+    pub parent: ScopeID,
+    pub start: TokenIndex,
+    pub end: TokenIndex,
 }
 impl Default for Scope {
     fn default() -> Self {
-        Self { scope_type: ScopeType::Unknown, location: (0, 0) }
+        Self { scope_type: ScopeType::Unknown, parent: -1,  start: -1, end: -1 }
     }
 }
 
@@ -231,7 +236,7 @@ pub struct AstNode {
     pub id: NodeID,
     pub data: AstNodeData,
     pub infered_type: AstNodeType,
-    pub scope: Scope,
+    pub scope: ScopeID,
     pub tags: Vec<AstTag>
 }
 
@@ -336,6 +341,21 @@ impl AstNode {
             return def.clone();
         }
         panic!("expected AstNodeData::Def got: {:?}", self);
+    }
+
+    pub fn get_name_for_defs_and_decls(&self, node_manager: &AstNodeManager) -> Option<NodeID> {
+        match &self.data {
+            AstNodeData::Def(def) => {
+                return Some(def.name.clone());
+            }
+
+            AstNodeData::Decl(ident_id) => {
+                return Some(ident_id.clone());
+            }
+            _ => {
+                None
+            }
+        }
     }
 
     pub fn is_initialize(&self) -> bool {

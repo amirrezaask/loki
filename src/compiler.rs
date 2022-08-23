@@ -33,7 +33,7 @@ impl Compiler {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
-        let parser = Parser::new_with_tokens(path.to_string(), program, tokens, &mut self.node_manager)?;
+        let parser = Parser::new(path.to_string(), program, tokens, &mut self.node_manager)?;
         let ast = parser.get_ast()?;
         Ok(ast)
     }
