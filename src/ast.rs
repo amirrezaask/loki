@@ -210,7 +210,6 @@ pub enum ScopeType {
     For,
     ForIn,
     If,
-    ElseIf,
     Else,
     
     File(String),

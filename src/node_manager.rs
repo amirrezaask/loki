@@ -13,13 +13,19 @@ use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation
 pub struct AstNodeManager {
     pub nodes: HashMap<NodeID, AstNode>,
     pub scopes: Vec<Scope>,
-    pub scope_stack: Vec<ScopeID>, 
+    pub scope_stack: Vec<ScopeID>,
+    pub scope_nodes: HashMap<ScopeID, Vec<NodeID>>,
     unknowns: Vec<NodeID>,
 }
 
 impl AstNodeManager {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), unknowns: vec![], scopes: vec![], scope_stack: Vec::new() }
+        Self { nodes: HashMap::new(),
+               unknowns: vec![],
+               scopes: vec![],
+               scope_stack: Vec::new(),
+               scope_nodes: HashMap::new(),
+        }
     }
 
     // on duplicate node id error.
@@ -52,6 +58,7 @@ impl AstNodeManager {
     pub fn add_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
         self.scopes.push(Scope { scope_type: scope_ty, parent: self.top_of_scope_stack(), start, end });
         self.scope_stack.push((self.scopes.len()-1) as isize);
+        self.scope_nodes.insert(self.top_of_scope_stack(), vec![]);
         return (self.scopes.len()-1) as isize;
     }
 
@@ -80,6 +87,8 @@ impl AstNodeManager {
     pub fn add_scope_to_node(&mut self, id: &NodeID, scope: ScopeID) {
         let mut node = self.nodes.get_mut(id).unwrap();
         node.scope = scope;
+        let scope_nodes = self.scope_nodes.get_mut(&scope).unwrap();
+        scope_nodes.push(id.clone());
     }
 
     pub fn add_scope_to_def_or_decl(&mut self, id: &NodeID, scope: ScopeID) {
@@ -101,10 +110,13 @@ impl AstNodeManager {
         }
     }
 
-    pub fn find_ident_ast_type(&self, ident: String) -> AstNodeType {
-        for (_, node) in self.nodes.iter() {
+    pub fn find_ident_ast_type(&self, ident: String, scope: ScopeID) -> AstNodeType {
+        let nodes = self.scope_nodes.get(&scope).unwrap();
+        for node_id in nodes.iter() {
+            let node = self.get_node(node_id.clone());
             match node.data {
                 AstNodeData::Def(ref def) => {
+
                     let name_node = self.get_node(def.name.clone());
                     if name_node.get_ident() == ident {
                         let def_expr = self.get_node(def.expr.clone());
@@ -115,6 +127,7 @@ impl AstNodeManager {
                     }
                 }
                 AstNodeData::Ident(ref name) => {
+
                     if node.infered_type.is_unknown() {
                         continue;
                     }
@@ -151,7 +164,7 @@ impl AstNodeManager {
                 continue;
             }
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
-                let ty = self.find_ident_ast_type(ident.clone());
+                let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
                 if ty.is_unknown() {
                     self.add_unknown(&unknown_id);
                     continue;
@@ -192,13 +205,13 @@ impl AstNodeManager {
                 let namespace = self.get_node(namespace_access.namespace.clone());
                 let mut namespace_ty = namespace.infered_type.clone();
                 if namespace_ty.is_unknown() {
-                    namespace_ty = self.find_ident_ast_type(namespace.get_ident());
+                    namespace_ty = self.find_ident_ast_type(namespace.get_ident(), unknown_node.scope);
                 }
 
                 let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
                 let mut field_ty = field.infered_type.clone();
                 if field_ty.is_unknown() {
-                    field_ty = self.find_ident_ast_type(field.get_ident());
+                    field_ty = self.find_ident_ast_type(field.get_ident(), unknown_node.scope);
                 }
                 if namespace_ty.is_unknown() {
                     self.add_unknown(&namespace.id.clone());

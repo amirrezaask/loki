@@ -33,6 +33,7 @@ impl<'a> Parser<'a> {
             data, infered_type: type_annotation, tags: vec![], scope:Default::default(),
         };
         self.node_manager.add_node(node.clone()).unwrap();
+        self.node_manager.add_scope_to_node(&node.id, self.node_manager.top_of_scope_stack());
         return node;
     }
     fn current_token(&self) -> &Token {
@@ -62,7 +63,8 @@ impl<'a> Parser<'a> {
             TokenType::Ident => {
                 let name = self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
                 self.forward_token();
-                return Ok(self.new_node(AstNodeData::Ident(name), AstNodeType::Unknown));
+                let node = self.new_node(AstNodeData::Ident(name), AstNodeType::Unknown);
+                return Ok(node);
             }
             _ => {
                 return Err(self.err_uexpected(TokenType::Ident));
@@ -98,18 +100,20 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
-                Ok(self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType))
+                let node = self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType);
+                Ok(node)
             }
             TokenType::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
-                Ok(self.new_node(AstNodeData::Def(AstDef {
+                let node = self.new_node(AstNodeData::Def(AstDef {
                     mutable: false,
                     name: dest.id,
                     expr: rhs.id,
-                }), AstNodeType::NoType))
+                }), AstNodeType::NoType);
+                Ok(node)
             }
 
             TokenType::Colon => {
@@ -133,11 +137,12 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
-                Ok(self.new_node(AstNodeData::Def(AstDef {
+                let node = self.new_node(AstNodeData::Def(AstDef {
                     mutable,
                     name: dest.id,
                     expr: rhs.id,
-                }), AstNodeType::NoType))
+                }), AstNodeType::NoType);
+                Ok(node)
             }
 
             TokenType::ColonEqual => {
@@ -146,11 +151,12 @@ impl<'a> Parser<'a> {
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
-                Ok(self.new_node(AstNodeData::Def(AstDef {
+                let node = self.new_node(AstNodeData::Def(AstDef {
                     mutable: true,
                     name: dest.id,
                     expr: rhs.id,
-                }), AstNodeType::NoType))
+                }), AstNodeType::NoType);
+                Ok(node)
             }
             _ => {
                 return Err(self.err_uexpected(self.current_token().clone().ty));
@@ -168,7 +174,7 @@ impl<'a> Parser<'a> {
     */
 
     fn expect_fn_def(&mut self) -> Result<AstNode> {
-        let start = self.cur;
+        self.node_manager.add_scope(ScopeType::Function, self.cur as isize, -1 as isize);
         self.expect_token(TokenType::OpenParen)?;
         let mut args: Vec<NodeID> = vec![];
         self.forward_token();
@@ -737,24 +743,7 @@ impl<'a> Parser<'a> {
         return Ok(());
     }
 
-    fn add_scope_to_names(&mut self, nodes: &[NodeID]) -> Result<()> {
-        for node_id in nodes {
-            let node = self.node_manager.get_node(node_id.clone());
-            match node.get_name_for_defs_and_decls(&self.node_manager) {
-                Some(name_id) => {
-                    self.node_manager.add_scope_to_node(&name_id, self.node_manager.top_of_scope_stack());
-                }
-                None => continue
-            }
-        }
-
-
-        Ok(())
-    }
-
     fn expect_block(&mut self, scope_ty: ScopeType) -> Result<Vec<NodeID>> {
-        let start_of_scope = self.cur as isize;
-        self.node_manager.add_scope(scope_ty, start_of_scope, -1 as isize);
         self.expect_token(TokenType::OpenBrace)?;
         self.forward_token();
         let mut stmts = Vec::<NodeID>::new();
@@ -766,7 +755,6 @@ impl<'a> Parser<'a> {
             self.if_semicolon_forward();
             stmts.push(stmt.id);
         }
-        self.add_scope_to_names(&stmts)?;
         let current_scope_idx = self.node_manager.top_of_scope_stack() as usize;
         let current_scope = &mut self.node_manager.scopes[current_scope_idx];
         current_scope.end = self.cur as isize;
@@ -784,6 +772,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_for_c(&mut self) -> Result<AstNode> {
+        self.node_manager.add_scope(ScopeType::For, self.cur as isize, -1 as isize);
         let start = self.expect_def()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
@@ -823,6 +812,7 @@ impl<'a> Parser<'a> {
         }
     }
     fn expect_for_each(&mut self) -> Result<AstNode> {
+        self.node_manager.add_scope(ScopeType::For, self.cur as isize, -1 as isize);
         let iterator = self.expect_ident()?;
         self.forward_token();
         let iterable = self.expect_expr()?;
@@ -837,12 +827,14 @@ impl<'a> Parser<'a> {
         ), AstNodeType::Unknown, ));
     }
     fn expect_for_each_implicit_iterator(&mut self) -> Result<AstNode> {
+        self.node_manager.add_scope(ScopeType::For, self.cur as isize, -1 as isize);
         let iterable = self.expect_expr()?;
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block(ScopeType::ForIn)?;
-        let iterator = self.new_node(AstNodeData::Ident("it".to_string()), AstNodeType::Unknown, );
+        //@BUG: iterator should be in the same scope but now it's not. 
+        let iterator = self.new_node(AstNodeData::Ident("it".to_string()), AstNodeType::Unknown);
         return Ok(self.new_node(AstNodeData::ForIn(
             iterator.id,
             iterable.id,
@@ -859,7 +851,9 @@ impl<'a> Parser<'a> {
         }
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
+
         self.expect_token(TokenType::OpenBrace)?;
+        self.node_manager.add_scope(ScopeType::If, self.cur as isize, -1 as isize);
         let then = self.expect_block(ScopeType::If)?;
         if self.current_token().ty == TokenType::KeywordElse {
             self.forward_token();
@@ -873,7 +867,7 @@ impl<'a> Parser<'a> {
                     cases: cond_thens,
                 }), AstNodeType::Unknown))
             } else if self.current_token().ty == TokenType::OpenBrace {
-                let else_start_scope = self.cur;
+                self.node_manager.add_scope(ScopeType::Else, self.cur as isize, -1 as isize);
                 let _else = self.expect_block(ScopeType::Else)?;
                 let default_case = self.new_node(AstNodeData::Bool(true), AstNodeType::Bool);
                 let cases = vec![(cond.id, then), (default_case.id, _else)];

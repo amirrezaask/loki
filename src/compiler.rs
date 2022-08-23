@@ -138,7 +138,7 @@ impl Compiler {
         
         let final_code = codes.join("\n");
         
-        let out_file_name = "main.cpp".to_string();
+        let out_file_name = "LOKI_OUT.c".to_string();
         let writing_output_time_start = Instant::now();
 
         let mut out_file = std::fs::File::create(&out_file_name)?;

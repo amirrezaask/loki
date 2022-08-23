@@ -1,12 +1,17 @@
+b :: 2;
+
 
 main :: () int {
-    a := 1;
-
+    a :: 1;
+    z := a;
     if(true) {
         b := 1;
+        b1 := b;
     } else if (true) {
         c := 1;
+        c1 := c;
     } else {
         d := 1;
+        d1 := d;
     }
-};
+}
