@@ -251,6 +251,9 @@ pub enum AstNodeData {
     Decl(NodeID),
     Assign(NodeID, NodeID),
 
+    // compiler functions, mostly hacks for now
+    Print(Vec<NodeID>),
+    
     // Type defs
     IntTy(BitSize), // bitsize
     UintTy(BitSize), 

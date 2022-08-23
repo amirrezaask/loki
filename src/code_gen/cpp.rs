@@ -407,6 +407,10 @@ impl<'a> CPP<'a> {
             AstNodeData::Return(expr) => Ok(format!("return {}", self.repr_ast_node(expr.clone())?)),
             AstNodeData::Break => Ok(format!("break")),
             AstNodeData::CompilerFlags(_) => { Ok ("".to_string()) },
+            AstNodeData::Print(args) => Ok(format!(
+                "printf({})",
+                self.repr_vec_node(&args, ",")?
+            )),
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);
                 unreachable!()

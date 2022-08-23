@@ -1002,6 +1002,34 @@ impl<'a> Parser<'a> {
                     },
                 }
             }
+            TokenType::PrintDirective => {
+                self.forward_token(); // #print("salam %d", 2);
+                self.expect_token(TokenType::OpenParen)?;
+                let mut args = Vec::<NodeID>::new();
+                self.forward_token();
+                loop {
+                    if self.current_token().ty == TokenType::CloseParen {
+                        self.forward_token();
+                        break;
+                    }
+                    let arg = self.expect_expr()?;
+                    args.push(arg.id);
+                    match self.current_token().ty {
+                        TokenType::Comma => {
+                            self.forward_token();
+                        }
+                        TokenType::CloseParen => {
+                            self.forward_token();
+                            break;
+                        }
+                        _ => {
+                            return Err(self.err_uexpected(TokenType::Comma));
+                        }
+                    }
+                }
+                Ok(self.new_node(AstNodeData::Print(args), AstNodeType::NoType))
+
+            }
 
             TokenType::Asterix => {
                 self.forward_token();
@@ -1021,6 +1049,7 @@ impl<'a> Parser<'a> {
             }
             TokenType::KeywordWhile => {
                 self.forward_token();
+                self.node_manager.add_scope(ScopeType::While, self.cur as isize, -1 as isize);
                 self.expect_token(TokenType::OpenParen)?;
                 self.forward_token();
                 let cond = self.expect_expr()?;

@@ -6,6 +6,6 @@ newconst :: someUknownConst;
 main :: () int {
      a :: newconst;
      b := a;
-
+     #print("salam %d,%d", b, a);
      
 }

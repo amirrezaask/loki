@@ -12,6 +12,10 @@ Human :: struct {
 
 top_level_uint_constant :: 1;
 
+this_sum :: (a: int, b: int) int {
+    return a + b;
+}
+
 main :: () int {
     
     state := State.Alive;
@@ -52,22 +56,22 @@ main :: () int {
 
     amirreza.age = 25;
 
-    // printf("amirreza age is %d\n", amirreza.age);
-    // printf("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
+    #print("amirreza age is %d\n", amirreza.age);
+    #print("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
 
-    // counter := 0;
-    // while (counter < 10) {
-    //     printf("while loop using counter: %d\n", counter);
-    //     counter++;
-    // }
+    counter := 0;
+    while (counter < 10) {
+         #print("while loop using counter: %d\n", counter);
+         counter++;
+    }
 
-    // for (i:=0;i<10;i++) {
-    //     printf("for c syntax: %d\n", i);
-    // }
+    for (i:=0;i<10;i++) {
+        #print("for c syntax: %d\n", i);
+    }
 
     // numbers := [10]uint{1, 2, 3, 4};
-    // for (num in numbers) {
-    //     printf("for each syntax: %d\n", num);
+    //for (num in numbers) {
+         // printf("for each syntax: %d\n", num);
     // }
     // humans := [3]Human {amirreza, Human { age = 17, name = "comrade" }};
     // for (humans) {
@@ -77,27 +81,28 @@ main :: () int {
     // for (numbers) {
     //     printf("for each syntax: %d\n", it);
     // }
-    // b := 1;
-    // if (b == 1) {
-    //     printf("b1 is true\n");
-    // } 
-    // else if (b == 2) {
-    //     printf("b is two\n");
-    // }
-    //  else {
-    //     printf("b1 is false\n");
-    // }
+
+    b := 1;
+    if (b == 1) {
+        #print("b1 is true\n");
+    } 
+    else if (b == 2) {
+        #print("b is two\n");
+    }
+     else {
+        #print("b1 is false\n");
+    }
 
     // this_sum :: sum(1, 2);
-    // printf("function call sum %d\n", this_sum);
+    // #print("function call sum %d\n", this_sum);
 
 
-    // value := 2;
-    // ptr_to_value := &value;
-    // printf("value is %d\n", value);
-    // *ptr_to_value = 3;
-    // printf("value is %d\n", value);
-    // printf("value is %d\n", *ptr_to_value);
+    value := 2;
+    ptr_to_value := &value;
+    #print("value is %d\n", value);
+    *ptr_to_value = 3;
+    #print("value is %d\n", value);
+    #print("value is %d\n", *ptr_to_value);
 
     human := Human {
         age = 24,
@@ -107,7 +112,6 @@ main :: () int {
     human_ptr := >>human;
     human_age := human_ptr.age;
 
-
-    // printf("human_ptr age is %d\n", (*human_ptr).age);
-    // return 0;
+    #print("human_ptr age is %d\n", human_ptr.age);
+    return 0;
 }

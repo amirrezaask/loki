@@ -58,6 +58,7 @@ pub enum TokenType {
     HostDirective,
     CompilerFlagDirective,
     ForeignDirective,
+    PrintDirective,
 
     KeywordConst,
     KeywordVar,
@@ -112,6 +113,7 @@ impl TokenType {
             "#host" => Self::HostDirective,
             "#compiler_flag" => Self::CompilerFlagDirective,
             "#foreign" => Self::ForeignDirective,
+            "#print" => Self::PrintDirective, //TODO FIXME DIRTY HACK
 
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,
