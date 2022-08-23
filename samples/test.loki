@@ -9,9 +9,4 @@ main :: () int {
     } else {
         d := 1;
     }
-
-
-    while (true) {
-        e := 1;
-    }
 };

@@ -754,6 +754,7 @@ impl<'a> Parser<'a> {
 
     fn expect_block(&mut self, scope_ty: ScopeType) -> Result<Vec<NodeID>> {
         let start_of_scope = self.cur as isize;
+        self.node_manager.add_scope(scope_ty, start_of_scope, -1 as isize);
         self.expect_token(TokenType::OpenBrace)?;
         self.forward_token();
         let mut stmts = Vec::<NodeID>::new();
@@ -765,8 +766,11 @@ impl<'a> Parser<'a> {
             self.if_semicolon_forward();
             stmts.push(stmt.id);
         }
-        self.node_manager.register_scope(scope_ty, start_of_scope, self.cur as isize);
         self.add_scope_to_names(&stmts)?;
+        let current_scope_idx = self.node_manager.top_of_scope_stack() as usize;
+        let current_scope = &mut self.node_manager.scopes[current_scope_idx];
+        current_scope.end = self.cur as isize;
+        
         self.node_manager.remove_from_scope_stack();
         self.forward_token();
 
@@ -1105,7 +1109,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn get_ast(mut self) -> Result<Ast> {
-        self.node_manager.register_scope(ScopeType::File(self.filename.clone()), -1, -1);
+        self.node_manager.add_scope(ScopeType::File(self.filename.clone()), -1, -1);
         let mut top_level = Vec::<NodeID>::new();
         loop {
             if self.cur >= self.tokens.len() {

@@ -49,7 +49,7 @@ impl AstNodeManager {
             None => -1,
         }
     }
-    pub fn register_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
+    pub fn add_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
         self.scopes.push(Scope { scope_type: scope_ty, parent: self.top_of_scope_stack(), start, end });
         self.scope_stack.push((self.scopes.len()-1) as isize);
         return (self.scopes.len()-1) as isize;
