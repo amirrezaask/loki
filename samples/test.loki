@@ -1,16 +1,11 @@
-#load "base.loki";
-Human :: struct {
-    age: int,
-    name: string,
-}
+#load "base.loki"
+
+newconst :: someUknownConst;
+
+
 main :: () int {
-    human_ptr := &Human {
-        age = 24,
-        name = "amirreza",
-    };
+     a :: newconst;
+     b := a;
 
-    age := (*human_ptr).age;
-
-    printf("human_ptr age is %d\n", age);
-    return 0;
-};
+     
+}

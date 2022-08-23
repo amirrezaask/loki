@@ -1,17 +1,23 @@
 
-- namespaces (enum/struct/union/other files should be inside a namespace access using container field)
-
 - variadic args
 
-- automatic deref when pointer using container field
+- test suite
+
+- defer
+    *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 
 - dynamic array
 
 - slicing arrays
 
+- enums should not depend on host language, they should just be normal constants.
 
------------------------- distant future
+- unions
+
+- file load scoping
+
 - generics
-- pattern matching 
-- defer
+
 - memory stuff
+
+

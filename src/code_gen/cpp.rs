@@ -1,13 +1,15 @@
 use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
-use crate::ast::{AstNodeType, SymbolTable, AstOperation};
+use crate::node_manager::AstNodeManager;
+use crate::ast::{AstNodeType, AstOperation, NodeID, AstTag, NamespaceAccess};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
 use anyhow::Result;
 
 pub struct CPP<'a> {
     ast: &'a Ast,
+    node_manager: &'a AstNodeManager,
 }
 
 impl<'a> CPP<'a> {
@@ -18,7 +20,6 @@ impl<'a> CPP<'a> {
             AstOperation::Divide => Ok("/".to_string()),
             AstOperation::Modulu => Ok("%".to_string()),
             AstOperation::Multiply => Ok("*".to_string()),
-            AstOperation::MemberAcces => Ok(".".to_string()),
             AstOperation::Greater =>  Ok(">".to_string()),
             AstOperation::GreaterEqual =>  Ok(">=".to_string()),
             AstOperation::Less =>  Ok("<".to_string()),
@@ -29,6 +30,9 @@ impl<'a> CPP<'a> {
     }
     fn repr_ast_ty(&self, ty: AstNodeType) -> Result<String> {
         match ty {
+            AstNodeType::LoadedFile => {
+                Ok("".to_string())
+            }
             AstNodeType::NoType => {
                 unreachable!()
             },
@@ -65,21 +69,20 @@ impl<'a> CPP<'a> {
             AstNodeType::TypeName(name) => {
                 Ok(name)
             }
-            AstNodeType::TypeDefStruct => {
+            AstNodeType::Struct => {
                 Ok("".to_string())
             }
-            AstNodeType::TypeDefEnum => {
+            AstNodeType::Enum => {
                 Ok("".to_string())
             }
-            AstNodeType::TypeDefUnion => {
+            AstNodeType::Union => {
                 Ok("".to_string())
             }
             AstNodeType::Pointer(name) => {
                 Ok(format!("{}*", self.repr_ast_ty(name.deref().clone())?))
             }
-            AstNodeType::Deref(name) => {
-                Ok(format!("&{}", self.repr_ast_ty(name.deref().clone())?))
-
+            AstNodeType::NamespaceAccess(nsa) => {
+                Ok(self.repr_ast_ty(nsa.field.deref().clone())?)
             }
             AstNodeType::Void => {
                 Ok("void".to_string())
@@ -91,13 +94,13 @@ impl<'a> CPP<'a> {
     fn get_def_typ(&self, node: &AstNode) -> Result<AstNodeType> {
         match &node.data {
             AstNodeData::Def(def) => {
-                
-                match def.expr.infered_type {
+                let def_expr = self.node_manager.get_node(def.expr.clone());
+                match def_expr.infered_type {
                     AstNodeType::Unknown => {
                         println!("type inference shit the bed. {:?}", def);
                         unreachable!();
                     }
-                    _ => Ok(def.expr.infered_type.clone()),
+                    _ => Ok(def_expr.infered_type.clone()),
                 }
 
             },
@@ -107,17 +110,18 @@ impl<'a> CPP<'a> {
             }
         }
     }
-    fn repr_block(&self, nodes: &Vec<AstNode>) -> Result<String> {
+    fn repr_block(&self, nodes: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in nodes.iter() {
-            output.push(format!("\t{};", self.repr_ast_node(node)?));
+            output.push(format!("\t{};", self.repr_ast_node(node.clone())?));
         }
 
         Ok(output.join("\n"))
     }
-    fn repr_fn_def_args(&self, node_tys: &Vec<AstNode>) -> Result<String> {
+    fn repr_fn_def_args(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
-        for node in node_tys {
+        for node_id in node_tys {
+            let node = self.node_manager.get_node(node_id.clone());
             match &node.data {
                 AstNodeData::Ident(name) => {
                     output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
@@ -131,12 +135,13 @@ impl<'a> CPP<'a> {
         }
         Ok(output.join(", "))
     }
-    fn repr_struct_fields(&self, node_tys: &Vec<AstNode>) -> Result<String> {
+    fn repr_struct_fields(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
-        for node in node_tys {
+        for node_id in node_tys {
+            let node = self.node_manager.get_node(node_id.clone());
             match &node.data {
-                AstNodeData::Decl(name) => {
-                    output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, name));
+                AstNodeData::Decl(name_id) => {
+                    output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name_id.clone())?));
                 }
                 _ => {
                     unreachable!();
@@ -146,49 +151,49 @@ impl<'a> CPP<'a> {
         }
         Ok(output.join("\n"))
     }
-    fn repr_struct_init_fields(&self, fields: &Vec<(AstNode, AstNode)>) -> Result<String> {
+    fn repr_struct_init_fields(&self, fields: &Vec<(NodeID, NodeID)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in fields {
-            output.push(format!("\t.{}={}", self.repr_ast_node(&node.0)?, self.repr_ast_node(&node.1)?));
+            output.push(format!("\t.{}={}", self.repr_ast_node(node.0.clone())?, self.repr_ast_node(node.1.clone())?));
         }
         Ok(output.join(",\n"))
     }
-    fn repr_vec_node(&self, nodes: &Vec<AstNode>, sep: &str) -> Result<String> {
+    fn repr_vec_node(&self, nodes: &Vec<NodeID>, sep: &str) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in nodes.iter() {
-            output.push(self.repr_ast_node(node)?);
+            output.push(self.repr_ast_node(node.clone())?);
         }
 
         Ok(output.join(sep))
     }
 
-    fn repr_enum_variants(&self, variants: &Vec<(AstNode, Option<AstNode>)>) -> Result<String> {
+    fn repr_enum_variants(&self, variants: &Vec<(NodeID, Option<NodeID>)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in variants.iter() {
-            output.push(self.repr_ast_node(&node.0)?);
+            output.push(self.repr_ast_node(node.0.clone())?);
         }
 
         Ok(output.join(",\n"))
     }
-    fn repr_union_variants(&self, variants: &Vec<(AstNode, Option<AstNode>)>) -> Result<String> {
+    fn repr_union_variants(&self, variants: &Vec<(NodeID, Option<NodeID>)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in variants.iter() {
             match &node.1 {
                 Some(ty) => {
-                    output.push(format!("\t{} {};", self.repr_ast_node(&ty)?, self.repr_ast_node(&node.0)?));
+                    output.push(format!("\t{} {};", self.repr_ast_node(ty.clone())?, self.repr_ast_node(node.0.clone())?));
                 }
                 None => {
-                    output.push(format!("\t{} {};", "void*", self.repr_ast_node(&node.0)?));
+                    output.push(format!("\t{} {};", "void*", self.repr_ast_node(node.0.clone())?));
                 }
             }
         }
 
         Ok(output.join("\n"))
     }
-    fn repr_field_access_path(&self, path: &Vec<AstNode>) -> Result<String> {
+    fn repr_field_access_path(&self, path: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in path.iter() {
-            output.push(self.repr_ast_node(&node)?);
+            output.push(self.repr_ast_node(node.clone())?);
         }
 
         Ok(output.join("."))
@@ -208,16 +213,31 @@ impl<'a> CPP<'a> {
         }
     }
 
-    fn repr_array_elems(&self, elems: &Vec<AstNode>) -> Result<String> {
+    fn repr_namespace_access(&self, nsa: &NamespaceAccess) -> Result<String> {
+        let ns_ty = self.node_manager.get_node(nsa.namespace.clone());
+        let _ = self.node_manager.get_node(nsa.field.clone());
+        if ns_ty.infered_type.is_enum() {
+            return Ok(format!("{}::{}", self.repr_ast_node(nsa.namespace.clone())?, self.repr_ast_node(nsa.field.clone())?));
+        }
+
+        if ns_ty.infered_type.is_pointer() {
+            return Ok(format!("{}->{}", self.repr_ast_node(nsa.namespace.clone())?, self.repr_ast_node(nsa.field.clone())?));
+        }
+
+        return Ok(format!("{}.{}", self.repr_ast_node(nsa.namespace.clone())?, self.repr_ast_node(nsa.field.clone())?));
+    }
+
+    fn repr_array_elems(&self, elems: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in elems.iter() {
-            output.push(format!("{}", self.repr_ast_node(&node)?));
+            output.push(format!("{}", self.repr_ast_node(node.clone())?));
         }
 
         Ok(output.join(","))
     }
 
-    fn repr_ast_node(&self, node: &AstNode) -> Result<String> {
+    fn repr_ast_node(&self, node_id: NodeID) -> Result<String> {
+        let node = self.node_manager.get_node(node_id);
         match &node.data {
             AstNodeData::Host(import) => {
                 Ok(format!(
@@ -227,199 +247,108 @@ impl<'a> CPP<'a> {
             }
             AstNodeData::Load(_) => Ok("".to_string()),
             AstNodeData::Assign(name, val) => {
-                Ok(format!("{} = {}", self.repr_ast_node(name)?, self.repr_ast_node(val)?))
+                Ok(format!("{} = {}", self.repr_ast_node(name.clone())?, self.repr_ast_node(val.clone())?))
             }
             AstNodeData::Decl(name) => {
-                Ok(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name))
+                if node.tags.contains(&AstTag::Foreign) {
+                    return Ok("".to_string());
+                }
+                Ok(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name.clone())?))
             }
 
             AstNodeData::ForIn(op_name, list, body) => {
-                let mut op_name = op_name.clone();
-                if op_name.is_none() {
-                    op_name = Some(Box::new(AstNode {
-                        id: format!("_{}", -1),
-                        data: AstNodeData::Ident("it".to_string()),
-                        infered_type: AstNodeType::Unknown, tags: vec![]
-                    }));
-                }
-                Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr_ast_node(&op_name.unwrap())?, self.repr_ast_node(list)?, self.repr_block(body)?))
+                Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr_ast_node(op_name.clone())?, self.repr_ast_node(list.clone())?, self.repr_block(body)?))
             }
 
             AstNodeData::For(start, cond, cont, body) => {
-                Ok(format!("for ({};{};{}) {{\n{}\n}}", self.repr_ast_node(start)?, self.repr_ast_node(cond)?, self.repr_ast_node(cont)?, self.repr_block(body)?))
+                Ok(format!("for ({};{};{}) {{\n{}\n}}", self.repr_ast_node(start.clone())?, self.repr_ast_node(cond.clone())?, self.repr_ast_node(cont.clone())?, self.repr_block(body)?))
             }
 
             AstNodeData::While(cond, body) => {
-                Ok(format!("while ({}) {{\n{}\n}}",  self.repr_ast_node(cond)?, self.repr_block(body)?))
+                Ok(format!("while ({}) {{\n{}\n}}",  self.repr_ast_node(cond.clone())?, self.repr_block(body)?))
             }
 
-            AstNodeData::Def(def) => match &def.expr.deref().data {
-                AstNodeData::PointerTo(ref obj) => {
-                    if obj.is_initialize() {
-                        // @Refactor pointer to temporary value @HACK
-                        let hacky_name = format!("___LOKI_COMPILER_TEMP_{}___", def.name);
-                        let store_temp = format!("{} {} = {};", self.repr_ast_ty(obj.infered_type.clone())?, hacky_name, self.repr_ast_node(
-                            &AstNode {id:"".to_string(), data: def.expr.get_pointer_to_value(), infered_type: AstNodeType::Unknown, tags: vec![] }
-                        )?);
-                        let ty = self.get_def_typ(node)?;
-                        let actual = format!("{} {} = &{};", self.repr_ast_ty(ty)?, def.name, hacky_name);
-
-                        Ok(format!("{}\n{}", store_temp, actual))
-                    } else {
-                        let ty = self.get_def_typ(node)?;
-                        match def.mutable {
-                            false => Ok(format!(
-                                "const {} {} = {}",
-                                self.repr_ast_ty(ty)?,
-                                def.name,
-                                self.repr_ast_node(def.expr.deref())?
-                            )),
-                            true => Ok(format!(
-                                "{} {} = {}",
-                                self.repr_ast_ty(ty)?,
-                                def.name,
-                                self.repr_ast_node(def.expr.deref())?
-                            )),
-                    }
-                    }
-                }
+            AstNodeData::Def(def) => {
+                let def_expr = self.node_manager.get_node(def.expr.clone());
+                match &def_expr.data {
+                
                 AstNodeData::FnDef(ref fn_def) => 
                     Ok(format!("{} {}({}) {{\n{}\n}}",
-                        self.repr_ast_node(&*fn_def.sign.ret)?,
-                        def.name,
+                        self.repr_ast_node(fn_def.sign.ret.clone())?,
+                        self.repr_ast_node(def.name.clone())?,
                         self.repr_fn_def_args(&fn_def.sign.args)?,
                         self.repr_block(&fn_def.body)?
                     )),
                 
 
-                AstNodeData::InitializeArray(ty, elems) => {
-                    if let AstNodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
-                        match def.mutable {
-                            true => {
-                                Ok(format!("const {} {}[{}] = {{{}}}",
-                                           self.repr_ast_ty(elem_ty)?,
-                                           def.name,
-                                           size,
-                                           self.repr_array_elems(elems)?
-                                ))
-                            }
-                            false => {
-                                Ok(format!("{} {}[{}] = {{{}}}",
-                                           self.repr_ast_ty(elem_ty)?,
-                                           def.name,
-                                           size,
-                                           self.repr_array_elems(elems)?
-                                ))
-                            }
-                        }
-
-                    } else {
-                        unreachable!();
-                    }
-
-                }
-
                 AstNodeData::Struct(fields) => Ok(format!(
                     "struct {} {{\n{}\n}};",
-                    def.name,
-                    self.repr_struct_fields(&fields)?
+                    self.repr_ast_node(def.name.clone())?,
+                    self.repr_struct_fields(fields)?
                 )),
 
                 AstNodeData::Enum(is_union, variants) => {
                     if !is_union {
                         Ok(format!(
-                            "enum class {} {{\n{}\n}};",
-                            def.name,
+                            "enum {} {{\n{}\n}};",
+                            self.repr_ast_node(def.name.clone())?,
                             self.repr_enum_variants(&variants)?
                         ))
                     } else {
                         Ok(format!(
                             "union {} {{\n{}\n}};",
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             self.repr_union_variants(&variants)?
                         ))
                     }
                 }
 
                 AstNodeData::Initialize(_, fields) => {
-                    let ty = self.get_def_typ(node)?;
+                    let ty = self.get_def_typ(&node)?;
                     let fields = self.repr_struct_init_fields(&fields)?;
                     match def.mutable {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             fields
                         )),
                         true => Ok(format!(
                             "{} {} = {{\n{}}}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
+                            self.repr_ast_node(def.name.clone())?,
                             fields,
                         )),
                     }
                 }
 
-                AstNodeData::NamespaceAccess(cf) => {
-                    let container = &cf.namespace;
-                    let field = &cf.field;
-                    //TODO make type inference work for this when I got hosele
-                    let container = self.repr_ast_node(&container)?;
-                    let field = self.repr_ast_node(&field)?;
-                    let mut sep = ".";
-                    if cf.namespace_is_enum {
-                        sep = "::";
-                    }
-                    match def.mutable {
-                        false => Ok(format!(
-                            "const auto {} = {}{}{}",
-                            def.name,
-                            container,
-                            sep,
-                            field
-                        )),
-                        true => Ok(format!(
-                            "auto {} = {}{}{}",
-                            def.name,
-                            container, sep, field,
-                        )),
-                    }
-                }
+                // AstNodeData::NamespaceAccess(nsa) => {
+                //     Ok(self.repr_namespace_access(nsa)?)
+                // }
 
                 _ => {
-                    let ty = self.get_def_typ(node)?;
+                    let ty = self.get_def_typ(&node)?;
                     match def.mutable {
                         false => Ok(format!(
                             "const {} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
-                            self.repr_ast_node(def.expr.deref())?
+                            self.repr_ast_node(def.name.clone())?,
+                            self.repr_ast_node(def.expr.clone())?
                         )),
                         true => Ok(format!(
                             "{} {} = {}",
                             self.repr_ast_ty(ty)?,
-                            def.name,
-                            self.repr_ast_node(def.expr.deref())?
+                            self.repr_ast_node(def.name.clone())?,
+                            self.repr_ast_node(def.expr.clone())?
                         )),
                     }
                 }
+            }
             },
             AstNodeData::Initialize(ty, fields) => {
                 let fields = self.repr_struct_init_fields(&fields)?;
-                return Ok(format!("({}){{\n{}\n}}", self.repr_ast_node(ty)?, fields));
+                return Ok(format!("({}){{\n{}\n}}", self.repr_ast_node(ty.clone())?, fields));
             }
-            AstNodeData::InitializeArray(ty, elems) => {
-                    if let AstNodeData::ArrayTy(size, elem_ty) = ty.clone().unwrap().data {
-                        Ok(format!("{}[{}]{{{}}}",
-                                   self.repr_ast_ty(elem_ty)?,
-                                   size,
-                                   self.repr_array_elems(elems)?
-                        ))
-                    } else {
-                        unreachable!();
-                    }
-
-                }
             
             // primitive types
             AstNodeData::Uint(number) => Ok(format!("{}", number)),
@@ -433,11 +362,11 @@ impl<'a> CPP<'a> {
             AstNodeData::Ident(s) => Ok(s.clone()),
 
             AstNodeData::Deref(ptr) => {
-                Ok(format!("(*{})", self.repr_ast_node(ptr)?))
+                Ok(format!("(*{})", self.repr_ast_node(ptr.clone())?))
             }
 
             AstNodeData::PointerTo(obj) => {
-                Ok(format!("&{}", self.repr_ast_node(obj)?))
+                Ok(format!("&{}", self.repr_ast_node(obj.clone())?))
             }
 
             AstNodeData::IntTy(size) => Ok(format!("int")),
@@ -453,14 +382,10 @@ impl<'a> CPP<'a> {
 
             //Expressions
             AstNodeData::BinaryOperation(ref binary_operation) => {
-                Ok(format!("{} {} {}", self.repr_ast_node(&*binary_operation.left)?, self.repr_ast_op(&binary_operation.operation)?, self.repr_ast_node(&*binary_operation.right)?))
+                Ok(format!("{} {} {}", self.repr_ast_node(binary_operation.left.clone())?, self.repr_ast_op(&binary_operation.operation)?, self.repr_ast_node(binary_operation.right.clone())?))
             }
-            AstNodeData::NamespaceAccess(ref cf) => {
-                if cf.namespace_is_enum {
-                    return Ok(format!("{}::{}", self.repr_ast_node(&cf.namespace)?, self.repr_ast_node(&cf.field)?));
-
-                }
-                return Ok(format!("{}.{}", self.repr_ast_node(&cf.namespace)?, self.repr_ast_node(&cf.field)?));
+            AstNodeData::NamespaceAccess(ref nsa) => {
+                Ok(self.repr_namespace_access(nsa)?)
             },
             AstNodeData::FnDef(_) => {
                 unreachable!();
@@ -468,18 +393,18 @@ impl<'a> CPP<'a> {
 
             AstNodeData::FnCall(name, args) => Ok(format!(
                 "{}({})",
-                self.repr_ast_node(&name)?,
+                self.repr_ast_node(name.clone())?,
                 self.repr_vec_node(&args, ",")?
             )),
             AstNodeData::If(ref ast_if) => {
                 let mut cases = Vec::<String>::new();
-                cases.push(format!("if ({} == true) {{\n{}\n}}", self.repr_ast_node(&ast_if.cases[0].0)?, self.repr_block(&ast_if.cases[0].1)?));
+                cases.push(format!("if ({} == true) {{\n{}\n}}", self.repr_ast_node(ast_if.cases[0].0.clone())?, self.repr_block(&ast_if.cases[0].1)?));
                 for case in &ast_if.cases[1..] {
-                    cases.push(format!("else if ({} == true) {{\n{}\n}}", self.repr_ast_node(&case.0)?, self.repr_block(&case.1)?))
+                    cases.push(format!("else if ({} == true) {{\n{}\n}}", self.repr_ast_node(case.0.clone())?, self.repr_block(&case.1)?))
                 }
                 Ok(cases.join("\n"))
             }
-            AstNodeData::Return(expr) => Ok(format!("return {}", self.repr_ast_node(&expr)?)),
+            AstNodeData::Return(expr) => Ok(format!("return {}", self.repr_ast_node(expr.clone())?)),
             AstNodeData::Break => Ok(format!("break")),
             AstNodeData::CompilerFlags(_) => { Ok ("".to_string()) },
             _ => {
@@ -488,14 +413,18 @@ impl<'a> CPP<'a> {
             }
         }
     }
-    pub fn new(ast: &'a Ast) -> Self {
-        Self { ast }
+    pub fn new(ast: &'a Ast, node_manager: &'a AstNodeManager) -> Self {
+        Self { ast, node_manager }
     }
 
     pub fn generate(&mut self) -> Result<String> {
         let mut out: Vec<String> = vec![];
         for node in self.ast.top_level.iter() {
-            out.push(format!("{};", self.repr_ast_node(&node)?));
+            let repr = self.repr_ast_node(node.clone())?;
+            if repr == "" {
+                continue;
+            }
+            out.push(format!("{};", repr));
         }
         
         Ok(out.join("\n"))

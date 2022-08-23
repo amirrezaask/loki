@@ -18,6 +18,8 @@ pub enum TokenType {
     Dollor,
     LeftAngle,
     RightAngle,
+    DoubleLeftAngle,
+    DoubleRightAngle,
 
     Minus,
     Plus,
@@ -510,7 +512,14 @@ impl Tokenizer {
                 },
                 State::SawLeftAngleBracket => match self.current_char() {
                     '=' => {
+                        self.state = State::Start;
                         let tok = Token::new(TokenType::LessEqual, (self.cur - 1, self.cur));
+                        self.forward_char();
+                        return Ok(tok);
+                    }
+                    '<' => {
+                        self.state = State::Start;
+                        let tok = Token::new(TokenType::DoubleLeftAngle, (self.cur - 1, self.cur));
                         self.forward_char();
                         return Ok(tok);
                     }
@@ -524,6 +533,13 @@ impl Tokenizer {
                         let tok = Token::new(TokenType::GreaterEqual, (self.cur - 1, self.cur));
                         self.forward_char();
                         self.state = State::Start;
+                        return Ok(tok);
+                    }
+                    '>' => {
+                        let tok = Token::new(TokenType::DoubleRightAngle, (self.cur - 1, self.cur));
+                        self.forward_char();
+                        self.state = State::Start;
+
                         return Ok(tok);
                     }
                     _ => {
@@ -1566,6 +1582,31 @@ fn div_equal_ref() -> Result<()> {
         Token::new(TokenType::DivEqual, (6,7)),
         Token::new(TokenType::UnsignedInt, (8,8))
 
+    ]);
+
+    Ok(())
+}
+#[test]
+fn new_pointer() -> Result<()> {
+    let src = ">>";
+    let mut tokenizer = Tokenizer::new(src);
+    let tokens = tokenizer.all()?;
+
+    assert_eq!(tokens, vec![
+        Token::new(TokenType::DoubleRightAngle, (0, 1)),
+    ]);
+
+    Ok(())
+}
+
+#[test]
+fn new_deref() -> Result<()> {
+    let src = "<<";
+    let mut tokenizer = Tokenizer::new(src);
+    let tokens = tokenizer.all()?;
+
+    assert_eq!(tokens, vec![
+        Token::new(TokenType::DoubleLeftAngle, (0, 1)),
     ]);
 
     Ok(())
