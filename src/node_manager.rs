@@ -17,6 +17,7 @@ pub struct AstNodeManager {
     pub scopes: Vec<Scope>,
     pub scope_stack: Vec<ScopeID>,
     pub scope_nodes: HashMap<ScopeID, Vec<NodeID>>,
+    pub file_loads: HashMap<String, Vec<String>>,
     unknowns: Vec<NodeID>,
 }
 
@@ -27,6 +28,7 @@ impl AstNodeManager {
                scopes: vec![],
                scope_stack: Vec::new(),
                scope_nodes: HashMap::new(),
+               file_loads: HashMap::new(),
         }
     }
 
@@ -114,7 +116,7 @@ impl AstNodeManager {
 
     fn get_relevant_scopes(&self, scope_id: ScopeID) -> Vec<ScopeID> {
         let mut scope_id = scope_id;
-        if scope_id < 0 {
+        if scope_id <= 0 {
             return vec![scope_id];
         }
         let mut relevant_scopes: Vec<isize> = vec![scope_id];
@@ -130,12 +132,36 @@ impl AstNodeManager {
         return relevant_scopes;
     }
 
+    fn get_file_root_scope_id(&self, file: &str) -> ScopeID {
+        for (idx, scope) in self.scopes.iter().enumerate() {
+            match scope.scope_type {
+                ScopeType::File(ref name) => {
+                    if name == file {
+                        return idx as isize;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        panic!("root scope of file {:?} not found ", file);
+    }
+    
+    pub fn resolve_loads(&mut self, file: String, mut loads: Vec<String>) {
+        let file_root_scope_id = self.get_file_root_scope_id(&file);
+        for load in &mut loads {
+            let load_root_scope_id = self.get_file_root_scope_id(&load);
+            let mut nodes = self.scope_nodes.get(&load_root_scope_id).unwrap().clone(); // TODO: filter just the nodes that matter
+            self.scope_nodes.get_mut(&file_root_scope_id).unwrap().append(&mut nodes);
+        }
+    }
+
     pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> AstNodeType {
-        //TODO: all loaded files global scope
         let scopes = self.get_relevant_scopes(scope_id);
         for scope in scopes {
             let nodes = self.scope_nodes.get(&scope).unwrap();
             for node_id in nodes.iter() {
+                //TODO: check node is defined before the given ident
                 let node = self.get_node(node_id.clone());
                 match node.data {
                     AstNodeData::Def(ref def) => {
@@ -187,7 +213,6 @@ impl AstNodeManager {
                 continue;
             }
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
-                println!("infering.. {:?}", ident);
                 let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
                 if ty.is_unknown() {
                     self.add_unknown(&unknown_id);

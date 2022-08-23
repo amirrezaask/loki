@@ -1,16 +1,11 @@
-a :: 1;
+#load "base.loki"
+
+newconst :: someUknownConst;
+
 
 main :: () int {
+     a :: newconst;
+     b := a;
 
-    z := a;
-    if(true) {
-        b := 1;
-        b1 := b;
-    } else if (true) {
-        c := 1;
-        c1 := c;
-    } else {
-        d := 1;
-        d1 := d;
-    }
+     
 }

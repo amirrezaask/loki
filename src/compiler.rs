@@ -65,7 +65,6 @@ impl Compiler {
         self.total_tokens += main_ast.tokens.len() as u64;
         let mut loads = Vec::<String>::new();
         let mut asts = Vec::<Ast>::new();
-        
         for node_id in main_ast.top_level.iter() {
             let node = self.node_manager.get_node(node_id.clone());
             match node.data {
@@ -77,11 +76,13 @@ impl Compiler {
                 }
             }
         }
-
-        for file in loads {
+        self.node_manager.file_loads.insert(path.to_string(), loads.clone());
+        for file in &loads {
             let mut file_ast = self.get_ast_for(&file)?;
             asts.append(&mut file_ast)
         }
+
+        self.node_manager.resolve_loads(path.to_string(), loads.clone());
         asts.push(main_ast);
         Ok(asts)
 
@@ -110,7 +111,6 @@ impl Compiler {
         let mut codes = Vec::<String>::new();
 
         self.dump_node_manager_before()?;
-
         self.node_manager.infer_types()?;
 
         self.dump_node_manager_after()?;

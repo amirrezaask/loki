@@ -5,7 +5,8 @@ use crate::lexer::Tokenizer;
 use crate::lexer::TokenType;
 use anyhow::{anyhow, Result};
 use crate::node_manager::AstNodeManager;
-
+use rand::distributions::{Alphanumeric, DistString};
+const ID_LENGTH: usize = 24;
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -27,9 +28,10 @@ impl<'a> Parser<'a> {
         )
     }
     fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType) -> AstNode {
+        let id = Alphanumeric.sample_string(&mut rand::thread_rng(), ID_LENGTH);
         self.node_counter += 1;
         let node = AstNode {
-            id: format!("{}_{}", self.filename, self.node_counter),
+            id,
             data, infered_type: type_annotation, tags: vec![], scope:Default::default(),
         };
         self.node_manager.add_node(node.clone()).unwrap();
@@ -1159,6 +1161,8 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+
+        self.node_manager.remove_from_scope_stack();
         Ast::new(self.filename, self.src, self.tokens, top_level, self.node_manager)
     }
 }
