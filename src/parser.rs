@@ -1077,8 +1077,7 @@ impl<'a> Parser<'a> {
 
             TokenType::KeywordGoto => {
                 //TODO
-
-                unreachable!();
+                panic!("goto is not implemented yet");
             }
 
             TokenType::KeywordContinue => {
@@ -1087,8 +1086,7 @@ impl<'a> Parser<'a> {
 
             TokenType::KeywordSwitch => {
                 //TODO
-
-                unreachable!();
+                panic!("Switch is not implemented yet");
             }
 
             TokenType::KeywordBreak => {

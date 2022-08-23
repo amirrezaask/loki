@@ -1,4 +1,4 @@
-#load "base.loki" // Load directive loads a loki file as a part of compilation
+#load "base.loki"
 
 State :: enum {
     Alive,
@@ -8,14 +8,7 @@ State :: enum {
 Human :: struct {
     age: int,
     name: string,
-    // state: State,
 }
-
-// print_num :: (num: int) void {
-//     printf("%d\n", num);
-// }
-
-// foreign_constant: int #foreign;
 
 top_level_uint_constant :: 1;
 

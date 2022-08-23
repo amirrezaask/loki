@@ -8,7 +8,9 @@ use anyhow::Result;
 
 use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation, Scope, ScopeID, ScopeType};
 
-// this struct will hold all nodes data of your whole compilation.
+pub type FilePath = String;
+
+// this struct will hold all data of your whole compilation.
 #[derive(Debug, PartialEq, Clone, Serialize, Default)]
 pub struct AstNodeManager {
     pub nodes: HashMap<NodeID, AstNode>,
@@ -110,43 +112,64 @@ impl AstNodeManager {
         }
     }
 
-    pub fn find_ident_ast_type(&self, ident: String, scope: ScopeID) -> AstNodeType {
-        let nodes = self.scope_nodes.get(&scope).unwrap();
-        for node_id in nodes.iter() {
-            let node = self.get_node(node_id.clone());
-            match node.data {
-                AstNodeData::Def(ref def) => {
+    fn get_relevant_scopes(&self, scope_id: ScopeID) -> Vec<ScopeID> {
+        let mut scope_id = scope_id;
+        if scope_id < 0 {
+            return vec![scope_id];
+        }
+        let mut relevant_scopes: Vec<isize> = vec![scope_id];
+        loop {
+            if scope_id == -1 {
+                break;
+            }
+            let scope = &self.scopes[scope_id as usize];
+            relevant_scopes.push(scope.parent);
+            scope_id = scope.parent;
+        }
 
-                    let name_node = self.get_node(def.name.clone());
-                    if name_node.get_ident() == ident {
-                        let def_expr = self.get_node(def.expr.clone());
-                        if def_expr.is_unknown() {
+        return relevant_scopes;
+    }
+
+    pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> AstNodeType {
+        //TODO: all loaded files global scope
+        let scopes = self.get_relevant_scopes(scope_id);
+        for scope in scopes {
+            let nodes = self.scope_nodes.get(&scope).unwrap();
+            for node_id in nodes.iter() {
+                let node = self.get_node(node_id.clone());
+                match node.data {
+                    AstNodeData::Def(ref def) => {
+                        let name_node = self.get_node(def.name.clone());
+                        if name_node.get_ident() == ident {
+                            let def_expr = self.get_node(def.expr.clone());
+                            if def_expr.is_unknown() {
+                                continue;
+                            }
+                            return def_expr.infered_type;
+                        }
+                    }
+                    AstNodeData::Ident(ref name) => {
+                        if node.infered_type.is_unknown() {
                             continue;
                         }
-                        return def_expr.infered_type;
+                        if ident == name.clone() {
+                            return node.infered_type.clone();
+                        }
                     }
-                }
-                AstNodeData::Ident(ref name) => {
+                    AstNodeData::Decl(ref name_id) => {
+                        let name_node = self.get_node(name_id.clone());
+                        if node.infered_type.is_unknown() {
+                            continue;
+                        }
+                        if name_node.get_ident().clone() == ident {
+                            return node.infered_type.clone();
+                        }
+                    }
 
-                    if node.infered_type.is_unknown() {
-                        continue;
-                    }
-                    if ident == name.clone() {
-                        return node.infered_type.clone();
-                    }
+                    _ => {}
                 }
-                AstNodeData::Decl(ref name_id) => {
-                    let name_node = self.get_node(name_id.clone());
-                    if node.infered_type.is_unknown() {
-                        continue;
-                    }
-                    if name_node.get_ident().clone() == ident {
-                        return node.infered_type.clone();
-                    }
-                }
-
-                _ => {}
             }
+
         }
 
         return AstNodeType::Unknown;
@@ -164,6 +187,7 @@ impl AstNodeManager {
                 continue;
             }
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
+                println!("infering.. {:?}", ident);
                 let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
                 if ty.is_unknown() {
                     self.add_unknown(&unknown_id);
@@ -199,7 +223,6 @@ impl AstNodeManager {
                     continue
                 }
             }
-
             if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
                 let namespace_access = ns.clone();
                 let namespace = self.get_node(namespace_access.namespace.clone());
