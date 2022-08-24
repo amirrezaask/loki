@@ -1,0 +1,27 @@
+Human :: struct {
+     name: string,
+     age: s32,
+}
+
+main :: () void {
+    value := 2;
+
+    ptr_to_value := &value;
+
+    #print("value is %d\n", value);
+
+    *ptr_to_value = 3;
+    #print("value is %d\n", value);
+    #print("value is %d\n", <<ptr_to_value);
+
+    human := Human {
+        age = 24,
+        name = "amirreza",
+    };
+
+    human_ptr := >>human;
+    human2 := <<human_ptr;
+    human_age := human_ptr.age;
+
+    #print("human_ptr age is %d\n", human_ptr.age);
+}

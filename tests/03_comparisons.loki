@@ -1,0 +1,8 @@
+main :: () void {
+    equality := 1 == 1;
+    greater := 3 > 2;
+    less := 2 < 3;
+    less_equal := 2 <= 2;
+    greater_equal := 2 >= 2;
+    not_equal := 2 != 3;
+}

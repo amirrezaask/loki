@@ -1,0 +1,9 @@
+Sex :: enum {
+    Male,
+    Female
+}
+
+main :: () void {
+     male := Sex.Male;
+     female := Sex.Female;
+}

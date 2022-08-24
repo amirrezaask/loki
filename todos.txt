@@ -1,5 +1,7 @@
 - test suite
 
+- no need for explicit void in function def
+
 - defer
     *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 

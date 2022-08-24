@@ -760,7 +760,7 @@ fn const_decl_char() -> Result<()> {
 }
 #[test]
 fn const_decl_with_ti() -> Result<()> {
-    let src = "f :uint32: 12;";
+    let src = "f :u32: 12;";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -779,7 +779,7 @@ fn const_decl_with_ti() -> Result<()> {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(TokenType::KeywordUint32, tok.ty);
-    assert_eq!("uint32", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!("u32", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1003,7 +1003,7 @@ fn var_decl() {
 
 #[test]
 fn var_decl_with_ti() -> Result<()> {
-    let src = "f :uint32 = 12;";
+    let src = "f :u32 = 12;";
     let mut tokenizer = Tokenizer::new(src);
 
     let tok = tokenizer.next();
@@ -1022,7 +1022,7 @@ fn var_decl_with_ti() -> Result<()> {
     assert!(tok.is_ok());
     let tok = tok.unwrap();
     assert_eq!(TokenType::KeywordUint32, tok.ty);
-    assert_eq!("uint32", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!("u32", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());

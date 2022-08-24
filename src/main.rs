@@ -6,6 +6,7 @@ mod lexer;
 mod compiler;
 mod ast;
 mod node_manager;
+mod tests;
 // mod symbol_table;
 use anyhow::Result;
 use std::env;

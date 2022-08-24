@@ -1,0 +1,11 @@
+main :: () void {
+    number := 0;
+    number++;
+    number--;
+    number = number + 10;
+    number+=10;
+    number-=3;
+    number*=2;
+    number/=3;
+    number%=1;
+}

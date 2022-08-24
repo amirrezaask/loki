@@ -1,70 +1,4 @@
-#load "base.loki"
-
-State :: enum {
-    Alive,
-    Dead
-}
-
-Human :: struct {
-    age: int,
-    name: string,
-}
-
-top_level_uint_constant :: 1;
-
-this_sum :: (a: int, b: int) int {
-    return a + b;
-}
-
 main :: () int {
-    
-    state := State.Alive;
-    
-
-    uu := someUknownConst;
-    z := top_level_uint_constant;
-    
-    y := 10;
-    x := y;
- 
-    
-    infer_bool := 1 == 1;
-    number := 0;
-
-    number++;
-    number--;
-    number = number + 10;
-    number+=10;
-    number-=3;
-    number*=2;
-    number/=3;
-    number%=1;
-    
-    some_bool := true;
-    
-    c :: 'c';
-    
-    s :: "Amirreza";
-
-    a: bool;
-    a = true;
-
-    amirreza := Human {
-        age = 24,
-        name = "amirreza",
-    };
-
-    amirreza.age = 25;
-
-    #print("amirreza age is %d\n", amirreza.age);
-    #print("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
-
-    counter := 0;
-    while (counter < 10) {
-         #print("while loop using counter: %d\n", counter);
-         counter++;
-    }
-
     for (i:=0;i<10;i++) {
         #print("for c syntax: %d\n", i);
     }
@@ -82,36 +16,8 @@ main :: () int {
     //     printf("for each syntax: %d\n", it);
     // }
 
-    b := 1;
-    if (b == 1) {
-        #print("b1 is true\n");
-    } 
-    else if (b == 2) {
-        #print("b is two\n");
-    }
-     else {
-        #print("b1 is false\n");
-    }
-
     // this_sum :: sum(1, 2);
     // #print("function call sum %d\n", this_sum);
 
-
-    value := 2;
-    ptr_to_value := &value;
-    #print("value is %d\n", value);
-    *ptr_to_value = 3;
-    #print("value is %d\n", value);
-    #print("value is %d\n", *ptr_to_value);
-
-    human := Human {
-        age = 24,
-        name = "amirreza",
-    };
-
-    human_ptr := >>human;
-    human_age := human_ptr.age;
-
-    #print("human_ptr age is %d\n", human_ptr.age);
     return 0;
 }

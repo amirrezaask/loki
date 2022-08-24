@@ -195,7 +195,10 @@ impl<'a> Parser<'a> {
             let n = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty));
             args.push(n.id);
         }
-
+        // let mut ret_ty 
+        // if self.current_token().ty != TokenType::OpenBrace {
+        //     let ret_ty = self.expect_expr()?;
+        // }
         let ret_ty = self.expect_expr()?;
         self.expect_token(TokenType::OpenBrace)?;
 

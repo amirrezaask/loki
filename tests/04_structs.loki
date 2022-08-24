@@ -1,0 +1,13 @@
+Human :: struct {
+      age: s32,
+      name: string,
+}
+
+
+main :: () void {
+    amirreza := Human {
+        age = 24,
+        name = "amirreza",
+    };
+    
+}

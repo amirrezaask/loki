@@ -1,0 +1,16 @@
+
+
+Human :: struct {
+      name: string,
+      age: s32
+}
+
+main :: () void {
+     amirreza := Human { name = "amirreza", age = 12 };
+
+     amirreza.age = 12;
+
+     #print("amirreza age is %d\n", amirreza.age);
+     #print("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
+
+}
