@@ -3,7 +3,7 @@ Sex :: enum {
     Female
 }
 
-main :: () void {
+main :: () int {
      male := Sex.Male;
      female := Sex.Female;
 }

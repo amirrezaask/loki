@@ -1,4 +1,6 @@
-main ::() void {
+#host "cstdio"
+
+main ::() int {
      counter := 0;
      while (counter < 10) {
            #print("counter : %d\n", counter);

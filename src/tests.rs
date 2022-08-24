@@ -1,105 +1,32 @@
 use anyhow::Result;
 use crate::compiler;
 use crate::code_gen;
+use std::fs;
 
 #[test]
-fn test_suite() -> {
-    let paths = fs::read_dir("./examples").unwrap();
 
-    for path in paths {
-        println!("Name: {}", path.unwrap().path().display())
+fn test_suite() -> Result<()> {
+    let files = fs::read_dir("./examples").unwrap();
+    let mut results: Vec<Result<()>> = vec![];
+    let mut has_error = false;
+    for file in files {
+        println!("============================================================");
+        let file = file.unwrap();
+        if file.file_type().unwrap().is_file()  {
+            let mut c = compiler::Compiler::new();
+            match c.compile_file(file.path().to_str().unwrap(), code_gen::Backend::CPP) {
+                Ok(_) => {},
+                Err(e) => {
+                    has_error = true;
+                    println!("Error: test file {:?} error:\n {:?}", file.path().to_str().unwrap(), e);
+                }
+            }
+        }
     }
 
-
-}
-
-#[test]
-fn test_00_variables_constants() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/00_variables_constants.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-#[test]
-fn test_01_functions() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/01_functions.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-
-#[test]
-fn test_02_assignments() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/02_assignments.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-
-#[test]
-fn test_03_comparisons() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/03_comparisons.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-#[test]
-fn test_04_structs() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/04_structs.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-
-#[test]
-fn test_05_enums() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/05_enums.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-#[test]
-fn test_06_namespace_access() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/06_namespace_access.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-#[test]
-fn test_07_conditionals() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/07_conditionals.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-#[test]
-fn test_08_while() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/08_while.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-
-
-#[test]
-fn test_09_for() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/09_for.loki", code_gen::Backend::CPP)?;
-
-    Ok(())
-}
-#[test]
-fn test_10_pointers() -> Result<()> {
-    let mut c = compiler::Compiler::new();
-    c.compile_file("examples/10_pointers.loki", code_gen::Backend::CPP)?;
+    if has_error {
+        return Err(anyhow::format_err!("FAILED"));
+    }
 
     Ok(())
 }

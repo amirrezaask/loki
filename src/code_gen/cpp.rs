@@ -154,7 +154,7 @@ impl<'a> CPP<'a> {
     fn repr_struct_init_fields(&self, fields: &Vec<(NodeID, NodeID)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node in fields {
-            output.push(format!("\t.{}={}", self.repr_ast_node(node.0.clone())?, self.repr_ast_node(node.1.clone())?));
+            output.push(format!("\t{}:{}", self.repr_ast_node(node.0.clone())?, self.repr_ast_node(node.1.clone())?));
         }
         Ok(output.join(",\n"))
     }
@@ -358,7 +358,7 @@ impl<'a> CPP<'a> {
             }
             AstNodeData::Float(f) => Ok(format!("{}",f)),
             AstNodeData::Bool(b) => Ok(format!("{}", b)),
-            AstNodeData::Char(c) => Ok(format!("{}", c)),
+            AstNodeData::Char(c) => Ok(format!("'{}'", c)),
             AstNodeData::Ident(s) => Ok(s.clone()),
 
             AstNodeData::Deref(ptr) => {

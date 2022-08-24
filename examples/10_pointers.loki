@@ -1,9 +1,12 @@
+#host "cstdio"
+#host "string"
+
 Human :: struct {
      name: string,
      age: s32,
 }
 
-main :: () void {
+main :: () int {
     value := 2;
 
     ptr_to_value := &value;
@@ -15,8 +18,8 @@ main :: () void {
     #print("value is %d\n", <<ptr_to_value);
 
     human := Human {
-        age = 24,
-        name = "amirreza",
+       name = "amirreza",
+       age = 24,
     };
 
     human_ptr := >>human;

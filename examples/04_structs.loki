@@ -1,10 +1,13 @@
+#host "string"
+
+
 Human :: struct {
       age: s32,
       name: string,
 }
 
 
-main :: () void {
+main :: () int {
     amirreza := Human {
         age = 24,
         name = "amirreza",

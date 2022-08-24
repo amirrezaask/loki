@@ -1,4 +1,4 @@
-main :: () void {
+main :: () int {
     number := 0;
     number++;
     number--;

@@ -138,7 +138,7 @@ impl Compiler {
         
         let final_code = codes.join("\n");
         
-        let out_file_name = "LOKI_OUT.c".to_string();
+        let out_file_name = "LOKI_OUT.cpp".to_string();
         let writing_output_time_start = Instant::now();
 
         let mut out_file = std::fs::File::create(&out_file_name)?;
@@ -157,10 +157,8 @@ impl Compiler {
 
         // std::fs::remove_file(out_file_name)?;
         if !cpp_output.status.success() {
-            println!(
-                "C++ compiler error:\n{}",
-                String::from_utf8_lossy(&cpp_output.stderr)
-            );
+            return Err(anyhow::format_err!("C++ compiler error:\n{}",
+                String::from_utf8_lossy(&cpp_output.stderr)));
         }
         let calling_c_compiler_time_elapsed = calling_c_compiler_time_start.elapsed();
 

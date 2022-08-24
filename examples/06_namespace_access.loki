@@ -1,16 +1,16 @@
-
+#host "string"
 
 Human :: struct {
       name: string,
-      age: s32
+      age: int
 }
 
-main :: () void {
+main :: () int {
      amirreza := Human { name = "amirreza", age = 12 };
 
      amirreza.age = 12;
 
      #print("amirreza age is %d\n", amirreza.age);
-     #print("inline age is %d\n", Human {age = 16, name = "comrade"}.age);
+     #print("inline age is %d\n", Human {name = "comrade", age = 12 }.age);
 
 }
