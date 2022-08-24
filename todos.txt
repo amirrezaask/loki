@@ -4,22 +4,20 @@
 
 - binary and bitwise operators 
 
-
+- arrays:
+  - dynamic array
+  - strings should be our own dynamicarray impl. 
+  - variadic args
+  - slicing arrays
 
 - defer
     *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
-
-- dynamic array
-
-- variadic args
-
-- slicing arrays
 
 - enums should not depend on host language, they should just be normal constants.
 
 - unions
 
-- file load scoping
+- load files into a namespace
 
 - generics
 
