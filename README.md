@@ -1,5 +1,4 @@
 # Loki
-
 Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design.
 
 ## Installation
@@ -12,10 +11,4 @@ cargo install --path .
 ```
 
 ## Features so far
-
-- functions
-- control flows ( if , for , foreach, while )
-- loading libraries
-- type inference / type check
-- loading C headers and using them
-- CPP codegen
+Look into examples folder.
