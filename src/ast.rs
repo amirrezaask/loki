@@ -1,14 +1,14 @@
+use std::collections::HashMap;
 use std::default;
-use std::{collections::HashMap};
 
-use crate::node_manager::AstNodeManager;
 use crate::lexer::{Token, TokenType};
+use crate::node_manager::AstNodeManager;
 use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct NamespaceAccessType {
-    pub namespace: Box<AstNodeType>, 
+    pub namespace: Box<AstNodeType>,
     pub field: Box<AstNodeType>,
 }
 
@@ -45,7 +45,6 @@ pub enum AstNodeType {
     NamespaceAccess(NamespaceAccessType),
 
     Void,
-
 }
 
 impl AstNodeType {
@@ -54,7 +53,7 @@ impl AstNodeType {
             AstNodeData::Ident(ref ident) => {
                 return AstNodeType::TypeName(ident.clone());
             }
-            
+
             AstNodeData::UintTy(bitsize) => AstNodeType::UnsignedInt(bitsize),
             AstNodeData::IntTy(bitsize) => AstNodeType::SignedInt(bitsize),
             AstNodeData::CharTy => AstNodeType::Char,
@@ -62,25 +61,28 @@ impl AstNodeType {
             AstNodeData::BoolTy => AstNodeType::Bool,
             AstNodeData::FloatTy(bitsize) => AstNodeType::Float(bitsize),
             AstNodeData::VoidTy => AstNodeType::Void,
-            _ => {
-                AstNodeType::Unknown
-            }
-
+            _ => AstNodeType::Unknown,
         }
     }
-    pub fn make_fn_signature(node_manager: &AstNodeManager, args: &Vec<NodeID>, ret: &AstNode) -> Self {
-        
-        let args_ty: Vec<AstNodeType> = args.iter().map(|arg| {
-            let arg = node_manager.get_node(arg.clone());
-            arg.infered_type.clone()
-        } ).collect();
+    pub fn make_fn_signature(
+        node_manager: &AstNodeManager,
+        args: &Vec<NodeID>,
+        ret: &AstNode,
+    ) -> Self {
+        let args_ty: Vec<AstNodeType> = args
+            .iter()
+            .map(|arg| {
+                let arg = node_manager.get_node(arg.clone());
+                arg.infered_type.clone()
+            })
+            .collect();
 
         return AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret)));
     }
     pub fn is_type_def(&self) -> bool {
         match self {
             AstNodeType::Struct | AstNodeType::Union | AstNodeType::Enum => true,
-            _ => return false
+            _ => return false,
         }
     }
 
@@ -95,7 +97,7 @@ impl AstNodeType {
         match self {
             AstNodeType::Pointer(obj) => {
                 return *obj.clone();
-            },
+            }
 
             _ => {
                 panic!("expected pointer found: {:?}", self);
@@ -112,36 +114,34 @@ impl AstNodeType {
                 }
                 return false;
             }
-            _ => return false
+            _ => return false,
         }
-
     }
     pub fn is_fn_def(&self) -> bool {
         match self {
             AstNodeType::FnType(_, _) => true,
-            _ => return false
+            _ => return false,
         }
     }
     pub fn get_fn_ret_ty(&self) -> AstNodeType {
         match self {
             AstNodeType::FnType(_, sign) => *(sign.clone()),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
     pub fn is_type_def_enum(&self) -> bool {
         match self {
             AstNodeType::Enum => true,
-            _ => return false
+            _ => return false,
         }
     }
 
     pub fn is_pointer(&self) -> bool {
         match self {
             AstNodeType::Pointer(_) => true,
-            _ => return false
+            _ => return false,
         }
     }
-    
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstTag {
@@ -157,13 +157,13 @@ pub struct NamespaceAccess {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstFnSignature {
     pub args: Vec<NodeID>,
-    pub ret: NodeID
+    pub ret: NodeID,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstFnDef {
     pub sign: AstFnSignature,
-    pub body: Vec<NodeID>,    
+    pub body: Vec<NodeID>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -179,12 +179,14 @@ pub enum AstOperation {
     LessEqual,
     Equal,
     NotEqual,
+    BinaryAnd,
+    BinaryOr,
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstBinaryOperation {
     pub operation: AstOperation,
     pub left: NodeID,
-    pub right: NodeID
+    pub right: NodeID,
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstCaseBlock {
@@ -211,7 +213,7 @@ pub enum ScopeType {
     ForIn,
     If,
     Else,
-    
+
     File(String),
 }
 
@@ -226,7 +228,12 @@ pub struct Scope {
 }
 impl Default for Scope {
     fn default() -> Self {
-        Self { scope_type: ScopeType::Unknown, parent: -1,  start: -1, end: -1 }
+        Self {
+            scope_type: ScopeType::Unknown,
+            parent: -1,
+            start: -1,
+            end: -1,
+        }
     }
 }
 
@@ -236,10 +243,8 @@ pub struct AstNode {
     pub data: AstNodeData,
     pub infered_type: AstNodeType,
     pub scope: ScopeID,
-    pub tags: Vec<AstTag>
+    pub tags: Vec<AstTag>,
 }
-
-
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeData {
@@ -253,10 +258,10 @@ pub enum AstNodeData {
 
     // compiler functions, mostly hacks for now
     Print(Vec<NodeID>),
-    
+
     // Type defs
     IntTy(BitSize), // bitsize
-    UintTy(BitSize), 
+    UintTy(BitSize),
 
     FloatTy(BitSize),
     BoolTy,
@@ -265,7 +270,6 @@ pub enum AstNodeData {
     VoidTy,
     ArrayTy(u64, AstNodeType), // len ty
     FnType(AstFnSignature),
-
 
     Struct(Vec<NodeID>),
     Enum(bool, Vec<(NodeID, Option<NodeID>)>),
@@ -278,26 +282,26 @@ pub enum AstNodeData {
     Bool(bool),
     Char(char),
     Ident(String),
-    
+
     BinaryOperation(AstBinaryOperation),
 
     NamespaceAccess(NamespaceAccess),
-    
+
     Initialize(NodeID, Vec<(NodeID, NodeID)>),
     InitializeArray(Option<NodeID>, Vec<NodeID>),
-    
+
     FnDef(AstFnDef),
     FnCall(NodeID, Vec<NodeID>),
-    
+
     PointerTo(NodeID),
     Deref(NodeID),
-    
+
     If(AstCaseBlock),
-    
+
     For(NodeID, NodeID, NodeID, Vec<NodeID>),
     ForIn(NodeID, NodeID, Vec<NodeID>),
     While(NodeID, Vec<NodeID>),
-    
+
     Break,
     Continue,
 
@@ -317,13 +321,11 @@ impl AstNode {
             return true;
         }
         return false;
-
     }
 
     pub fn is_unknown(&self) -> bool {
         return self.infered_type.is_unknown();
     }
-
 
     pub fn is_pointer(&self) -> bool {
         if let AstNodeData::PointerTo(_) = self.data {
@@ -354,9 +356,7 @@ impl AstNode {
             AstNodeData::Decl(ident_id) => {
                 return Some(ident_id.clone());
             }
-            _ => {
-                None
-            }
+            _ => None,
         }
     }
 
@@ -398,9 +398,18 @@ pub struct Ast {
 }
 
 impl Ast {
-    pub fn new(filename: String, src: String, tokens: Vec<Token>, top_level:Vec<NodeID>, node_manager: &mut AstNodeManager) -> Result<Self> {
+    pub fn new(
+        filename: String,
+        src: String,
+        tokens: Vec<Token>,
+        top_level: Vec<NodeID>,
+        node_manager: &mut AstNodeManager,
+    ) -> Result<Self> {
         Ok(Self {
-            filename, src,tokens, top_level
+            filename,
+            src,
+            tokens,
+            top_level,
         })
     }
 }

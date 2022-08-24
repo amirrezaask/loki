@@ -26,6 +26,8 @@ impl<'a> CPP<'a> {
             AstOperation::LessEqual =>  Ok("<=".to_string()),
             AstOperation::Equal =>  Ok("==".to_string()),
             AstOperation::NotEqual =>  Ok("!=".to_string()),
+            AstOperation::BinaryOr =>  Ok("||".to_string()),
+            AstOperation::BinaryAnd =>  Ok("&&".to_string()),
         }
     }
     fn repr_ast_ty(&self, ty: AstNodeType) -> Result<String> {

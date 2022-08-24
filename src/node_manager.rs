@@ -2,11 +2,12 @@
 
 use std::collections::HashMap;
 
-use serde::Serialize;
 use anyhow::Result;
+use serde::Serialize;
 
-
-use crate::ast::{AstNode, NodeID, AstNodeType, AstNodeData, AstTag, AstOperation, Scope, ScopeID, ScopeType};
+use crate::ast::{
+    AstNode, AstNodeData, AstNodeType, AstOperation, AstTag, NodeID, Scope, ScopeID, ScopeType,
+};
 
 pub type FilePath = String;
 
@@ -23,12 +24,13 @@ pub struct AstNodeManager {
 
 impl AstNodeManager {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(),
-               unknowns: vec![],
-               scopes: vec![],
-               scope_stack: Vec::new(),
-               scope_nodes: HashMap::new(),
-               file_loads: HashMap::new(),
+        Self {
+            nodes: HashMap::new(),
+            unknowns: vec![],
+            scopes: vec![],
+            scope_stack: Vec::new(),
+            scope_nodes: HashMap::new(),
+            file_loads: HashMap::new(),
         }
     }
 
@@ -38,10 +40,9 @@ impl AstNodeManager {
             self.unknowns.push(node.id.clone());
         }
 
-        
         match self.nodes.insert(node.id.clone(), node) {
             None => Ok(()),
-            Some(n) => Ok(())
+            Some(n) => Ok(()),
         }
     }
 
@@ -57,13 +58,18 @@ impl AstNodeManager {
         return match self.scope_stack.last() {
             Some(i) => *i,
             None => -1,
-        }
+        };
     }
     pub fn add_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
-        self.scopes.push(Scope { scope_type: scope_ty, parent: self.top_of_scope_stack(), start, end });
-        self.scope_stack.push((self.scopes.len()-1) as isize);
+        self.scopes.push(Scope {
+            scope_type: scope_ty,
+            parent: self.top_of_scope_stack(),
+            start,
+            end,
+        });
+        self.scope_stack.push((self.scopes.len() - 1) as isize);
         self.scope_nodes.insert(self.top_of_scope_stack(), vec![]);
-        return (self.scopes.len()-1) as isize;
+        return (self.scopes.len() - 1) as isize;
     }
 
     fn add_unknown(&mut self, id: &NodeID) {
@@ -104,7 +110,6 @@ impl AstNodeManager {
     pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
         let node = self.nodes.get_mut(id).unwrap();
         node.tags.push(tag);
-
     }
 
     pub fn get_node(&self, id: NodeID) -> AstNode {
@@ -146,13 +151,16 @@ impl AstNodeManager {
 
         panic!("root scope of file {:?} not found ", file);
     }
-    
+
     pub fn resolve_loads(&mut self, file: String, mut loads: Vec<String>) {
         let file_root_scope_id = self.get_file_root_scope_id(&file);
         for load in &mut loads {
             let load_root_scope_id = self.get_file_root_scope_id(&load);
             let mut nodes = self.scope_nodes.get(&load_root_scope_id).unwrap().clone(); // TODO: filter just the nodes that matter
-            self.scope_nodes.get_mut(&file_root_scope_id).unwrap().append(&mut nodes);
+            self.scope_nodes
+                .get_mut(&file_root_scope_id)
+                .unwrap()
+                .append(&mut nodes);
         }
     }
 
@@ -195,7 +203,6 @@ impl AstNodeManager {
                     _ => {}
                 }
             }
-
         }
 
         return AstNodeType::Unknown;
@@ -219,9 +226,9 @@ impl AstNodeManager {
                     continue;
                 }
                 self.add_type_inference(&unknown_id, ty.clone());
-                continue
+                continue;
             }
-            
+
             if let AstNodeData::Deref(ref object) = unknown_node.data {
                 let pointer = self.get_node(object.clone());
                 if pointer.infered_type.is_unknown() {
@@ -232,8 +239,11 @@ impl AstNodeManager {
                     if !pointer.infered_type.is_pointer() {
                         panic!("deref needs a pointer: {:?}", pointer);
                     }
-                    self.add_type_inference(&unknown_id, pointer.infered_type.get_pointer_pointee());
-                    continue
+                    self.add_type_inference(
+                        &unknown_id,
+                        pointer.infered_type.get_pointer_pointee(),
+                    );
+                    continue;
                 }
             }
 
@@ -244,8 +254,11 @@ impl AstNodeManager {
                     self.add_unknown(&unknown_id);
                     continue;
                 } else {
-                    self.add_type_inference(&unknown_id, AstNodeType::Pointer(Box::new(pointee.infered_type)));
-                    continue
+                    self.add_type_inference(
+                        &unknown_id,
+                        AstNodeType::Pointer(Box::new(pointee.infered_type)),
+                    );
+                    continue;
                 }
             }
             if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
@@ -253,7 +266,8 @@ impl AstNodeManager {
                 let namespace = self.get_node(namespace_access.namespace.clone());
                 let mut namespace_ty = namespace.infered_type.clone();
                 if namespace_ty.is_unknown() {
-                    namespace_ty = self.find_ident_ast_type(namespace.get_ident(), unknown_node.scope);
+                    namespace_ty =
+                        self.find_ident_ast_type(namespace.get_ident(), unknown_node.scope);
                 }
 
                 let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
@@ -265,7 +279,7 @@ impl AstNodeManager {
                     self.add_unknown(&namespace.id.clone());
                     self.add_unknown(&unknown_id.clone());
                 }
-                
+
                 if field_ty.is_unknown() {
                     self.add_unknown(&field.id.clone());
                     self.add_unknown(&unknown_id.clone());
@@ -279,18 +293,17 @@ impl AstNodeManager {
                 self.add_type_inference(&namespace_access.field, field_ty.clone());
                 self.add_type_inference(&unknown_id, field_ty.clone());
                 continue;
-
             }
             if let AstNodeData::BinaryOperation(ref bop) = unknown_node.data {
                 match bop.operation {
-                    AstOperation::Equal 
+                    AstOperation::Equal
                     | AstOperation::NotEqual
                     | AstOperation::Greater
                     | AstOperation::GreaterEqual
                     | AstOperation::Less
-                    | AstOperation::LessEqual 
-                    
-                    => {
+                    | AstOperation::BinaryAnd
+                    | AstOperation::BinaryOr
+                    | AstOperation::LessEqual => {
                         self.add_type_inference(&unknown_id, AstNodeType::Bool);
                     }
                     AstOperation::Sum => {
@@ -307,12 +320,7 @@ impl AstNodeManager {
             // TODO: Initialize, InitializeArray, FnCall, BinaryOperation
         }
 
-
         // println!("unknowns: {:?}", self.unknowns);
-
-
-       
-
 
         Ok(())
     }

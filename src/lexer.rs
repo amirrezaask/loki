@@ -43,6 +43,8 @@ pub enum TokenType {
     DoubleEqual,
     DoublePlus,
     DoubleMinus,
+    DoubleAmpersand,
+    DoublePipe,
     SemiColon,
     Ampersand,
     Hat,
@@ -195,6 +197,8 @@ enum State {
     SawLeftAngleBracket,
     SawRightAngleBracket,
     SawSharp(usize),
+    SawAmpersand,
+    SawPipe,
 }
 
 pub struct Tokenizer {
@@ -360,7 +364,8 @@ impl Tokenizer {
                         }
                         '&' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::Ampersand, (self.cur-1, self.cur-1)));
+                            self.state = State::SawAmpersand;
+                            continue;
                         }
                         '=' => {
                             self.state = State::SawEqual;
@@ -390,6 +395,11 @@ impl Tokenizer {
                         '-' => {
                             self.state = State::SawMinus;
                             self.forward_char();
+                            continue;
+                        }
+                        '|' => {
+                            self.forward_char();
+                            self.state = State::SawPipe;
                             continue;
                         }
                         '/' => {
@@ -475,6 +485,34 @@ impl Tokenizer {
                         return Ok(Token::new(TokenType::Bang, (self.cur - 1, self.cur - 1)));
                     }
                 },
+                State::SawAmpersand => {
+                    match self.current_char() {
+                        '&' => {
+                            self.state = State::Start;
+                            self.forward_char();
+                            return Ok(Token::new(TokenType::DoubleAmpersand, (self.cur - 2, self.cur - 1)));
+                        }
+                        _ => {
+                            self.state = State::Start;
+                            return Ok(Token::new(TokenType::Ampersand, (self.cur - 1, self.cur - 1)));
+                        }
+                    }
+
+                }
+                State::SawPipe => {
+                    match self.current_char() {
+                        '&' => {
+                            self.state = State::Start;
+                            self.forward_char();
+                            return Ok(Token::new(TokenType::DoublePipe, (self.cur - 2, self.cur - 1)));
+                        }
+                        _ => {
+                            self.state = State::Start;
+                            return Ok(Token::new(TokenType::Pipe, (self.cur - 1, self.cur - 1)));
+                        }
+                    }
+
+                }
                 State::SawColon => match self.current_char() {
                     ':' => {
                         self.state = State::Start;

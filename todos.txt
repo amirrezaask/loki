@@ -1,9 +1,5 @@
 - initializers should just generate code to set each field seperately
 
-- no need for explicit void in function def
-
-- binary and bitwise operators 
-
 - arrays:
   - dynamic array
   - strings should be our own dynamicarray impl. 
