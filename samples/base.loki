@@ -1,4 +1,0 @@
-#host "cstdio";
-#host "string";
-
-someUknownConst :: 10;
