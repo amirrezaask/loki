@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::compiler;
+use crate::pipeline;
 use crate::code_gen;
 use std::fs;
 
@@ -13,8 +13,8 @@ fn test_suite() -> Result<()> {
         println!("============================================================");
         let file = file.unwrap();
         if file.file_type().unwrap().is_file()  {
-            let mut c = compiler::Compiler::new();
-            match c.compile_file(file.path().to_str().unwrap(), code_gen::Backend::CPP) {
+            let mut p = pipeline::Pipeline::new();
+            match p.compile_file(file.path().to_str().unwrap(), code_gen::Backend::CPP) {
                 Ok(_) => {},
                 Err(e) => {
                     has_error = true;

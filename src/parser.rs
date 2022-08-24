@@ -6,7 +6,7 @@ use crate::ast::{
 use crate::lexer::Token;
 use crate::lexer::TokenType;
 use crate::lexer::Tokenizer;
-use crate::node_manager::AstNodeManager;
+use crate::compiler::Compiler;
 use anyhow::{anyhow, Result};
 use rand::distributions::{Alphanumeric, DistString};
 const ID_LENGTH: usize = 24;
@@ -18,7 +18,7 @@ pub struct Parser<'a> {
     tokens: Vec<Token>,
     cur: usize,
     node_counter: i64,
-    pub node_manager: &'a mut AstNodeManager,
+    pub node_manager: &'a mut Compiler,
 }
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl<'a> Parser<'a> {
@@ -61,7 +61,7 @@ impl<'a> Parser<'a> {
         filename: String,
         src: String,
         tokens: Vec<Token>,
-        node_manager: &'a mut AstNodeManager,
+        node_manager: &'a mut Compiler,
     ) -> Result<Self> {
         Ok(Self {
             filename,

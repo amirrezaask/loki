@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::default;
 
 use crate::lexer::{Token, TokenType};
-use crate::node_manager::AstNodeManager;
+use crate::compiler::Compiler;
 use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
@@ -65,7 +65,7 @@ impl AstNodeType {
         }
     }
     pub fn make_fn_signature(
-        node_manager: &AstNodeManager,
+        node_manager: &Compiler,
         args: &Vec<NodeID>,
         ret: &AstNode,
     ) -> Self {
@@ -347,7 +347,7 @@ impl AstNode {
         panic!("expected AstNodeData::Def got: {:?}", self);
     }
 
-    pub fn get_name_for_defs_and_decls(&self, node_manager: &AstNodeManager) -> Option<NodeID> {
+    pub fn get_name_for_defs_and_decls(&self, node_manager: &Compiler) -> Option<NodeID> {
         match &self.data {
             AstNodeData::Def(def) => {
                 return Some(def.name.clone());
@@ -403,7 +403,7 @@ impl Ast {
         src: String,
         tokens: Vec<Token>,
         top_level: Vec<NodeID>,
-        node_manager: &mut AstNodeManager,
+        node_manager: &mut Compiler,
     ) -> Result<Self> {
         Ok(Self {
             filename,

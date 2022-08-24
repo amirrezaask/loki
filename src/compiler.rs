@@ -1,176 +1,356 @@
-use crate::code_gen::Backend;
-use crate::code_gen::cpp::CPP;
-use std::ffi::OsStr;
-use std::path::Path;
-use std::time::Instant;
+#![allow(clippy::single_match)]
 
-// compiler that glue all parts together
-use super::parser::Parser;
-use crate::node_manager::AstNodeManager;
-use crate::ast::{Ast};
-use crate::ast::AstNodeData;
+use std::collections::HashMap;
+
 use anyhow::Result;
-use serde_json::json;
-use std::io::Write;
-use std::process::Command;
+use serde::Serialize;
 
+use crate::ast::{
+    Ast, AstNode, AstNodeData, AstNodeType, AstOperation, AstTag, NodeID, Scope, ScopeID, ScopeType,
+};
 
+pub type FilePath = String;
+
+// this struct will hold all data of your whole compilation.
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct Compiler {
-    total_lines: u64,
-    total_tokens: u64,
-    node_manager: AstNodeManager    
+    pub nodes: HashMap<NodeID, AstNode>,
+    pub scopes: Vec<Scope>,
+    pub scope_stack: Vec<ScopeID>,
+    pub scope_nodes: HashMap<ScopeID, Vec<NodeID>>,
+    pub file_loads: HashMap<String, Vec<String>>,
+    unknowns: Vec<NodeID>,
 }
-
 
 impl Compiler {
     pub fn new() -> Self {
-        Self {total_lines: 0 , total_tokens: 0, node_manager: AstNodeManager::new() }
+        Self {
+            nodes: HashMap::new(),
+            unknowns: vec![],
+            scopes: vec![],
+            scope_stack: Vec::new(),
+            scope_nodes: HashMap::new(),
+            file_loads: HashMap::new(),
+        }
     }
 
-    pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
-        // let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
-        // println!("{:?}", abs_path);
-        let program = std::fs::read_to_string(path)?;
-        let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
-        let tokens = tokenizer.all()?;
-        let parser = Parser::new(path.to_string(), program, tokens, &mut self.node_manager)?;
-        let ast = parser.get_ast()?;
-        Ok(ast)
+    // on duplicate node id error.
+    pub fn add_node(&mut self, node: AstNode) -> Result<()> {
+        if node.is_unknown() {
+            self.unknowns.push(node.id.clone());
+        }
+
+        match self.nodes.insert(node.id.clone(), node) {
+            None => Ok(()),
+            Some(n) => Ok(()),
+        }
     }
 
-    pub fn dump_ast(name: &str, ast: &Ast) -> Result<()> {
-        let mut out_file = std::fs::File::create(format!("{}_ast_dump.json", name))?;
-        out_file.write_all(serde_json::to_string(&ast.top_level).unwrap().as_bytes())?;
-
-        Ok(())
+    pub fn push_to_scope_stack(&mut self, id: ScopeID) {
+        self.scope_stack.push(id);
     }
 
-    pub fn dump_node_manager_before(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("node_manager_before_infer_dump.json")?;
-        out_file.write_all(serde_json::to_string_pretty(&self.node_manager).unwrap().as_bytes())?;
-
-        Ok(())
+    pub fn remove_from_scope_stack(&mut self) {
+        self.scope_stack.pop();
     }
 
-    pub fn dump_node_manager_after(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("node_manager_after_infer_dump.json")?;
-        out_file.write_all(serde_json::to_string_pretty(&self.node_manager).unwrap().as_bytes())?;
-
-        Ok(())
+    pub fn top_of_scope_stack(&self) -> ScopeID {
+        return match self.scope_stack.last() {
+            Some(i) => *i,
+            None => -1,
+        };
     }
-    pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
-        let main_ast = self.parse_file(path)?;
-        // Self::dump_ast(path, &main_ast)?;
-        self.total_lines += main_ast.src.lines().count() as u64;
-        self.total_tokens += main_ast.tokens.len() as u64;
-        let mut loads = Vec::<String>::new();
-        let mut asts = Vec::<Ast>::new();
-        for node_id in main_ast.top_level.iter() {
-            let node = self.node_manager.get_node(node_id.clone());
-            match node.data {
-                AstNodeData::Load(ref path) => {
-                    loads.push(path.clone());
+    pub fn add_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
+        self.scopes.push(Scope {
+            scope_type: scope_ty,
+            parent: self.top_of_scope_stack(),
+            start,
+            end,
+        });
+        self.scope_stack.push((self.scopes.len() - 1) as isize);
+        self.scope_nodes.insert(self.top_of_scope_stack(), vec![]);
+        return (self.scopes.len() - 1) as isize;
+    }
+
+    fn add_unknown(&mut self, id: &NodeID) {
+        if !self.unknowns.contains(&id) {
+            self.unknowns.push(id.clone());
+        }
+    }
+
+    pub fn add_type_inference(&mut self, id: &NodeID, type_infer: AstNodeType) {
+        let mut node = self.nodes.get_mut(id).unwrap();
+        node.infered_type = type_infer;
+
+        match self.unknowns.iter().position(|i| i.clone() == id.clone()) {
+            Some(idx) => {
+                self.unknowns.remove(idx);
+            }
+            None => {}
+        }
+
+        if node.infered_type.is_unknown() {
+            self.unknowns.push(node.id.clone());
+        }
+    }
+
+    pub fn add_scope_to_node(&mut self, id: &NodeID, scope: ScopeID) {
+        let mut node = self.nodes.get_mut(id).unwrap();
+        node.scope = scope;
+        let scope_nodes = self.scope_nodes.get_mut(&scope).unwrap();
+        scope_nodes.push(id.clone());
+    }
+
+    pub fn add_scope_to_def_or_decl(&mut self, id: &NodeID, scope: ScopeID) {
+        let def_node = self.get_node(id.clone());
+        let name = def_node.get_name_for_defs_and_decls(self).unwrap();
+        self.add_scope_to_node(&name, scope.clone());
+    }
+
+    pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
+        let node = self.nodes.get_mut(id).unwrap();
+        node.tags.push(tag);
+    }
+
+    pub fn get_node(&self, id: NodeID) -> AstNode {
+        match self.nodes.get(&id) {
+            Some(n) => n.clone(),
+            None => panic!("node {} does not exist", id),
+        }
+    }
+
+    fn get_relevant_scopes(&self, scope_id: ScopeID) -> Vec<ScopeID> {
+        let mut scope_id = scope_id;
+        if scope_id <= 0 {
+            return vec![scope_id];
+        }
+        let mut relevant_scopes: Vec<isize> = vec![scope_id];
+        loop {
+            if scope_id == -1 {
+                break;
+            }
+            let scope = &self.scopes[scope_id as usize];
+            relevant_scopes.push(scope.parent);
+            scope_id = scope.parent;
+        }
+
+        return relevant_scopes;
+    }
+
+    fn get_file_root_scope_id(&self, file: &str) -> ScopeID {
+        for (idx, scope) in self.scopes.iter().enumerate() {
+            match scope.scope_type {
+                ScopeType::File(ref name) => {
+                    if name == file {
+                        return idx as isize;
+                    }
                 }
-                _ => {
+                _ => {}
+            }
+        }
+
+        panic!("root scope of file {:?} not found ", file);
+    }
+
+    pub fn resolve_loads(&mut self, file: String, mut loads: Vec<String>) {
+        let file_root_scope_id = self.get_file_root_scope_id(&file);
+        for load in &mut loads {
+            let load_root_scope_id = self.get_file_root_scope_id(&load);
+            let mut nodes = self.scope_nodes.get(&load_root_scope_id).unwrap().clone(); // TODO: filter just the nodes that matter
+            self.scope_nodes
+                .get_mut(&file_root_scope_id)
+                .unwrap()
+                .append(&mut nodes);
+        }
+    }
+
+    pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> AstNodeType {
+        let scopes = self.get_relevant_scopes(scope_id);
+        for scope in scopes {
+            let nodes = self.scope_nodes.get(&scope).unwrap();
+            for node_id in nodes.iter() {
+                //TODO: check node is defined before the given ident
+                let node = self.get_node(node_id.clone());
+                match node.data {
+                    AstNodeData::Def(ref def) => {
+                        let name_node = self.get_node(def.name.clone());
+                        if name_node.get_ident() == ident {
+                            let def_expr = self.get_node(def.expr.clone());
+                            if def_expr.is_unknown() {
+                                continue;
+                            }
+                            return def_expr.infered_type;
+                        }
+                    }
+                    AstNodeData::Ident(ref name) => {
+                        if node.infered_type.is_unknown() {
+                            continue;
+                        }
+                        if ident == name.clone() {
+                            return node.infered_type.clone();
+                        }
+                    }
+                    AstNodeData::Decl(ref name_id) => {
+                        let name_node = self.get_node(name_id.clone());
+                        if node.infered_type.is_unknown() {
+                            continue;
+                        }
+                        if name_node.get_ident().clone() == ident {
+                            return node.infered_type.clone();
+                        }
+                    }
+
+                    _ => {}
+                }
+            }
+        }
+
+        return AstNodeType::Unknown;
+    }
+
+    fn infer_types(&mut self) -> Result<()> {
+        loop {
+            if self.unknowns.is_empty() {
+                break;
+            }
+            let unknown_id = self.unknowns.get(0).unwrap().clone(); // treating like a queue, always get first element, remove it and process it.
+            let unknown_node = self.nodes.get(&unknown_id).unwrap();
+            self.unknowns.remove(0);
+            if !unknown_node.infered_type.is_unknown() {
+                continue;
+            }
+            if let AstNodeData::Ident(ref ident) = unknown_node.data {
+                let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
+                if ty.is_unknown() {
+                    self.add_unknown(&unknown_id);
+                    continue;
+                }
+                self.add_type_inference(&unknown_id, ty.clone());
+                continue;
+            }
+
+            if let AstNodeData::Deref(ref object) = unknown_node.data {
+                let pointer = self.get_node(object.clone());
+                if pointer.infered_type.is_unknown() {
+                    self.add_unknown(&object.clone());
+                    self.add_unknown(&unknown_id);
+                    continue;
+                } else {
+                    if !pointer.infered_type.is_pointer() {
+                        panic!("deref needs a pointer: {:?}", pointer);
+                    }
+                    self.add_type_inference(
+                        &unknown_id,
+                        pointer.infered_type.get_pointer_pointee(),
+                    );
                     continue;
                 }
             }
-        }
-        self.node_manager.file_loads.insert(path.to_string(), loads.clone());
-        for file in &loads {
-            let mut file_ast = self.get_ast_for(&file)?;
-            asts.append(&mut file_ast)
-        }
 
-        self.node_manager.resolve_loads(path.to_string(), loads.clone());
-        asts.push(main_ast);
-        Ok(asts)
-
-    }
-
-    pub fn compile_file(&mut self, path: &str, backend: Backend) -> Result<()> {
-        match backend {
-            Backend::CPP => {
-                return self.compile_file_cpp(path);
+            if let AstNodeData::PointerTo(ref object) = unknown_node.data {
+                let pointee = self.get_node(object.clone());
+                if pointee.infered_type.is_unknown() {
+                    self.add_unknown(&object.clone());
+                    self.add_unknown(&unknown_id);
+                    continue;
+                } else {
+                    self.add_type_inference(
+                        &unknown_id,
+                        AstNodeType::Pointer(Box::new(pointee.infered_type)),
+                    );
+                    continue;
+                }
             }
-        }
-    }
+            if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
+                let namespace_access = ns.clone();
+                let namespace = self.get_node(namespace_access.namespace.clone());
+                let mut namespace_ty = namespace.infered_type.clone();
+                if namespace_ty.is_unknown() {
+                    namespace_ty =
+                        self.find_ident_ast_type(namespace.get_ident(), unknown_node.scope);
+                }
 
-    pub fn compile_file_cpp(&mut self, path: &str) -> Result<()> {
-        let bin_name: String = {
-            let this = Path::new(path).file_stem();
-            let default = OsStr::new("main");
-            match this {
-                Some(x) => x,
-                None => default,
+                let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
+                let mut field_ty = field.infered_type.clone();
+                if field_ty.is_unknown() {
+                    field_ty = self.find_ident_ast_type(field.get_ident(), unknown_node.scope);
+                }
+                if namespace_ty.is_unknown() {
+                    self.add_unknown(&namespace.id.clone());
+                    self.add_unknown(&unknown_id.clone());
+                }
+
+                if field_ty.is_unknown() {
+                    self.add_unknown(&field.id.clone());
+                    self.add_unknown(&unknown_id.clone());
+                }
+
+                if namespace_ty.is_unknown() || field_ty.is_unknown() {
+                    continue;
+                }
+
+                self.add_type_inference(&namespace_access.namespace, namespace_ty);
+                self.add_type_inference(&namespace_access.field, field_ty.clone());
+                self.add_type_inference(&unknown_id, field_ty.clone());
+                continue;
             }
-        }.to_string_lossy().to_string();
-        let frontend_time_start = Instant::now();
+            if let AstNodeData::BinaryOperation(ref bop) = unknown_node.data {
+                match bop.operation {
+                    AstOperation::Equal
+                    | AstOperation::NotEqual
+                    | AstOperation::Greater
+                    | AstOperation::GreaterEqual
+                    | AstOperation::Less
+                    | AstOperation::BinaryAnd
+                    | AstOperation::BinaryOr
+                    | AstOperation::LessEqual => {
+                        self.add_type_inference(&unknown_id, AstNodeType::Bool);
+                    }
+                    AstOperation::Sum => {
+                        // we should check both sides, first they should be same type
+                        // then we use their type as node type.
+                    }
+                    AstOperation::Divide => {}
+                    AstOperation::Modulu => {}
+                    AstOperation::Subtract => {}
+                    AstOperation::Multiply => {}
+                }
+            }
 
-        let mut asts = self.get_ast_for(path)?;
-        let mut codes = Vec::<String>::new();
-
-        self.dump_node_manager_before()?;
-        self.node_manager.infer_types()?;
-
-        self.dump_node_manager_after()?;
-        let frontend_elapsed = frontend_time_start.elapsed();
-
-        let ty_infer_time_start = Instant::now();
-
-        
-
-        let ty_infer_elapsed = ty_infer_time_start.elapsed();
-
-        let backend_code_gen_time_start = Instant::now();
-        for ast in asts.iter() {
-            let mut codegen = CPP::new(&ast, &self.node_manager);
-            let code = codegen.generate()?;
-            codes.push(code);
+            // TODO: Initialize, InitializeArray, FnCall, BinaryOperation
         }
-        // println!("st: {:?}", self.st);
-        // let mut compiler_flags_by_user = Vec::<String>::new();
-        // for ast in asts.iter() {
-        //     compiler_flags_by_user.append(&mut ast.get_compiler_flags());
-        // }
-        let backend_codegen_elapsed = backend_code_gen_time_start.elapsed();
 
-        
-        let final_code = codes.join("\n");
-        
-        let out_file_name = "LOKI_OUT.cpp".to_string();
-        let writing_output_time_start = Instant::now();
-
-        let mut out_file = std::fs::File::create(&out_file_name)?;
-        out_file.write_all(final_code.as_bytes())?;
-        let writing_output_elapsed = writing_output_time_start.elapsed();
-        let calling_c_compiler_time_start = Instant::now();
-
-        let mut cpp_command = Command::new("c++");
-
-        cpp_command.arg("-o").arg(bin_name).arg(&out_file_name);
-
-        // for flag in compiler_flags_by_user {
-        //     cpp_command.arg(flag);
-        // }
-        let cpp_output = cpp_command.output()?;
-
-        // std::fs::remove_file(out_file_name)?;
-        if !cpp_output.status.success() {
-            return Err(anyhow::format_err!("C++ compiler error:\n{}",
-                String::from_utf8_lossy(&cpp_output.stderr)));
-        }
-        let calling_c_compiler_time_elapsed = calling_c_compiler_time_start.elapsed();
-
-        println!("Totol lines processed: {}", self.total_lines);
-        println!("Totol tokens processed: {}", self.total_tokens);
-
-        println!("compiler front end took: {}ns", frontend_elapsed.as_nanos());
-        println!("compiler type inference took: {}ns", ty_infer_elapsed.as_nanos());
-        println!("compiler code generation took: {}ns", backend_codegen_elapsed.as_nanos());
-        println!("writing output file: {}ns", writing_output_elapsed.as_nanos());
-        println!("calling C compiler: {}milis", calling_c_compiler_time_elapsed.as_millis());
+        // println!("unknowns: {:?}", self.unknowns);
 
         Ok(())
+    }
+
+    fn lower_ast(&mut self, ast: Ast) -> Result<Ast> {
+
+        unimplemented!();
+    }
+
+    fn lower_asts(&mut self, mut asts: Vec<Ast>) -> Result<Vec<Ast>> {
+        for (idx ,ast) in asts.clone().iter().enumerate() { //TODO: fix
+            asts.insert(idx, self.lower_ast(ast.clone())?);
+        }
+
+        unimplemented!();
+    }
+
+    fn type_check(&mut self) -> Result<()> {
+
+        Ok(())
+    }
+
+    pub fn process(&mut self, asts: Vec<Ast>) -> Result<Vec<Ast>> {
+        // type infer
+        self.infer_types()?;
+        // ast lowering
+        //self.lower_asts(asts)?;
+        // type check
+        self.type_check()?;
+
+        Ok(asts)
     }
 }

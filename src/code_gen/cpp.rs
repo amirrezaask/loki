@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
-use crate::node_manager::AstNodeManager;
+use crate::compiler::Compiler;
 use crate::ast::{AstNodeType, AstOperation, NodeID, AstTag, NamespaceAccess};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
@@ -9,7 +9,7 @@ use anyhow::Result;
 
 pub struct CPP<'a> {
     ast: &'a Ast,
-    node_manager: &'a AstNodeManager,
+    node_manager: &'a Compiler,
 }
 
 impl<'a> CPP<'a> {
@@ -419,7 +419,7 @@ impl<'a> CPP<'a> {
             }
         }
     }
-    pub fn new(ast: &'a Ast, node_manager: &'a AstNodeManager) -> Self {
+    pub fn new(ast: &'a Ast, node_manager: &'a Compiler) -> Self {
         Self { ast, node_manager }
     }
 

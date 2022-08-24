@@ -3,9 +3,9 @@
 mod code_gen;
 mod parser;
 mod lexer;
-mod compiler;
+mod pipeline;
 mod ast;
-mod node_manager;
+mod compiler;
 mod tests;
 // mod symbol_table;
 use anyhow::Result;
@@ -23,7 +23,7 @@ pub fn main() -> Result<()> {
     }
     let args = args[1..].to_vec();
     let filename = &args[0];
-    let mut c = compiler::Compiler::new();
-    c.compile_file(filename, code_gen::Backend::CPP)?;
+    let mut p = pipeline::Pipeline::new();
+    p.compile_file(filename, code_gen::Backend::CPP)?;
     Ok(())
 }
