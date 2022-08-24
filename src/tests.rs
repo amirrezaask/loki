@@ -3,17 +3,17 @@ use crate::compiler;
 use crate::code_gen;
 
 #[test]
-fn test_00_consts() -> Result<()> {
+fn test_00_variables_constants() -> Result<()> {
     let mut c = compiler::Compiler::new();
-    c.compile_file("examples/00_consts.loki", code_gen::Backend::CPP)?;
+    c.compile_file("examples/00_variables_constants.loki", code_gen::Backend::CPP)?;
 
     Ok(())
 }
 
 #[test]
-fn test_01_variables() -> Result<()> {
+fn test_01_functions() -> Result<()> {
     let mut c = compiler::Compiler::new();
-    c.compile_file("examples/01_variables.loki", code_gen::Backend::CPP)?;
+    c.compile_file("examples/01_functions.loki", code_gen::Backend::CPP)?;
 
     Ok(())
 }

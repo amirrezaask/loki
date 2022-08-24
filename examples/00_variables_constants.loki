@@ -1,0 +1,19 @@
+constant_uint :: 2;
+constant_char :: 'c';
+// f :: 3.2;
+constant_string :: "salam";
+
+variable_uint := 2;
+
+variable_string := "salam";
+
+variable_char := 'c';
+
+variable_boolean := false;
+
+variable_boolean := true;
+
+variable_uint32: u32 = 12;
+
+variable_signed_int32: s32 = 12;
+

@@ -1,23 +1,2 @@
 main :: () int {
-    for (i:=0;i<10;i++) {
-        #print("for c syntax: %d\n", i);
-    }
-
-    // numbers := [10]uint{1, 2, 3, 4};
-    //for (num in numbers) {
-         // printf("for each syntax: %d\n", num);
-    // }
-    // humans := [3]Human {amirreza, Human { age = 17, name = "comrade" }};
-    // for (humans) {
-    //     printf("for each syntax: %d\n", it.age);
-    // }
-    
-    // for (numbers) {
-    //     printf("for each syntax: %d\n", it);
-    // }
-
-    // this_sum :: sum(1, 2);
-    // #print("function call sum %d\n", this_sum);
-
-    return 0;
 }
