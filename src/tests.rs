@@ -3,6 +3,17 @@ use crate::compiler;
 use crate::code_gen;
 
 #[test]
+fn test_suite() -> {
+    let paths = fs::read_dir("./examples").unwrap();
+
+    for path in paths {
+        println!("Name: {}", path.unwrap().path().display())
+    }
+
+
+}
+
+#[test]
 fn test_00_variables_constants() -> Result<()> {
     let mut c = compiler::Compiler::new();
     c.compile_file("examples/00_variables_constants.loki", code_gen::Backend::CPP)?;
