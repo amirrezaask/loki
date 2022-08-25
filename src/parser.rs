@@ -20,10 +20,11 @@ pub struct Parser<'a> {
     node_counter: i64,
     pub node_manager: &'a mut Compiler,
 }
+
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl<'a> Parser<'a> {
     fn err_uexpected_token(&self, what: TokenType) -> anyhow::Error {
-        anyhow!(
+        anyhow::format_err!(
             "In file: {}, Expected {:?}, found {:?} at line:{}, column: {}",
             self.filename,
             what,
@@ -31,6 +32,9 @@ impl<'a> Parser<'a> {
             self.tokens[self.cur].line,
             self.tokens[self.cur].col,
         )
+    }
+    fn wrap_err(&self, msg: String) -> anyhow::Error {
+        return anyhow::format_err!("In file: {}, {}, at line: {}, column: {}", self.filename, msg, self.current_token().line, self.current_token().col);
     }
     fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType) -> AstNode {
         let id = Alphanumeric.sample_string(&mut rand::thread_rng(), ID_LENGTH);
@@ -687,8 +691,7 @@ impl<'a> Parser<'a> {
             TokenType::DoublePipe => Ok(AstOperation::BinaryOr),
             TokenType::DoubleAmpersand => Ok(AstOperation::BinaryAnd),
             _ => {
-                return Err(anyhow::format_err!("expected token that can represent and operation found: {:?} at line: {}, column: {}", 
-                    op, self.current_token().line, self.current_token().col));
+                return Err(self.wrap_err(format!("expected token that can represent an operation but found: {:?}", op)));
             }
         }
     }
@@ -735,14 +738,11 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    return Err(anyhow::format_err!(
-                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
-                            self.filename,
+                    return Err(self.wrap_err(format!(
+                        "both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}", 
                             lhs.infered_type,
                             rhs.infered_type,
-                            self.current_token().line,
-                            self.current_token().col
-                            ));
+                            )));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -768,14 +768,11 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    return Err(anyhow::format_err!(
-                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
-                            self.filename,
+                    return Err(self.wrap_err(format!(
+                        "both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}", 
                             lhs.infered_type,
                             rhs.infered_type,
-                            self.current_token().line,
-                            self.current_token().col
-                            ));
+                            )));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -802,14 +799,11 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    return Err(anyhow::format_err!(
-                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
-                            self.filename,
+                    return Err(self.wrap_err(format!(
+                        "both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}", 
                             lhs.infered_type,
                             rhs.infered_type,
-                            self.current_token().line,
-                            self.current_token().col
-                            ));
+                            )));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -844,14 +838,11 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    return Err(anyhow::format_err!(
-                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
-                            self.filename,
+                    return Err(self.wrap_err(format!(
+                        "both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}", 
                             lhs.infered_type,
                             rhs.infered_type,
-                            self.current_token().line,
-                            self.current_token().col
-                            ));
+                            )));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -874,14 +865,11 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    return Err(anyhow::format_err!(
-                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
-                            self.filename,
+                    return Err(self.wrap_err(format!(
+                        "both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}", 
                             lhs.infered_type,
                             rhs.infered_type,
-                            self.current_token().line,
-                            self.current_token().col
-                            ));
+                            )));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -972,10 +960,10 @@ impl<'a> Parser<'a> {
             }
 
             _ => {
-                return Err(anyhow::format_err!("expected some kind of destination for left hand side of an assignment found: {:?}, at line: {}, column: {}",
-                    self.current_token(),
-                    self.current_token().line,
-                    self.current_token().col));
+                return Err(self.wrap_err(format!(
+                        "expected some kind of destination for left hand side of an assignment found: {:?}", 
+                             self.current_token(),
+                            )));
             }
         }
     }
@@ -1015,13 +1003,7 @@ impl<'a> Parser<'a> {
         self.forward_token();
         let cond = self.expect_expr()?;
         if !cond.infered_type.is_unknown() && cond.infered_type != AstNodeType::Bool {
-            return Err(anyhow::format_err!(
-                    "in file:{}, if condition should be boolean but given condition is {:?}, at line: {}, column: {}", 
-                        self.filename,
-                        cond.infered_type,
-                        self.current_token().line,
-                        self.current_token().col
-                        ));
+             return Err(self.wrap_err(format!("if condition should be boolean but given condition is {:?}", cond.infered_type)));
         }
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
@@ -1053,11 +1035,7 @@ impl<'a> Parser<'a> {
                     AstNodeType::Unknown,
                 ));
             } else {
-                return Err(anyhow::format_err!("after else keyword we expect either a code block or if keyword but found: {:?} at line: {}, column: {}",
-                    self.current_token(),
-                    self.current_token().line,
-                    self.current_token().col,
-                    ))
+                return Err(self.wrap_err(format!("after else keyword we expect either a code block or if keyword but found: {:?}", self.current_token())));
             }
         }
         return Ok(self.new_node(
@@ -1219,10 +1197,7 @@ impl<'a> Parser<'a> {
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
                     }
                     _ => {
-                        return Err(anyhow::format_err!("expecting statement found: {:?} at line: {}, column: {}", 
-                            self.current_token(),
-                            self.current_token().line,
-                            self.current_token().col));
+                        return Err(self.wrap_err(format!("expecting statement found: {:?}", self.current_token())));
                     }
                 }
             }
@@ -1252,13 +1227,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let cond = self.expect_expr()?;
                 if !cond.infered_type.is_unknown() && cond.infered_type != AstNodeType::Bool {
-                    return Err(anyhow::format_err!(
-                        "in file:{}, while condition should be boolean but given condition is {:?}, at line: {}, column: {}", 
-                            self.filename,
-                            cond.infered_type,
-                            self.current_token().line,
-                            self.current_token().col
-                            ));
+                    return Err(self.wrap_err(format!("while condition should be boolean but given condition is infered to be {:?}", cond.infered_type)));
                 }
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
@@ -1329,10 +1298,7 @@ impl<'a> Parser<'a> {
             }
 
             _ => {
-                return Err(anyhow::format_err!("expecting statement found: {:?} at line: {}, column: {}", 
-                        self.current_token(),
-                        self.current_token().line,
-                        self.current_token().col));
+                return Err(self.wrap_err(format!("expecting statement found: {:?}", self.current_token())));
             }
         }
     }
@@ -1398,10 +1364,7 @@ impl<'a> Parser<'a> {
                     top_level.push(def.id);
                 }
                 _ => {
-                    return Err(anyhow::format_err!("expecting top level item found: {:?} at line: {}, column: {}", 
-                        self.current_token(),
-                        self.current_token().line,
-                        self.current_token().col));
+                    return Err(self.wrap_err(format!("expecting top level item, found: {:?}", self.current_token())));
                 }
             }
         }

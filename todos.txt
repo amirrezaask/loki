@@ -1,5 +1,4 @@
 - refactor whole error system.
-  - tokens should contain line and column information
   - nodes should contain line and column information
   - use our own error reporting instead of rust Result and panic!
 
