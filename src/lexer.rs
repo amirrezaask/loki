@@ -163,7 +163,7 @@ impl TokenType {
         }
     }
 }
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Token {
     pub ty: TokenType,
     pub loc: SrcLocation,
@@ -224,7 +224,7 @@ impl Tokenizer {
             src: src.chars().collect(),
             cur: 0,
             state: State::Start,
-            line: 0,
+            line: 1,
             col: 0,
                 
         }

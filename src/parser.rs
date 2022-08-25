@@ -22,7 +22,7 @@ pub struct Parser<'a> {
 }
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl<'a> Parser<'a> {
-    fn err_uexpected(&self, what: TokenType) -> anyhow::Error {
+    fn err_uexpected_token(&self, what: TokenType) -> anyhow::Error {
         anyhow!(
             "Expected {:?}, found {:?} at \"{}\"",
             what,
@@ -82,7 +82,7 @@ impl<'a> Parser<'a> {
                 return Ok(node);
             }
             _ => {
-                return Err(self.err_uexpected(TokenType::Ident));
+                return Err(self.err_uexpected_token(TokenType::Ident));
             }
         }
     }
@@ -97,7 +97,7 @@ impl<'a> Parser<'a> {
                 ));
             }
             _ => {
-                return Err(self.err_uexpected(TokenType::StringLiteral));
+                return Err(self.err_uexpected_token(TokenType::StringLiteral));
             }
         }
     }
@@ -137,19 +137,15 @@ impl<'a> Parser<'a> {
 
             TokenType::Colon => {
                 self.forward_token();
-                let ty = Some(self.expect_expr()?);
+                let ty = self.expect_expr()?;
 
-                if ty.is_none() {
-                    panic!("need a valid type after colon");
-                }
-
-                self.node_manager.add_type_inference(&dest.id, AstNodeType::new(&ty.clone().unwrap(), &self.node_manager));
+                self.node_manager.add_type_inference(&dest.id, AstNodeType::new(&ty, &self.node_manager));
                 if self.current_token().ty != TokenType::Equal
                     && self.current_token().ty != TokenType::Colon
                 {
                     let decl_node = self.new_node(
                         AstNodeData::Decl(dest.id.clone()),
-                        AstNodeType::new(&ty.unwrap(), &self.node_manager),
+                        AstNodeType::new(&ty, &self.node_manager),
                     );
                     if self.current_token().ty == TokenType::ForeignDirective {
                         self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
@@ -190,7 +186,7 @@ impl<'a> Parser<'a> {
                 Ok(node)
             }
             _ => {
-                return Err(self.err_uexpected(self.current_token().clone().ty));
+                return Err(self.err_uexpected_token(self.current_token().clone().ty));
             }
         }
     }
@@ -280,7 +276,7 @@ impl<'a> Parser<'a> {
                 }
 
                 _ => {
-                    return Err(self.err_uexpected(TokenType::Comma));
+                    return Err(self.err_uexpected_token(TokenType::Comma));
                 }
             }
         }
@@ -354,7 +350,7 @@ impl<'a> Parser<'a> {
                                     self.forward_token();
                                     break;
                                 }
-                                _ => return Err(self.err_uexpected(TokenType::Comma)),
+                                _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                             }
                         }
                         return Ok(self.new_node(
@@ -379,7 +375,7 @@ impl<'a> Parser<'a> {
                                     self.forward_token();
                                     break;
                                 }
-                                _ => return Err(self.err_uexpected(TokenType::Comma)),
+                                _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                             }
                         }
 
@@ -494,7 +490,7 @@ impl<'a> Parser<'a> {
                             self.forward_token();
                             break;
                         }
-                        _ => return Err(self.err_uexpected(TokenType::Comma)),
+                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                     }
                 }
 
@@ -872,7 +868,7 @@ impl<'a> Parser<'a> {
 
     fn expect_token(&mut self, ty: TokenType) -> Result<()> {
         if self.current_token().ty != ty {
-            return Err(self.err_uexpected(ty));
+            return Err(self.err_uexpected_token(ty));
         }
 
         return Ok(());

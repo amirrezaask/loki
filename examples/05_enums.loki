@@ -4,6 +4,6 @@ Sex :: enum {
 }
 
 main :: () int {
-     male := Sex.Male;
-     female := Sex.Female;
+    male := Sex.Male;
+    female := Sex.Female;
 }

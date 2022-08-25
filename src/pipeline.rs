@@ -9,6 +9,7 @@ use super::parser::Parser;
 use crate::compiler::Compiler;
 use crate::ast::{Ast};
 use crate::ast::AstNodeData;
+use crate::lexer::Token;
 use anyhow::Result;
 use serde_json::json;
 use std::io::Write;
@@ -33,9 +34,17 @@ impl Pipeline {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
+        self.dump_tokens(path, &tokens)?;
         let parser = Parser::new(path.to_string(), program, tokens, &mut self.compiler)?;
         let ast = parser.get_ast()?;
         Ok(ast)
+    }
+
+    pub fn dump_tokens(&self, name: &str, tokens: &Vec<Token>) -> Result<()> {
+        let mut out_file = std::fs::File::create(format!("{}_token_dump.json", name))?;
+        out_file.write_all(serde_json::to_string_pretty(tokens).unwrap().as_bytes())?;
+
+        Ok(())
     }
 
     pub fn dump_ast(name: &str, ast: &Ast) -> Result<()> {
