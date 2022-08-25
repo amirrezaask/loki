@@ -142,6 +142,8 @@ impl<'a> Parser<'a> {
                 if ty.is_none() {
                     panic!("need a valid type after colon");
                 }
+
+                self.node_manager.add_type_inference(&dest.id, AstNodeType::new(&ty.clone().unwrap(), &self.node_manager));
                 if self.current_token().ty != TokenType::Equal
                     && self.current_token().ty != TokenType::Colon
                 {
@@ -220,8 +222,10 @@ impl<'a> Parser<'a> {
             self.expect_token(TokenType::Colon)?;
             self.forward_token();
             let ty = self.expect_expr()?;
-            let n = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty, self.node_manager));
-            args.push(n.id);
+
+            let ident_node = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty, self.node_manager));
+            let arg = self.new_node(AstNodeData::Decl(ident_node.id.clone()), AstNodeType::new(&ty, self.node_manager));
+            args.push(arg.id);
         }
         let mut ret_ty: Option<AstNode> = None;
         if self.current_token().ty != TokenType::OpenBrace {

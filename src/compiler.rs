@@ -209,6 +209,34 @@ impl Compiler {
         return AstNodeType::Unknown;
     }
 
+    fn is_defined(&self, ident: String) -> bool {
+        for (node_id, node) in self.nodes.iter() {
+            match node.data {
+                AstNodeData::Decl(ref id) => {
+                    let ident_node = self.get_node(id.clone());
+                    if ident_node.get_ident() == ident {
+                        return true;
+                    }
+                }
+
+                AstNodeData::Def(ref def) => {
+                    let ident_node = self.get_node(def.name.clone());
+                    if ident_node.get_ident() == ident {
+                        return true;
+                    }
+                }
+
+
+
+
+
+                _ => {}
+            }
+        }
+
+        return false;
+    }
+
     fn infer_types(&mut self) -> Result<()> {
         loop {
             if self.unknowns.is_empty() {
@@ -220,7 +248,11 @@ impl Compiler {
             if !unknown_node.infered_type.is_unknown() {
                 continue;
             }
+
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
+                if !self.is_defined(ident.clone()) {
+                    panic!("undeclared ident: {}", ident);
+                }
                 let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
                 if ty.is_unknown() {
                     self.add_unknown(&unknown_id);
