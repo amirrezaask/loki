@@ -1,7 +1,8 @@
-#host "cstdio"
+#load "modules/print.loki"
+
 main :: () int {
     for (i:=0;i<10;i++) {
-        #print("for c syntax: %d\n", i);
+        printf("for c syntax: %d\n", i);
     }
 
     // numbers := [10]uint{1, 2, 3, 4};

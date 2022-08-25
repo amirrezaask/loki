@@ -1,9 +1,9 @@
-#host "cstdio"
+#load "modules/print.loki"
 
 main ::() int {
      counter := 0;
      while (counter < 10) {
-           #print("counter : %d\n", counter);
+           printf("counter : %d\n", counter);
            counter++;
      }
 }

@@ -1,4 +1,5 @@
 #host "string"
+#load "modules/print.loki"
 
 Human :: struct {
       name: string,
@@ -10,7 +11,7 @@ main :: () int {
 
      amirreza.age = 12;
 
-     #print("amirreza age is %d\n", amirreza.age);
-     #print("inline age is %d\n", Human {name = "comrade", age = 12 }.age);
+     printf("amirreza age is %d\n", amirreza.age);
+     printf("inline age is %d\n", Human {name = "comrade", age = 12 }.age);
 
 }

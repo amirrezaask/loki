@@ -110,7 +110,6 @@ impl<'a> Parser<'a> {
     }
     fn expect_def(&mut self) -> Result<AstNode> {
         let mut dest = self.expect_lhs()?;
-
         match self.current_token().ty {
             TokenType::Equal => {
                 self.forward_token();
@@ -139,6 +138,7 @@ impl<'a> Parser<'a> {
             TokenType::Colon => {
                 self.forward_token();
                 let ty = Some(self.expect_expr()?);
+
                 if ty.is_none() {
                     panic!("need a valid type after colon");
                 }
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
                 {
                     let decl_node = self.new_node(
                         AstNodeData::Decl(dest.id.clone()),
-                        AstNodeType::new(&ty.unwrap()),
+                        AstNodeType::new(&ty.unwrap(), &self.node_manager),
                     );
                     if self.current_token().ty == TokenType::ForeignDirective {
                         self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
@@ -220,7 +220,7 @@ impl<'a> Parser<'a> {
             self.expect_token(TokenType::Colon)?;
             self.forward_token();
             let ty = self.expect_expr()?;
-            let n = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty));
+            let n = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty, self.node_manager));
             args.push(n.id);
         }
         let mut ret_ty: Option<AstNode> = None;
@@ -228,9 +228,22 @@ impl<'a> Parser<'a> {
             ret_ty = Some(self.expect_expr()?);
         } else {
             ret_ty = Some(self.new_node(AstNodeData::VoidTy, AstNodeType::Void));
-            self.expect_token(TokenType::OpenBrace)?;
         }
         let ret_ty = ret_ty.unwrap();
+        
+        if self.current_token().ty != TokenType::OpenBrace {
+            self.node_manager.remove_from_scope_stack();
+            // fn type only
+            let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty);
+            let sign = AstFnSignature {
+                args,
+                ret: ret_ty.id,
+            };
+            println!("ty: {:?}", proto_ty);
+            let node = self.new_node(AstNodeData::FnType(sign), proto_ty);
+            return Ok(node);
+        }
+        
         let body = self.expect_block(ScopeType::Function)?;
         let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty);
         let sign = AstFnSignature {
@@ -343,7 +356,7 @@ impl<'a> Parser<'a> {
                         }
                         return Ok(self.new_node(
                             AstNodeData::Initialize(ty.id.clone(), fields),
-                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty))),
+                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, self.node_manager))),
                         ));
                     } else {
                         let mut fields = Vec::<NodeID>::new();
@@ -458,8 +471,8 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenType::Colon)?;
                     self.forward_token();
                     let ty = self.expect_expr()?;
-                    name.infered_type = AstNodeType::new(&ty);
-                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty));
+                    name.infered_type = AstNodeType::new(&ty, self.node_manager);
+                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.node_manager));
                     fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -539,7 +552,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
                 return Ok(self.new_node(
-                    AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty)),
+                    AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty, self.node_manager)),
                     AstNodeType::Unknown,
                 ));
             }
@@ -1159,33 +1172,6 @@ impl<'a> Parser<'a> {
                         panic!("expecting stmt got {:?}", self.current_token());
                     }
                 }
-            }
-            TokenType::PrintDirective => {
-                self.forward_token(); // #print("salam %d", 2);
-                self.expect_token(TokenType::OpenParen)?;
-                let mut args = Vec::<NodeID>::new();
-                self.forward_token();
-                loop {
-                    if self.current_token().ty == TokenType::CloseParen {
-                        self.forward_token();
-                        break;
-                    }
-                    let arg = self.expect_expr()?;
-                    args.push(arg.id);
-                    match self.current_token().ty {
-                        TokenType::Comma => {
-                            self.forward_token();
-                        }
-                        TokenType::CloseParen => {
-                            self.forward_token();
-                            break;
-                        }
-                        _ => {
-                            return Err(self.err_uexpected(TokenType::Comma));
-                        }
-                    }
-                }
-                Ok(self.new_node(AstNodeData::Print(args), AstNodeType::NoType))
             }
 
             TokenType::Asterix => {

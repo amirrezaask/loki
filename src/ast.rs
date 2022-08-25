@@ -48,7 +48,7 @@ pub enum AstNodeType {
 }
 
 impl AstNodeType {
-    pub fn new(node: &AstNode) -> Self {
+    pub fn new(node: &AstNode, compiler: &Compiler) -> Self {
         match node.data {
             AstNodeData::Ident(ref ident) => {
                 return AstNodeType::TypeName(ident.clone());
@@ -60,6 +60,16 @@ impl AstNodeType {
             AstNodeData::StringTy => AstNodeType::String,
             AstNodeData::BoolTy => AstNodeType::Bool,
             AstNodeData::FloatTy(bitsize) => AstNodeType::Float(bitsize),
+            AstNodeData::FnType(ref sign) => {
+                let mut args: Vec<AstNodeType> = vec![];
+                for decl in sign.args.iter() {
+                    let decl_node = compiler.get_node(decl.clone());
+                    args.push(decl_node.infered_type);
+                }
+                let ret = compiler.get_node(sign.ret.clone()).infered_type;
+
+                return AstNodeType::FnType(args, Box::new(ret));
+            }
             AstNodeData::VoidTy => AstNodeType::Void,
             _ => AstNodeType::Unknown,
         }
@@ -77,7 +87,7 @@ impl AstNodeType {
             })
             .collect();
 
-        return AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret)));
+        return AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, node_manager)));
     }
     pub fn is_type_def(&self) -> bool {
         match self {
@@ -255,9 +265,6 @@ pub enum AstNodeData {
     Def(AstDef),
     Decl(NodeID),
     Assign(NodeID, NodeID),
-
-    // compiler functions, mostly hacks for now
-    Print(Vec<NodeID>),
 
     // Type defs
     IntTy(BitSize), // bitsize

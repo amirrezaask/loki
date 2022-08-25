@@ -1,12 +1,12 @@
-#host "cstdio"
+#load "modules/print.loki"
 
 main :: () int {
      a := 1;
      if (a > 10) {
-        #print("a is bigger than 10\n");
+        printf("a is bigger than 10\n");
      } else if ((a < 10) && (a > 5)) {
-        #print("a is between 10 and 5\n");
+        printf("a is between 10 and 5\n");
      } else {
-        #print("a is less than 5\n");
+        printf("a is less than 5\n");
      }
 }

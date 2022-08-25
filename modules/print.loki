@@ -1,0 +1,4 @@
+#host "cstdio"
+
+
+printf: () void #foreign;

@@ -167,6 +167,7 @@ impl Compiler {
     pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> AstNodeType {
         let scopes = self.get_relevant_scopes(scope_id);
         for scope in scopes {
+            println!("ident is {:?}", ident);
             let nodes = self.scope_nodes.get(&scope).unwrap();
             for node_id in nodes.iter() {
                 //TODO: check node is defined before the given ident
@@ -317,7 +318,7 @@ impl Compiler {
                 }
             }
 
-            // TODO: Initialize, InitializeArray, FnCall, BinaryOperation
+            // TODO: Initialize, InitializeArray, FnCall
         }
 
         // println!("unknowns: {:?}", self.unknowns);
@@ -326,6 +327,9 @@ impl Compiler {
     }
 
     fn lower_ast(&mut self, ast: Ast) -> Result<Ast> {
+        // enum should be lowered into normal constants
+            // we should find every namespace access to an enum and convert them to just reference the normal constant we generated.
+        // all initialization nodes should convert to decl, following a series of assignments of fields.     
 
         unimplemented!();
     }

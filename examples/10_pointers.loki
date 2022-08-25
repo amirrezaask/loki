@@ -1,4 +1,4 @@
-#host "cstdio"
+#load "modules/print.loki"
 #host "string"
 
 Human :: struct {
@@ -11,11 +11,11 @@ main :: () int {
 
     ptr_to_value := &value;
 
-    #print("value is %d\n", value);
+    printf("value is %d\n", value);
 
     *ptr_to_value = 3;
-    #print("value is %d\n", value);
-    #print("value is %d\n", <<ptr_to_value);
+    printf("value is %d\n", value);
+    printf("value is %d\n", <<ptr_to_value);
 
     human := Human {
        name = "amirreza",
@@ -26,5 +26,5 @@ main :: () int {
     human2 := <<human_ptr;
     human_age := human_ptr.age;
 
-    #print("human_ptr age is %d\n", human_ptr.age);
+    printf("human_ptr age is %d\n", human_ptr.age);
 }
