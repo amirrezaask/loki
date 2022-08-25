@@ -1,4 +1,8 @@
-- we should find a way to stop compiler loop from searching for an ident when it's not even defined.
+- refactor whole error system.
+  - tokens should contain line and column information
+  - nodes should contain line and column information
+  - use our own error reporting instead of rust Result and panic!
+
 - initializers should just generate code to set each field seperately
 
 - arrays:
