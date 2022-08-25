@@ -226,10 +226,6 @@ impl Compiler {
                     }
                 }
 
-
-
-
-
                 _ => {}
             }
         }
@@ -244,6 +240,7 @@ impl Compiler {
             }
             let unknown_id = self.unknowns.get(0).unwrap().clone(); // treating like a queue, always get first element, remove it and process it.
             let unknown_node = self.nodes.get(&unknown_id).unwrap();
+
             self.unknowns.remove(0);
             if !unknown_node.infered_type.is_unknown() {
                 continue;

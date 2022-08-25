@@ -3,6 +3,12 @@
   - nodes should contain line and column information
   - use our own error reporting instead of rust Result and panic!
 
+- float32, float64 support
+
+- after compiler::infer_types and compiler::type_check we should produce IR and code gen should use IR instead of AST.
+  - IR is a fully check both in terms of semantics and types.
+  - it's the simplest instruction set possible.
+
 - initializers should just generate code to set each field seperately
 
 - arrays:

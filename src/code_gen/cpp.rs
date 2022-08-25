@@ -131,12 +131,13 @@ impl<'a> CPP<'a> {
         for node_id in node_tys {
             let node = self.node_manager.get_node(node_id.clone());
             match &node.data {
-                AstNodeData::Ident(name) => {
+                AstNodeData::Decl(ref ident_node_id) => {
+                    let ident_node = self.node_manager.get_node(ident_node_id.to_string());
+                    let name = ident_node.get_ident();
                     output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
                 }
-
                 _ => {
-                    unreachable!()
+                    panic!()
                 }
             }
 
@@ -177,8 +178,10 @@ impl<'a> CPP<'a> {
 
     fn repr_enum_variants(&self, variants: &Vec<(NodeID, Option<NodeID>)>) -> Result<String> {
         let mut output = Vec::<String>::new();
-        for node in variants.iter() {
-            output.push(self.repr_ast_node(node.0.clone())?);
+        for (decl_id, _) in variants.iter() {
+            let decl_node = self.node_manager.get_node(decl_id.clone());
+            let ident_id = decl_node.get_name_for_defs_and_decls(&self.node_manager).unwrap();
+            output.push(self.repr_ast_node(ident_id.clone())?);
         }
 
         Ok(output.join(",\n"))

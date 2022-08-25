@@ -482,7 +482,7 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenType::Colon)?;
                     self.forward_token();
                     let ty = self.expect_expr()?;
-                    name.infered_type = AstNodeType::new(&ty, self.node_manager);
+                    self.node_manager.add_type_inference(&name.id, AstNodeType::new(&ty, self.node_manager));
                     let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.node_manager));
                     fields.push(field.id);
                     match self.current_token().ty {
@@ -517,10 +517,11 @@ impl<'a> Parser<'a> {
                         continue;
                     }
 
-                    let mut variant = self.expect_ident()?;
-                    variant.infered_type = AstNodeType::UnsignedInt(64);
+                    let mut name = self.expect_ident()?;
                     self.node_manager
-                        .add_type_inference(&variant.id.clone(), AstNodeType::UnsignedInt(64));
+                        .add_type_inference(&name.id, AstNodeType::UnsignedInt(64));
+                    let variant = self.new_node(AstNodeData::Decl(name.id), AstNodeType::UnsignedInt(64));
+
                     match self.current_token().ty {
                         TokenType::Comma => {
                             variants.push((variant.id, None));
