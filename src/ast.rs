@@ -263,8 +263,9 @@ pub struct AstNode {
     pub infered_type: AstNodeType,
     pub scope: ScopeID,
     pub tags: Vec<AstTag>,
-    // pub line: usize,
-    // pub col: usize,
+    
+    pub start_line: usize,
+    pub start_col: usize,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]

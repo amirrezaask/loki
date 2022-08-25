@@ -36,7 +36,7 @@ impl<'a> Parser<'a> {
     fn wrap_err(&self, msg: String) -> anyhow::Error {
         return anyhow::format_err!("In file: {}, {}, at line: {}, column: {}", self.filename, msg, self.current_token().line, self.current_token().col);
     }
-    fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType) -> AstNode {
+    fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType, start_line: usize, start_col: usize) -> AstNode {
         let id = Alphanumeric.sample_string(&mut rand::thread_rng(), ID_LENGTH);
         self.node_counter += 1;
         let node = AstNode {
@@ -45,6 +45,7 @@ impl<'a> Parser<'a> {
             infered_type: type_annotation,
             tags: vec![],
             scope: Default::default(),
+            start_line, start_col,
         };
         self.node_manager.add_node(node.clone()).unwrap();
         self.node_manager
@@ -83,8 +84,8 @@ impl<'a> Parser<'a> {
             TokenType::Ident => {
                 let name =
                     self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
+                let node = self.new_node(AstNodeData::Ident(name), AstNodeType::Unknown, self.current_token().line, self.current_token().col);
                 self.forward_token();
-                let node = self.new_node(AstNodeData::Ident(name), AstNodeType::Unknown);
                 return Ok(node);
             }
             _ => {
@@ -100,6 +101,8 @@ impl<'a> Parser<'a> {
                 return Ok(self.new_node(
                     AstNodeData::StringLiteral(literal.to_string()),
                     AstNodeType::String,
+                    self.current_token().line,
+                    self.current_token().col,
                 ));
             }
             _ => {
@@ -122,7 +125,7 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 self.node_manager.add_type_inference(&dest.id, infered_ty);
-                let node = self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType);
+                let node = self.new_node(AstNodeData::Assign(dest.id, rhs.id), AstNodeType::NoType, self.current_token().line, self.current_token().col);
                 Ok(node)
             }
             TokenType::DoubleColon => {
@@ -136,7 +139,7 @@ impl<'a> Parser<'a> {
                         name: dest.id,
                         expr: rhs.id,
                     }),
-                    AstNodeType::NoType,
+                    AstNodeType::NoType, self.current_token().line, self.current_token().col,
                 );
                 Ok(node)
             }
@@ -151,7 +154,7 @@ impl<'a> Parser<'a> {
                 {
                     let decl_node = self.new_node(
                         AstNodeData::Decl(dest.id.clone()),
-                        AstNodeType::new(&ty, &self.node_manager),
+                        AstNodeType::new(&ty, &self.node_manager), self.current_line(), self.current_col()
                     );
                     if self.current_token().ty == TokenType::ForeignDirective {
                         self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
@@ -170,7 +173,7 @@ impl<'a> Parser<'a> {
                         name: dest.id,
                         expr: rhs.id,
                     }),
-                    AstNodeType::NoType,
+                    AstNodeType::NoType, self.current_token().line, self.current_token().col
                 );
                 Ok(node)
             }
@@ -187,7 +190,7 @@ impl<'a> Parser<'a> {
                         name: dest.id,
                         expr: rhs.id,
                     }),
-                    AstNodeType::NoType,
+                    AstNodeType::NoType, self.current_token().line, self.current_token().col
                 );
                 Ok(node)
             }
@@ -206,6 +209,13 @@ impl<'a> Parser<'a> {
         | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
     */
 
+    fn current_line(&self) -> usize {
+        return self.current_token().line;
+    }
+
+    fn current_col(&self) -> usize {
+        return self.current_token().col;
+    }
     fn expect_fn_def(&mut self) -> Result<AstNode> {
         self.node_manager
             .add_scope(ScopeType::Function, self.cur as isize, -1 as isize);
@@ -225,15 +235,14 @@ impl<'a> Parser<'a> {
             self.forward_token();
             let ty = self.expect_expr()?;
 
-            let ident_node = self.new_node(AstNodeData::Ident(name.get_ident()), AstNodeType::new(&ty, self.node_manager));
-            let arg = self.new_node(AstNodeData::Decl(ident_node.id.clone()), AstNodeType::new(&ty, self.node_manager));
+            let arg = self.new_node(AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, self.node_manager), name.start_line, name.start_col);
             args.push(arg.id);
         }
         let mut ret_ty: Option<AstNode> = None;
         if self.current_token().ty != TokenType::OpenBrace {
             ret_ty = Some(self.expect_expr()?);
         } else {
-            ret_ty = Some(self.new_node(AstNodeData::VoidTy, AstNodeType::Void));
+            ret_ty = Some(self.new_node(AstNodeData::VoidTy, AstNodeType::Void, self.current_line(), self.current_col()));
         }
         let ret_ty = ret_ty.unwrap();
         
@@ -245,7 +254,7 @@ impl<'a> Parser<'a> {
                 args,
                 ret: ret_ty.id,
             };
-            let node = self.new_node(AstNodeData::FnType(sign), proto_ty);
+            let node = self.new_node(AstNodeData::FnType(sign), proto_ty, self.current_line(), self.current_col());
             return Ok(node);
         }
         
@@ -255,7 +264,7 @@ impl<'a> Parser<'a> {
             args,
             ret: ret_ty.id,
         };
-        Ok(self.new_node(AstNodeData::FnDef(AstFnDef { sign, body }), proto_ty))
+        Ok(self.new_node(AstNodeData::FnDef(AstFnDef { sign, body }), proto_ty, self.current_line(), self.current_col()))
     }
 
     fn expect_fn_call(&mut self) -> Result<AstNode> {
@@ -286,7 +295,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(self.new_node(AstNodeData::FnCall(name.id, args), AstNodeType::Unknown))
+        Ok(self.new_node(AstNodeData::FnCall(name.id, args), AstNodeType::Unknown,self.current_line(), self.current_col()))
     }
     fn expect_expr_container_field(&mut self) -> Result<AstNode> {
         let container = self.expect_expr_initialize()?;
@@ -298,7 +307,7 @@ impl<'a> Parser<'a> {
                     namespace: container.id,
                     field: field.id,
                 };
-                return Ok(self.new_node(AstNodeData::NamespaceAccess(cf), AstNodeType::Unknown));
+                return Ok(self.new_node(AstNodeData::NamespaceAccess(cf), AstNodeType::Unknown, self.current_line(), self.current_col()));
             }
             _ => {
                 return Ok(container);
@@ -362,7 +371,7 @@ impl<'a> Parser<'a> {
                         return Ok(self.new_node(
                             AstNodeData::Initialize(ty.id.clone(), fields),
                             AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, self.node_manager))),
-                        ));
+                        self.current_line(), self.current_col()));
                     } else {
                         let mut fields = Vec::<NodeID>::new();
                         loop {
@@ -387,7 +396,7 @@ impl<'a> Parser<'a> {
 
                         return Ok(self.new_node(
                             AstNodeData::InitializeArray(Some(ty.id), fields),
-                            AstNodeType::Unknown,
+                            AstNodeType::Unknown, self.current_line(), self.current_col()
                         ));
                     }
                 }
@@ -422,14 +431,14 @@ impl<'a> Parser<'a> {
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let literal = literal.parse::<u64>()?;
-                Ok(self.new_node(AstNodeData::Uint(literal), AstNodeType::UnsignedInt(64)))
+                Ok(self.new_node(AstNodeData::Uint(literal), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col()))
             }
             TokenType::Float => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let literal = literal.parse::<f64>()?;
-                Ok(self.new_node(AstNodeData::Float(literal), AstNodeType::Float(64)))
+                Ok(self.new_node(AstNodeData::Float(literal), AstNodeType::Float(64), self.current_line(), self.current_col()))
             }
             TokenType::StringLiteral => {
                 self.forward_token();
@@ -437,28 +446,28 @@ impl<'a> Parser<'a> {
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 Ok(self.new_node(
                     AstNodeData::StringLiteral(literal.to_string()),
-                    AstNodeType::String,
+                    AstNodeType::String, self.current_line(), self.current_col()
                 ))
             }
             TokenType::CVarArgsDirective => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::CVarArgs, AstNodeType::CVarArgs))
+                Ok(self.new_node(AstNodeData::CVarArgs, AstNodeType::CVarArgs, self.current_line(), self.current_col()))
             }
             TokenType::CString => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::CString, AstNodeType::CString))
+                Ok(self.new_node(AstNodeData::CString, AstNodeType::CString, self.current_line(), self.current_col()))
             }
             TokenType::KeywordTrue => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(AstNodeData::Bool(literal == "true"), AstNodeType::Bool))
+                Ok(self.new_node(AstNodeData::Bool(literal == "true"), AstNodeType::Bool, self.current_line(), self.current_col()))
             }
             TokenType::KeywordFalse => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(AstNodeData::Bool(literal == "true"), AstNodeType::Bool))
+                Ok(self.new_node(AstNodeData::Bool(literal == "true"), AstNodeType::Bool, self.current_line(), self.current_col()))
             }
             TokenType::Char => {
                 self.forward_token();
@@ -466,7 +475,7 @@ impl<'a> Parser<'a> {
                 let literal = &self.src[src_range.loc.0 + 1..=src_range.loc.1 - 1];
                 Ok(self.new_node(
                     AstNodeData::Char(literal.chars().next().unwrap()),
-                    AstNodeType::Char,
+                    AstNodeType::Char, self.current_line(), self.current_col()
                 ))
             }
             TokenType::KeywordStruct => {
@@ -485,7 +494,7 @@ impl<'a> Parser<'a> {
                     self.forward_token();
                     let ty = self.expect_expr()?;
                     self.node_manager.add_type_inference(&name.id, AstNodeType::new(&ty, self.node_manager));
-                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.node_manager));
+                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.node_manager), self.current_line(), self.current_col());
                     fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -500,7 +509,7 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Ok(self.new_node(AstNodeData::Struct(fields), AstNodeType::Struct))
+                Ok(self.new_node(AstNodeData::Struct(fields), AstNodeType::Struct, self.current_line(), self.current_col()))
             }
             TokenType::KeywordEnum => {
                 self.forward_token();
@@ -522,7 +531,7 @@ impl<'a> Parser<'a> {
                     let mut name = self.expect_ident()?;
                     self.node_manager
                         .add_type_inference(&name.id, AstNodeType::UnsignedInt(64));
-                    let variant = self.new_node(AstNodeData::Decl(name.id), AstNodeType::UnsignedInt(64));
+                    let variant = self.new_node(AstNodeData::Decl(name.id), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
 
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -541,7 +550,7 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Ok(self.new_node(AstNodeData::Enum(is_union, variants), AstNodeType::Enum))
+                Ok(self.new_node(AstNodeData::Enum(is_union, variants), AstNodeType::Enum, self.current_line(), self.current_col()))
             }
             TokenType::OpenParen => {
                 let before_check_fn_def_cur = self.cur;
@@ -567,14 +576,14 @@ impl<'a> Parser<'a> {
                 let ty = self.expect_expr_exact_expr()?;
                 return Ok(self.new_node(
                     AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty, self.node_manager)),
-                    AstNodeType::Unknown,
+                    AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             }
 
             TokenType::Asterix | TokenType::DoubleLeftAngle => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(AstNodeData::Deref(expr.id), expr.infered_type));
+                return Ok(self.new_node(AstNodeData::Deref(expr.id), expr.infered_type, self.current_line(), self.current_col()));
             }
             TokenType::Ampersand | TokenType::DoubleRightAngle => {
                 self.forward_token();
@@ -582,6 +591,7 @@ impl<'a> Parser<'a> {
                 return Ok(self.new_node(
                     AstNodeData::PointerTo(expr.id),
                     AstNodeType::Pointer(Box::new(expr.infered_type)),
+                    self.current_line(), self.current_col()
                 ));
             }
             TokenType::Ident => {
@@ -601,76 +611,76 @@ impl<'a> Parser<'a> {
             }
             TokenType::KeywordVoid => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::VoidTy, AstNodeType::Void))
+                Ok(self.new_node(AstNodeData::VoidTy, AstNodeType::Void, self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy(64), AstNodeType::SignedInt(64)))
+                Ok(self.new_node(AstNodeData::IntTy(64), AstNodeType::SignedInt(64), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt8 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy(8), AstNodeType::SignedInt(8)))
+                Ok(self.new_node(AstNodeData::IntTy(8), AstNodeType::SignedInt(8), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt16 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy(16), AstNodeType::SignedInt(16)))
+                Ok(self.new_node(AstNodeData::IntTy(16), AstNodeType::SignedInt(16), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt32 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy(32), AstNodeType::SignedInt(32)))
+                Ok(self.new_node(AstNodeData::IntTy(32), AstNodeType::SignedInt(32), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt64 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy(64), AstNodeType::SignedInt(64)))
+                Ok(self.new_node(AstNodeData::IntTy(64), AstNodeType::SignedInt(64), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt128 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::IntTy(128), AstNodeType::SignedInt(128)))
+                Ok(self.new_node(AstNodeData::IntTy(128), AstNodeType::SignedInt(128), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy(64), AstNodeType::UnsignedInt(64)))
+                Ok(self.new_node(AstNodeData::UintTy(64), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint8 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy(8), AstNodeType::UnsignedInt(8)))
+                Ok(self.new_node(AstNodeData::UintTy(8), AstNodeType::UnsignedInt(8), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint16 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy(16), AstNodeType::UnsignedInt(16)))
+                Ok(self.new_node(AstNodeData::UintTy(16), AstNodeType::UnsignedInt(16), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint32 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy(32), AstNodeType::UnsignedInt(32)))
+                Ok(self.new_node(AstNodeData::UintTy(32), AstNodeType::UnsignedInt(32), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint64 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy(64), AstNodeType::UnsignedInt(64)))
+                Ok(self.new_node(AstNodeData::UintTy(64), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint128 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::UintTy(128), AstNodeType::UnsignedInt(128)))
+                Ok(self.new_node(AstNodeData::UintTy(128), AstNodeType::UnsignedInt(128), self.current_line(), self.current_col()))
             }
             TokenType::KeywordFloat32 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::FloatTy(32), AstNodeType::Float(32)))
+                Ok(self.new_node(AstNodeData::FloatTy(32), AstNodeType::Float(32), self.current_line(), self.current_col()))
             }
             TokenType::KeywordFloat64 => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::FloatTy(64), AstNodeType::Float(64)))
+                Ok(self.new_node(AstNodeData::FloatTy(64), AstNodeType::Float(64), self.current_line(), self.current_col()))
             }
             TokenType::KeywordChar => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::CharTy, AstNodeType::Char))
+                Ok(self.new_node(AstNodeData::CharTy, AstNodeType::Char, self.current_line(), self.current_col()))
             }
             TokenType::KeywordBool => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::BoolTy, AstNodeType::Bool))
+                Ok(self.new_node(AstNodeData::BoolTy, AstNodeType::Bool, self.current_line(), self.current_col()))
             }
 
             TokenType::KeywordString => {
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::StringTy, AstNodeType::String))
+                Ok(self.new_node(AstNodeData::StringTy, AstNodeType::String, self.current_line(), self.current_col()))
             }
 
             _ => {
@@ -719,7 +729,7 @@ impl<'a> Parser<'a> {
 
                 Ok(self.new_node(
                     AstNodeData::BinaryOperation(binary_operation),
-                    AstNodeType::Bool,
+                    AstNodeType::Bool, self.current_line(), self.current_col()
                 ))
             }
 
@@ -757,7 +767,7 @@ impl<'a> Parser<'a> {
                 };
                 Ok(self.new_node(
                     AstNodeData::BinaryOperation(binary_operation),
-                    infered_ty.clone(),
+                    infered_ty.clone(), self.current_line(), self.current_col()
                 ))
             }
             TokenType::Percent => {
@@ -788,7 +798,7 @@ impl<'a> Parser<'a> {
 
                 Ok(self.new_node(
                     AstNodeData::BinaryOperation(binary_operation),
-                    infered_ty.clone(),
+                    infered_ty.clone(), self.current_line(), self.current_col()
                 ))
             }
             TokenType::ForwardSlash => {
@@ -819,7 +829,7 @@ impl<'a> Parser<'a> {
                 };
                 Ok(self.new_node(
                     AstNodeData::BinaryOperation(binary_operation),
-                    infered_ty.clone(),
+                    infered_ty.clone(), self.current_line(), self.current_col()
                 ))
             }
             _ => Ok(lhs),
@@ -855,7 +865,7 @@ impl<'a> Parser<'a> {
                     left: lhs.id,
                     right: rhs.id,
                 };
-                Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty))
+                Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col()))
             }
             TokenType::Plus => {
                 self.forward_token();
@@ -882,7 +892,7 @@ impl<'a> Parser<'a> {
                     left: lhs.id,
                     right: rhs.id,
                 };
-                Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty))
+                Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col()))
             }
 
             _ => Ok(lhs),
@@ -938,7 +948,7 @@ impl<'a> Parser<'a> {
         let body = self.expect_block(ScopeType::For)?;
         let for_node = self.new_node(
             AstNodeData::For(start.id, cond.id, cont.id, body),
-            AstNodeType::Unknown,
+            AstNodeType::Unknown, self.current_line(), self.current_col()
         );
 
         return Ok(for_node);
@@ -979,7 +989,7 @@ impl<'a> Parser<'a> {
         let body = self.expect_block(ScopeType::ForIn)?;
         return Ok(self.new_node(
             AstNodeData::ForIn(iterator.id, iterable.id, body),
-            AstNodeType::Unknown,
+            AstNodeType::Unknown, self.current_line(), self.current_col()
         ));
     }
     fn expect_for_each_implicit_iterator(&mut self) -> Result<AstNode> {
@@ -991,10 +1001,10 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block(ScopeType::ForIn)?;
         //@BUG: iterator should be in the same scope but now it's not.
-        let iterator = self.new_node(AstNodeData::Ident("it".to_string()), AstNodeType::Unknown);
+        let iterator = self.new_node(AstNodeData::Ident("it".to_string()), AstNodeType::Unknown, self.current_line(), self.current_col());
         return Ok(self.new_node(
             AstNodeData::ForIn(iterator.id, iterable.id, body),
-            AstNodeType::Unknown,
+            AstNodeType::Unknown, self.current_line(), self.current_col()
         ));
     }
     fn expect_if(&mut self) -> Result<AstNode> {
@@ -1022,17 +1032,17 @@ impl<'a> Parser<'a> {
                 }
                 return Ok(self.new_node(
                     AstNodeData::If(AstCaseBlock { cases: cond_thens }),
-                    AstNodeType::Unknown,
+                    AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             } else if self.current_token().ty == TokenType::OpenBrace {
                 self.node_manager
                     .add_scope(ScopeType::Else, self.cur as isize, -1 as isize);
                 let _else = self.expect_block(ScopeType::Else)?;
-                let default_case = self.new_node(AstNodeData::Bool(true), AstNodeType::Bool);
+                let default_case = self.new_node(AstNodeData::Bool(true), AstNodeType::Bool, self.current_line(), self.current_col());
                 let cases = vec![(cond.id, then), (default_case.id, _else)];
                 return Ok(self.new_node(
                     AstNodeData::If(AstCaseBlock { cases }),
-                    AstNodeType::Unknown,
+                    AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             } else {
                 return Err(self.wrap_err(format!("after else keyword we expect either a code block or if keyword but found: {:?}", self.current_token())));
@@ -1042,7 +1052,7 @@ impl<'a> Parser<'a> {
             AstNodeData::If(AstCaseBlock {
                 cases: vec![(cond.id, then)],
             }),
-            AstNodeType::Unknown,
+            AstNodeType::Unknown, self.current_line(), self.current_col()
         ));
     }
     fn expect_stmt(&mut self) -> Result<AstNode> {
@@ -1078,9 +1088,9 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     TokenType::MinusEqual => {
                         self.backward_token();
@@ -1097,9 +1107,9 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     TokenType::ModEqual => {
                         self.backward_token();
@@ -1116,9 +1126,9 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     TokenType::MulEqual => {
                         self.backward_token();
@@ -1135,9 +1145,9 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     TokenType::DivEqual => {
                         self.backward_token();
@@ -1154,16 +1164,16 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
 
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     TokenType::DoublePlus => {
                         self.backward_token();
                         let mut lhs = self.expect_lhs()?;
                         self.forward_token();
-                        let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64));
+                        let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.infered_type = rhs.infered_type.clone();
 
                         let binary_operation = AstBinaryOperation {
@@ -1173,16 +1183,16 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     TokenType::DoubleMinus => {
                         self.backward_token();
                         let mut lhs = self.expect_lhs()?;
                         self.forward_token();
 
-                        let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64));
+                        let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.infered_type = rhs.infered_type.clone();
 
                         let binary_operation = AstBinaryOperation {
@@ -1192,9 +1202,9 @@ impl<'a> Parser<'a> {
                         };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty);
+                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
                         return Ok(self
-                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
+                            .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
                     _ => {
                         return Err(self.wrap_err(format!("expecting statement found: {:?}", self.current_token())));
@@ -1205,13 +1215,13 @@ impl<'a> Parser<'a> {
             TokenType::Asterix => {
                 self.forward_token();
                 let deref = self.expect_expr()?;
-                let deref = self.new_node(AstNodeData::Deref(deref.id), AstNodeType::Unknown);
+                let deref = self.new_node(AstNodeData::Deref(deref.id), AstNodeType::Unknown, self.current_line(), self.current_col());
                 self.expect_token(TokenType::Equal)?;
                 self.forward_token();
                 let expr = self.expect_expr()?;
 
                 let node =
-                    self.new_node(AstNodeData::Assign(deref.id, expr.id), AstNodeType::NoType);
+                    self.new_node(AstNodeData::Assign(deref.id, expr.id), AstNodeType::NoType, self.current_line(), self.current_col());
 
                 return Ok(node);
             }
@@ -1233,7 +1243,7 @@ impl<'a> Parser<'a> {
                 self.expect_token(TokenType::OpenBrace)?;
                 let body = self.expect_block(ScopeType::While)?;
 
-                return Ok(self.new_node(AstNodeData::While(cond.id, body), AstNodeType::Unknown));
+                return Ok(self.new_node(AstNodeData::While(cond.id, body), AstNodeType::Unknown, self.current_line(), self.current_col()));
             }
 
             TokenType::KeywordFor => {
@@ -1276,7 +1286,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 self.forward_token();
-                Ok(self.new_node(AstNodeData::Return(expr.id), AstNodeType::NoType))
+                Ok(self.new_node(AstNodeData::Return(expr.id), AstNodeType::NoType, self.current_line(), self.current_col()))
             }
 
             TokenType::KeywordGoto => {
@@ -1285,7 +1295,7 @@ impl<'a> Parser<'a> {
             }
 
             TokenType::KeywordContinue => {
-                return Ok(self.new_node(AstNodeData::Continue, AstNodeType::NoType));
+                return Ok(self.new_node(AstNodeData::Continue, AstNodeType::NoType, self.current_line(), self.current_col()));
             }
 
             TokenType::KeywordSwitch => {
@@ -1294,7 +1304,7 @@ impl<'a> Parser<'a> {
             }
 
             TokenType::KeywordBreak => {
-                return Ok(self.new_node(AstNodeData::Break, AstNodeType::NoType));
+                return Ok(self.new_node(AstNodeData::Break, AstNodeType::NoType, self.current_line(), self.current_col()));
             }
 
             _ => {
@@ -1323,7 +1333,7 @@ impl<'a> Parser<'a> {
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                     let top =
-                        self.new_node(AstNodeData::Load(literal.to_string()), AstNodeType::NoType);
+                        self.new_node(AstNodeData::Load(literal.to_string()), AstNodeType::NoType, self.current_line(), self.current_col());
                     top_level.push(top.id);
                 }
                 TokenType::CompilerFlagDirective => {
@@ -1336,7 +1346,7 @@ impl<'a> Parser<'a> {
                     }
                     let top = self.new_node(
                         AstNodeData::CompilerFlags(path.to_string()),
-                        AstNodeType::NoType,
+                        AstNodeType::NoType, self.current_line(), self.current_col()
                     );
                     top_level.push(top.id);
                 }
@@ -1351,7 +1361,7 @@ impl<'a> Parser<'a> {
                     let src_range = &self.tokens[path];
                     let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                     let top =
-                        self.new_node(AstNodeData::Host(literal.to_string()), AstNodeType::NoType);
+                        self.new_node(AstNodeData::Host(literal.to_string()), AstNodeType::NoType, self.current_line(), self.current_col());
                     top_level.push(top.id);
                 }
                 TokenType::Ident => {
