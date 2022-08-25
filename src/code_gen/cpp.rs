@@ -47,6 +47,12 @@ impl<'a> CPP<'a> {
             AstNodeType::SignedInt(_) => {
                 Ok("int".to_string())
             }
+            AstNodeType::CVarArgs => {
+                Ok("...".to_string())
+            }
+            AstNodeType::CString => {
+                Ok("char*".to_string())
+            }
             AstNodeType::UnsignedInt(_) => {
                 Ok("unsigned int".to_string())
             }

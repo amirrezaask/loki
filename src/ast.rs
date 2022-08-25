@@ -44,6 +44,9 @@ pub enum AstNodeType {
 
     NamespaceAccess(NamespaceAccessType),
 
+    CVarArgs,
+    CString,
+
     Void,
 }
 
@@ -60,6 +63,12 @@ impl AstNodeType {
             AstNodeData::StringTy => AstNodeType::String,
             AstNodeData::BoolTy => AstNodeType::Bool,
             AstNodeData::FloatTy(bitsize) => AstNodeType::Float(bitsize),
+            AstNodeData::CVarArgs => AstNodeType::CVarArgs,
+            AstNodeData::CString => AstNodeType::CString,
+            AstNodeData::Deref(ref obj) => { // TODO: this is a temporary fix, this should be handled in parser and this would become PointerTo
+                let pointee = compiler.get_node(obj.clone());
+                return AstNodeType::Pointer(Box::new(pointee.infered_type));
+            }
             AstNodeData::FnType(ref sign) => {
                 let mut args: Vec<AstNodeType> = vec![];
                 for decl in sign.args.iter() {
@@ -265,6 +274,9 @@ pub enum AstNodeData {
     Def(AstDef),
     Decl(NodeID),
     Assign(NodeID, NodeID),
+
+    CVarArgs,
+    CString,
 
     // Type defs
     IntTy(BitSize), // bitsize

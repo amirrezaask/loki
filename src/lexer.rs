@@ -60,7 +60,8 @@ pub enum TokenType {
     HostDirective,
     CompilerFlagDirective,
     ForeignDirective,
-    PrintDirective,
+    CVarArgsDirective,
+    CString,
 
     KeywordConst,
     KeywordVar,
@@ -115,6 +116,9 @@ impl TokenType {
             "#host" => Self::HostDirective,
             "#compiler_flag" => Self::CompilerFlagDirective,
             "#foreign" => Self::ForeignDirective,
+
+            "#c_varargs" => Self::CVarArgsDirective,
+            "#c_string" => Self::CString,
 
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,

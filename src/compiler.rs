@@ -167,7 +167,6 @@ impl Compiler {
     pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> AstNodeType {
         let scopes = self.get_relevant_scopes(scope_id);
         for scope in scopes {
-            println!("ident is {:?}", ident);
             let nodes = self.scope_nodes.get(&scope).unwrap();
             for node_id in nodes.iter() {
                 //TODO: check node is defined before the given ident
@@ -343,7 +342,7 @@ impl Compiler {
     }
 
     fn type_check(&mut self) -> Result<()> {
-
+        // maybe we can ignore foreign stuff for now.
         Ok(())
     }
 

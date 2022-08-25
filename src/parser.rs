@@ -239,7 +239,6 @@ impl<'a> Parser<'a> {
                 args,
                 ret: ret_ty.id,
             };
-            println!("ty: {:?}", proto_ty);
             let node = self.new_node(AstNodeData::FnType(sign), proto_ty);
             return Ok(node);
         }
@@ -434,6 +433,14 @@ impl<'a> Parser<'a> {
                     AstNodeData::StringLiteral(literal.to_string()),
                     AstNodeType::String,
                 ))
+            }
+            TokenType::CVarArgsDirective => {
+                self.forward_token();
+                Ok(self.new_node(AstNodeData::CVarArgs, AstNodeType::CVarArgs))
+            }
+            TokenType::CString => {
+                self.forward_token();
+                Ok(self.new_node(AstNodeData::CString, AstNodeType::CString))
             }
             TokenType::KeywordTrue => {
                 self.forward_token();

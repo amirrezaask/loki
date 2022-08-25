@@ -1,6 +1,0 @@
-#load "modules/print.loki"
-
-main :: () int {
-	printf("salam");
-
-}

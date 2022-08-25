@@ -1,4 +1,3 @@
 #host "cstdio"
 
-
-printf: () void #foreign;
+printf: (format: <<char, args: #c_varargs) void #foreign;
