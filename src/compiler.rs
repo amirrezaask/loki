@@ -122,7 +122,7 @@ impl Compiler {
     fn get_relevant_scopes(&self, scope_id: ScopeID) -> Vec<ScopeID> {
         let mut scope_id = scope_id;
         if scope_id <= 0 {
-            return vec![scope_id];
+            return vec![];
         }
         let mut relevant_scopes: Vec<isize> = vec![scope_id];
         loop {
@@ -130,10 +130,11 @@ impl Compiler {
                 break;
             }
             let scope = &self.scopes[scope_id as usize];
-            relevant_scopes.push(scope.parent);
+            if scope.parent != -1 {
+                relevant_scopes.push(scope.parent);
+            }
             scope_id = scope.parent;
         }
-
         return relevant_scopes;
     }
 

@@ -1,3 +1,4 @@
+- we should find a way to stop compiler loop from searching for an ident when it's not even defined.
 - initializers should just generate code to set each field seperately
 
 - arrays:
