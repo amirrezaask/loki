@@ -24,10 +24,12 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn err_uexpected_token(&self, what: TokenType) -> anyhow::Error {
         anyhow!(
-            "Expected {:?}, found {:?} at \"{}\"",
+            "In file: {}, Expected {:?}, found {:?} at line:{}, column: {}",
+            self.filename,
             what,
             self.current_token().ty,
-            self.src[self.tokens[self.cur].loc.0..=self.tokens[self.cur].loc.1].to_string(),
+            self.tokens[self.cur].line,
+            self.tokens[self.cur].col,
         )
     }
     fn new_node(&mut self, data: AstNodeData, type_annotation: AstNodeType) -> AstNode {
@@ -685,10 +687,8 @@ impl<'a> Parser<'a> {
             TokenType::DoublePipe => Ok(AstOperation::BinaryOr),
             TokenType::DoubleAmpersand => Ok(AstOperation::BinaryAnd),
             _ => {
-                panic!(
-                    "expected a token that can represent an operation got {:?}",
-                    op
-                );
+                return Err(anyhow::format_err!("expected token that can represent and operation found: {:?} at line: {}, column: {}", 
+                    op, self.current_token().line, self.current_token().col));
             }
         }
     }
@@ -735,7 +735,14 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                    return Err(anyhow::format_err!(
+                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
+                            self.filename,
+                            lhs.infered_type,
+                            rhs.infered_type,
+                            self.current_token().line,
+                            self.current_token().col
+                            ));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -761,7 +768,14 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                    return Err(anyhow::format_err!(
+                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
+                            self.filename,
+                            lhs.infered_type,
+                            rhs.infered_type,
+                            self.current_token().line,
+                            self.current_token().col
+                            ));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -788,7 +802,14 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                    return Err(anyhow::format_err!(
+                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
+                            self.filename,
+                            lhs.infered_type,
+                            rhs.infered_type,
+                            self.current_token().line,
+                            self.current_token().col
+                            ));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -823,7 +844,14 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                    return Err(anyhow::format_err!(
+                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
+                            self.filename,
+                            lhs.infered_type,
+                            rhs.infered_type,
+                            self.current_token().line,
+                            self.current_token().col
+                            ));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -846,7 +874,14 @@ impl<'a> Parser<'a> {
                     && !rhs.infered_type.is_unknown()
                     && lhs.infered_type != rhs.infered_type
                 {
-                    panic!("lhs: {:?} and rhs: {:?} should have same type", lhs, rhs);
+                    return Err(anyhow::format_err!(
+                        "in file:{}, both sides of assignment should be same type, but lhs is: {:?} and rhs is: {:?}, at line: {}, column: {}", 
+                            self.filename,
+                            lhs.infered_type,
+                            rhs.infered_type,
+                            self.current_token().line,
+                            self.current_token().col
+                            ));
                 }
                 if rhs.infered_type != AstNodeType::Unknown {
                     infered_ty = rhs.infered_type.clone();
@@ -937,10 +972,10 @@ impl<'a> Parser<'a> {
             }
 
             _ => {
-                panic!(
-                    "token {:?} cannot be a destination node.",
-                    self.current_token()
-                );
+                return Err(anyhow::format_err!("expected some kind of destination for left hand side of an assignment found: {:?}, at line: {}, column: {}",
+                    self.current_token(),
+                    self.current_token().line,
+                    self.current_token().col));
             }
         }
     }
@@ -980,7 +1015,13 @@ impl<'a> Parser<'a> {
         self.forward_token();
         let cond = self.expect_expr()?;
         if !cond.infered_type.is_unknown() && cond.infered_type != AstNodeType::Bool {
-            panic!("if condition should evaluate to boolean but: {:?}", cond);
+            return Err(anyhow::format_err!(
+                    "in file:{}, if condition should be boolean but given condition is {:?}, at line: {}, column: {}", 
+                        self.filename,
+                        cond.infered_type,
+                        self.current_token().line,
+                        self.current_token().col
+                        ));
         }
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
@@ -1012,10 +1053,11 @@ impl<'a> Parser<'a> {
                     AstNodeType::Unknown,
                 ));
             } else {
-                panic!(
-                    "after else keyword either if or {{ is accepted: {:?}",
-                    self.current_token()
-                );
+                return Err(anyhow::format_err!("after else keyword we expect either a code block or if keyword but found: {:?} at line: {}, column: {}",
+                    self.current_token(),
+                    self.current_token().line,
+                    self.current_token().col,
+                    ))
             }
         }
         return Ok(self.new_node(
@@ -1177,7 +1219,10 @@ impl<'a> Parser<'a> {
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType));
                     }
                     _ => {
-                        panic!("expecting stmt got {:?}", self.current_token());
+                        return Err(anyhow::format_err!("expecting statement found: {:?} at line: {}, column: {}", 
+                            self.current_token(),
+                            self.current_token().line,
+                            self.current_token().col));
                     }
                 }
             }
@@ -1207,7 +1252,13 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let cond = self.expect_expr()?;
                 if !cond.infered_type.is_unknown() && cond.infered_type != AstNodeType::Bool {
-                    panic!("while condition should evaluate to boolean but: {:?}", cond);
+                    return Err(anyhow::format_err!(
+                        "in file:{}, while condition should be boolean but given condition is {:?}, at line: {}, column: {}", 
+                            self.filename,
+                            cond.infered_type,
+                            self.current_token().line,
+                            self.current_token().col
+                            ));
                 }
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
@@ -1278,8 +1329,10 @@ impl<'a> Parser<'a> {
             }
 
             _ => {
-                println!("expecting stmt: {:?}", self.current_token());
-                unreachable!();
+                return Err(anyhow::format_err!("expecting statement found: {:?} at line: {}, column: {}", 
+                        self.current_token(),
+                        self.current_token().line,
+                        self.current_token().col));
             }
         }
     }
@@ -1345,11 +1398,10 @@ impl<'a> Parser<'a> {
                     top_level.push(def.id);
                 }
                 _ => {
-                    println!(
-                        "expecting a top level item found: {:?}",
-                        self.current_token()
-                    );
-                    unreachable!();
+                    return Err(anyhow::format_err!("expecting top level item found: {:?} at line: {}, column: {}", 
+                        self.current_token(),
+                        self.current_token().line,
+                        self.current_token().col));
                 }
             }
         }
