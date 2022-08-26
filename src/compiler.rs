@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use serde::Serialize;
 
 use crate::ast::{
@@ -248,7 +249,7 @@ impl Compiler {
 
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
                 if !self.is_defined(ident.clone()) {
-                    panic!("undeclared ident: {}", ident);
+                    return Err(anyhow!("In file {} undeclared ident: {} at line: {} column: {}", ident, unknown_node.filename, unknown_node.line, unknown_node.col));
                 }
                 let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
                 if ty.is_unknown() {
@@ -267,7 +268,7 @@ impl Compiler {
                     continue;
                 } else {
                     if !pointer.infered_type.is_pointer() {
-                        panic!("deref needs a pointer: {:?}", pointer);
+                        return Err(anyhow!("In file {} dereferencing operation needs a pointer but got: {:?} at line: {} column: {}", unknown_node.filename, pointer.infered_type, unknown_node.line, unknown_node.col))
                     }
                     self.add_type_inference(
                         &unknown_id,

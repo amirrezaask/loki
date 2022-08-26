@@ -264,8 +264,9 @@ pub struct AstNode {
     pub scope: ScopeID,
     pub tags: Vec<AstTag>,
     
-    pub start_line: usize,
-    pub start_col: usize,
+    pub line: usize,
+    pub col: usize,
+    pub filename: String,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]

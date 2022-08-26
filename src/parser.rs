@@ -45,7 +45,8 @@ impl<'a> Parser<'a> {
             infered_type: type_annotation,
             tags: vec![],
             scope: Default::default(),
-            start_line, start_col,
+            line: start_line, col: start_col,
+            filename: self.filename.clone()
         };
         self.node_manager.add_node(node.clone()).unwrap();
         self.node_manager
@@ -235,7 +236,7 @@ impl<'a> Parser<'a> {
             self.forward_token();
             let ty = self.expect_expr()?;
 
-            let arg = self.new_node(AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, self.node_manager), name.start_line, name.start_col);
+            let arg = self.new_node(AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, self.node_manager), name.line, name.col);
             args.push(arg.id);
         }
         let mut ret_ty: Option<AstNode> = None;
