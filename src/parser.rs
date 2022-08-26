@@ -149,13 +149,13 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let ty = self.expect_expr()?;
 
-                self.node_manager.add_type_inference(&dest.id, AstNodeType::new(&ty, &self.node_manager));
+                self.node_manager.add_type_inference(&dest.id, AstNodeType::new(&ty, &self.node_manager)?);
                 if self.current_token().ty != TokenType::Equal
                     && self.current_token().ty != TokenType::Colon
                 {
                     let decl_node = self.new_node(
                         AstNodeData::Decl(dest.id.clone()),
-                        AstNodeType::new(&ty, &self.node_manager), self.current_line(), self.current_col()
+                        AstNodeType::new(&ty, &self.node_manager)?, self.current_line(), self.current_col()
                     );
                     if self.current_token().ty == TokenType::ForeignDirective {
                         self.node_manager.add_tag(&decl_node.id, AstTag::Foreign);
@@ -236,7 +236,7 @@ impl<'a> Parser<'a> {
             self.forward_token();
             let ty = self.expect_expr()?;
 
-            let arg = self.new_node(AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, self.node_manager), name.line, name.col);
+            let arg = self.new_node(AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, self.node_manager)?, name.line, name.col);
             args.push(arg.id);
         }
         let mut ret_ty: Option<AstNode> = None;
@@ -250,7 +250,7 @@ impl<'a> Parser<'a> {
         if self.current_token().ty != TokenType::OpenBrace {
             self.node_manager.remove_from_scope_stack();
             // fn type only
-            let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty);
+            let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty)?;
             let sign = AstFnSignature {
                 args,
                 ret: ret_ty.id,
@@ -260,7 +260,7 @@ impl<'a> Parser<'a> {
         }
         
         let body = self.expect_block(ScopeType::Function)?;
-        let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty);
+        let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty)?;
         let sign = AstFnSignature {
             args,
             ret: ret_ty.id,
@@ -371,7 +371,7 @@ impl<'a> Parser<'a> {
                         }
                         return Ok(self.new_node(
                             AstNodeData::Initialize(ty.id.clone(), fields),
-                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, self.node_manager))),
+                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, self.node_manager)?)),
                         self.current_line(), self.current_col()));
                     } else {
                         let mut fields = Vec::<NodeID>::new();
@@ -494,8 +494,8 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenType::Colon)?;
                     self.forward_token();
                     let ty = self.expect_expr()?;
-                    self.node_manager.add_type_inference(&name.id, AstNodeType::new(&ty, self.node_manager));
-                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.node_manager), self.current_line(), self.current_col());
+                    self.node_manager.add_type_inference(&name.id, AstNodeType::new(&ty, self.node_manager)?);
+                    let field = self.new_node(AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.node_manager)?, self.current_line(), self.current_col());
                     fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -576,7 +576,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
                 return Ok(self.new_node(
-                    AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty, self.node_manager)),
+                    AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty, self.node_manager)?),
                     AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             }
@@ -1292,7 +1292,7 @@ impl<'a> Parser<'a> {
 
             TokenType::KeywordGoto => {
                 //TODO
-                panic!("goto is not implemented yet");
+                return Err(anyhow!("goto is not implemented yet"));
             }
 
             TokenType::KeywordContinue => {
@@ -1301,7 +1301,7 @@ impl<'a> Parser<'a> {
 
             TokenType::KeywordSwitch => {
                 //TODO
-                panic!("Switch is not implemented yet");
+                return Err(anyhow!("Switch is not implemented yet"));
             }
 
             TokenType::KeywordBreak => {

@@ -75,7 +75,7 @@ impl Pipeline {
         let mut loads = Vec::<String>::new();
         let mut asts = Vec::<Ast>::new();
         for node_id in main_ast.top_level.iter() {
-            let node = self.compiler.get_node(node_id.clone());
+            let node = self.compiler.get_node(node_id.clone())?;
             match node.data {
                 AstNodeData::Load(ref path) => {
                     loads.push(path.clone());

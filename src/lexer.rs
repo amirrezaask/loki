@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::anyhow;
 use serde::Serialize;
 
 pub type SrcLocation = (usize, usize);
@@ -243,23 +244,23 @@ impl Tokenizer {
         self.src[self.cur]
     }
 
-    fn emit_current_token(&mut self) -> Token {
+    fn emit_current_token(&mut self) -> Result<Token> {
         match self.state {
             State::SawSharp(start) => {
                 self.state = State::Start;
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
                 let tok = Token::new(TokenType::from_str(&ident_or_keyword), (start, self.cur - 1), self.line, self.col);
-                return tok;
+                return Ok(tok);
             }
 
             State::Integer(start) => {
                 self.state = State::Start;
-                return Token::new(TokenType::UnsignedInt, (start, self.cur - 1), self.line, self.col);
+                return Ok(Token::new(TokenType::UnsignedInt, (start, self.cur - 1), self.line, self.col));
             }
             State::Float(start) => {
                 self.state = State::Start;
-                return Token::new(TokenType::Float, (start, self.cur - 1), self.line, self.col);
+                return Ok(Token::new(TokenType::Float, (start, self.cur - 1), self.line, self.col));
             }
             State::IdentOrKeyword(start) => {
                 self.state = State::Start;
@@ -268,19 +269,19 @@ impl Tokenizer {
                     self.src[start..self.cur].to_vec().into_iter().collect();
                 let tok = Token::new(TokenType::from_str(&ident_or_keyword), (start, self.cur - 1), self.line, self.col);
 
-                return tok;
+                return Ok(tok);
             }
             State::InStringLiteral(start) => {
                 self.state = State::Start;
                 let tok = Token::new(TokenType::StringLiteral, (start + 1, self.cur - 1), self.line, self.col);
                 self.forward_char();
-                return tok;
+                return Ok(tok);
             }
             State::Start => {
-                return Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col);
+                return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
             }
             _ => {
-                panic!("state: {:?} emitting current token", self.state);
+                Err(anyhow!("state: {:?} emitting current token", self.state))
             }
         }
     }
@@ -312,7 +313,7 @@ impl Tokenizer {
                 if self.state == State::InLineComment {
                     return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
                 }
-                return Ok(self.emit_current_token());
+                return Ok(self.emit_current_token()?);
             }
             match self.state {
                 State::Start => {
@@ -465,7 +466,7 @@ impl Tokenizer {
                 State::SawSharp(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
                     | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '=' | '!' => {
-                        return Ok(self.emit_current_token());
+                        return Ok(self.emit_current_token()?);
                     }
 
                     _ => {
@@ -557,7 +558,7 @@ impl Tokenizer {
                 },
                 State::InStringLiteral(start) => match self.current_char() {
                     '"' => {
-                        return Ok(self.emit_current_token());
+                        return Ok(self.emit_current_token()?);
                     }
                     _ => {
                         self.forward_char();
@@ -605,7 +606,7 @@ impl Tokenizer {
                 State::IdentOrKeyword(_) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
                     | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
-                        return Ok(self.emit_current_token());
+                        return Ok(self.emit_current_token()?);
                     }
                     _ => {
                         self.forward_char();
@@ -615,7 +616,7 @@ impl Tokenizer {
                 State::Float(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
                     | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
-                        return Ok(self.emit_current_token());
+                        return Ok(self.emit_current_token()?);
                     }
                     '.' => {
                         unreachable!();
@@ -628,7 +629,7 @@ impl Tokenizer {
                 State::Integer(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
                     | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
-                        return Ok(self.emit_current_token());
+                        return Ok(self.emit_current_token()?);
                     }
                     '.' => {
                         self.state = State::Float(start);

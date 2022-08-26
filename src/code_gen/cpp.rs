@@ -5,6 +5,7 @@ use crate::compiler::Compiler;
 use crate::ast::{AstNodeType, AstOperation, NodeID, AstTag, NamespaceAccess};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
+use anyhow::anyhow;
 use anyhow::Result;
 
 pub struct CPP<'a> {
@@ -102,7 +103,7 @@ impl<'a> CPP<'a> {
     fn get_def_typ(&self, node: &AstNode) -> Result<AstNodeType> {
         match &node.data {
             AstNodeData::Def(def) => {
-                let def_expr = self.node_manager.get_node(def.expr.clone());
+                let def_expr = self.node_manager.get_node(def.expr.clone())?;
                 match def_expr.infered_type {
                     AstNodeType::Unknown => {
                         println!("type inference shit the bed. {:?}", def);
@@ -129,25 +130,18 @@ impl<'a> CPP<'a> {
     fn repr_fn_def_args(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node_id in node_tys {
-            let node = self.node_manager.get_node(node_id.clone());
-            match &node.data {
-                AstNodeData::Decl(ref ident_node_id) => {
-                    let ident_node = self.node_manager.get_node(ident_node_id.to_string());
-                    let name = ident_node.get_ident();
-                    output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
-                }
-                _ => {
-                    panic!()
-                }
-            }
-
+            let node = self.node_manager.get_node(node_id.clone())?;
+            let ident_node_id = node.get_decl()?;
+            let ident_node = self.node_manager.get_node(ident_node_id)?;
+            let name = ident_node.get_ident()?;
+            output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
         }
         Ok(output.join(", "))
     }
     fn repr_struct_fields(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node_id in node_tys {
-            let node = self.node_manager.get_node(node_id.clone());
+            let node = self.node_manager.get_node(node_id.clone())?;
             match &node.data {
                 AstNodeData::Decl(name_id) => {
                     output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name_id.clone())?));
@@ -179,7 +173,7 @@ impl<'a> CPP<'a> {
     fn repr_enum_variants(&self, variants: &Vec<(NodeID, Option<NodeID>)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for (decl_id, _) in variants.iter() {
-            let decl_node = self.node_manager.get_node(decl_id.clone());
+            let decl_node = self.node_manager.get_node(decl_id.clone())?;
             let ident_id = decl_node.get_name_for_defs_and_decls(&self.node_manager).unwrap();
             output.push(self.repr_ast_node(ident_id.clone())?);
         }
@@ -219,14 +213,14 @@ impl<'a> CPP<'a> {
             TokenType::DoubleEqual => Ok("==".to_string()),
             TokenType::NotEqual => Ok("!=".to_string()),
             _ => {
-                panic!("unsupported operator: {:?}", op);
+                Err(anyhow!("unsupported operator: {:?}", op))
            }
         }
     }
 
     fn repr_namespace_access(&self, nsa: &NamespaceAccess) -> Result<String> {
-        let ns_ty = self.node_manager.get_node(nsa.namespace.clone());
-        let _ = self.node_manager.get_node(nsa.field.clone());
+        let ns_ty = self.node_manager.get_node(nsa.namespace.clone())?;
+        let _ = self.node_manager.get_node(nsa.field.clone())?;
         if ns_ty.infered_type.is_enum() {
             return Ok(format!("{}::{}", self.repr_ast_node(nsa.namespace.clone())?, self.repr_ast_node(nsa.field.clone())?));
         }
@@ -248,7 +242,7 @@ impl<'a> CPP<'a> {
     }
 
     fn repr_ast_node(&self, node_id: NodeID) -> Result<String> {
-        let node = self.node_manager.get_node(node_id);
+        let node = self.node_manager.get_node(node_id)?;
         match &node.data {
             AstNodeData::Host(import) => {
                 Ok(format!(
@@ -280,7 +274,7 @@ impl<'a> CPP<'a> {
             }
 
             AstNodeData::Def(def) => {
-                let def_expr = self.node_manager.get_node(def.expr.clone());
+                let def_expr = self.node_manager.get_node(def.expr.clone())?;
                 match &def_expr.data {
                 
                 AstNodeData::FnDef(ref fn_def) => 

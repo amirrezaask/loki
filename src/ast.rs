@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::default;
 
 use crate::lexer::{Token, TokenType};
+use anyhow::anyhow;
 use crate::compiler::Compiler;
 use anyhow::Result;
 use serde::Serialize;
@@ -51,52 +52,52 @@ pub enum AstNodeType {
 }
 
 impl AstNodeType {
-    pub fn new(node: &AstNode, compiler: &Compiler) -> Self {
+    pub fn new(node: &AstNode, compiler: &Compiler) -> Result<Self> {
         match node.data {
             AstNodeData::Ident(ref ident) => {
-                return AstNodeType::TypeName(ident.clone());
+                return Ok(AstNodeType::TypeName(ident.clone()));
             }
 
-            AstNodeData::UintTy(bitsize) => AstNodeType::UnsignedInt(bitsize),
-            AstNodeData::IntTy(bitsize) => AstNodeType::SignedInt(bitsize),
-            AstNodeData::CharTy => AstNodeType::Char,
-            AstNodeData::StringTy => AstNodeType::String,
-            AstNodeData::BoolTy => AstNodeType::Bool,
-            AstNodeData::FloatTy(bitsize) => AstNodeType::Float(bitsize),
-            AstNodeData::CVarArgs => AstNodeType::CVarArgs,
-            AstNodeData::CString => AstNodeType::CString,
+            AstNodeData::UintTy(bitsize) => Ok(AstNodeType::UnsignedInt(bitsize)),
+            AstNodeData::IntTy(bitsize) => Ok(AstNodeType::SignedInt(bitsize)),
+            AstNodeData::CharTy => Ok(AstNodeType::Char),
+            AstNodeData::StringTy => Ok(AstNodeType::String),
+            AstNodeData::BoolTy => Ok(AstNodeType::Bool),
+            AstNodeData::FloatTy(bitsize) => Ok(AstNodeType::Float(bitsize)),
+            AstNodeData::CVarArgs => Ok(AstNodeType::CVarArgs),
+            AstNodeData::CString => Ok(AstNodeType::CString),
             AstNodeData::Deref(ref obj) => { // TODO: this is a temporary fix, this should be handled in parser and this would become PointerTo
-                let pointee = compiler.get_node(obj.clone());
-                return AstNodeType::Pointer(Box::new(pointee.infered_type));
+                let pointee = compiler.get_node(obj.clone())?;
+                return Ok(AstNodeType::Pointer(Box::new(pointee.infered_type)));
             }
             AstNodeData::FnType(ref sign) => {
                 let mut args: Vec<AstNodeType> = vec![];
                 for decl in sign.args.iter() {
-                    let decl_node = compiler.get_node(decl.clone());
+                    let decl_node = compiler.get_node(decl.clone())?;
                     args.push(decl_node.infered_type);
                 }
-                let ret = compiler.get_node(sign.ret.clone()).infered_type;
+                let ret = compiler.get_node(sign.ret.clone())?.infered_type;
 
-                return AstNodeType::FnType(args, Box::new(ret));
+                return Ok(AstNodeType::FnType(args, Box::new(ret)));
             }
-            AstNodeData::VoidTy => AstNodeType::Void,
-            _ => AstNodeType::Unknown,
+            AstNodeData::VoidTy => Ok(AstNodeType::Void),
+            _ => Ok(AstNodeType::Unknown),
         }
     }
     pub fn make_fn_signature(
         node_manager: &Compiler,
         args: &Vec<NodeID>,
         ret: &AstNode,
-    ) -> Self {
+    ) -> Result<Self> {
         let args_ty: Vec<AstNodeType> = args
             .iter()
             .map(|arg| {
-                let arg = node_manager.get_node(arg.clone());
+                let arg = node_manager.get_node(arg.clone()).unwrap();
                 arg.infered_type.clone()
             })
             .collect();
 
-        return AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, node_manager)));
+        return Ok(AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, node_manager)?)));
     }
     pub fn is_type_def(&self) -> bool {
         match self {
@@ -112,14 +113,14 @@ impl AstNodeType {
         }
     }
 
-    pub fn get_pointer_pointee(&self) -> AstNodeType {
+    pub fn get_pointer_pointee(&self) -> Result<AstNodeType> {
         match self {
             AstNodeType::Pointer(obj) => {
-                return *obj.clone();
+                return Ok(*obj.clone());
             }
 
             _ => {
-                panic!("expected pointer found: {:?}", self);
+                return Err(anyhow!("expected pointer found: {:?}", self));
             }
         }
     }
@@ -332,11 +333,11 @@ pub enum AstNodeData {
 }
 
 impl AstNode {
-    pub fn get_ident(&self) -> String {
+    pub fn get_ident(&self) -> Result<String> {
         if let AstNodeData::Ident(ident) = &self.data {
-            return ident.to_string();
+            return Ok(ident.to_string());
         } else {
-            panic!("expected the node to be a identifier but : {:?}", self);
+            Err(anyhow!("expected the node to be a identifier but : {:?}", self))
         }
     }
     pub fn is_ident(&self) -> bool {
@@ -363,13 +364,18 @@ impl AstNode {
         return false;
     }
 
-    pub fn get_def(&self) -> AstDef {
+    pub fn get_def(&self) -> Result<AstDef> {
         if let AstNodeData::Def(ref def) = self.data {
-            return def.clone();
+            return Ok(def.clone());
         }
-        panic!("expected AstNodeData::Def got: {:?}", self);
+        Err(anyhow!("expected AstNodeData::Def got: {:?}", self))
     }
-
+    pub fn get_decl(&self) -> Result<NodeID> {
+        if let AstNodeData::Decl(ref ident_node_id) = self.data {
+            return Ok(ident_node_id.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
+    }
     pub fn get_name_for_defs_and_decls(&self, node_manager: &Compiler) -> Option<NodeID> {
         match &self.data {
             AstNodeData::Def(def) => {
@@ -394,7 +400,7 @@ impl AstNode {
     //     if let AstNodeData::PointerTo(ref obj) = self.data {
     //         return obj.data.clone();
     //     }
-    //     panic!("expected a pointer to node found: {:?}", self);
+    //     return Err(anyhow!("expected a pointer to node found: {:?}", self)));
     // }
 
     pub fn extract_uint(&self) -> u64 {

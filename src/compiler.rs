@@ -102,10 +102,11 @@ impl Compiler {
         scope_nodes.push(id.clone());
     }
 
-    pub fn add_scope_to_def_or_decl(&mut self, id: &NodeID, scope: ScopeID) {
-        let def_node = self.get_node(id.clone());
+    pub fn add_scope_to_def_or_decl(&mut self, id: &NodeID, scope: ScopeID) -> Result<()> {
+        let def_node = self.get_node(id.clone())?;
         let name = def_node.get_name_for_defs_and_decls(self).unwrap();
         self.add_scope_to_node(&name, scope.clone());
+        Ok(())
     }
 
     pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
@@ -113,12 +114,13 @@ impl Compiler {
         node.tags.push(tag);
     }
 
-    pub fn get_node(&self, id: NodeID) -> AstNode {
+    pub fn get_node(&self, id: NodeID) -> Result<AstNode> {
         match self.nodes.get(&id) {
-            Some(n) => n.clone(),
-            None => panic!("node {} does not exist", id),
+            Some(n) => Ok(n.clone()),
+            None => Err(anyhow!("node {} does not exist", id)),
         }
     }
+    
 
     fn get_relevant_scopes(&self, scope_id: ScopeID) -> Vec<ScopeID> {
         let mut scope_id = scope_id;
@@ -139,49 +141,51 @@ impl Compiler {
         return relevant_scopes;
     }
 
-    fn get_file_root_scope_id(&self, file: &str) -> ScopeID {
+    fn get_file_root_scope_id(&self, file: &str) -> Result<ScopeID> {
         for (idx, scope) in self.scopes.iter().enumerate() {
             match scope.scope_type {
                 ScopeType::File(ref name) => {
                     if name == file {
-                        return idx as isize;
+                        return Ok(idx as isize);
                     }
                 }
                 _ => {}
             }
         }
 
-        panic!("root scope of file {:?} not found ", file);
+        Err(anyhow!("root scope of file {:?} not found ", file))
     }
 
-    pub fn resolve_loads(&mut self, file: String, mut loads: Vec<String>) {
-        let file_root_scope_id = self.get_file_root_scope_id(&file);
+    pub fn resolve_loads(&mut self, file: String, mut loads: Vec<String>) -> Result<()> {
+        let file_root_scope_id = self.get_file_root_scope_id(&file)?;
         for load in &mut loads {
-            let load_root_scope_id = self.get_file_root_scope_id(&load);
+            let load_root_scope_id = self.get_file_root_scope_id(&load)?;
             let mut nodes = self.scope_nodes.get(&load_root_scope_id).unwrap().clone(); // TODO: filter just the nodes that matter
             self.scope_nodes
                 .get_mut(&file_root_scope_id)
                 .unwrap()
                 .append(&mut nodes);
         }
+
+        Ok(())
     }
 
-    pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> AstNodeType {
+    pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> Result<AstNodeType> {
         let scopes = self.get_relevant_scopes(scope_id);
         for scope in scopes {
             let nodes = self.scope_nodes.get(&scope).unwrap();
             for node_id in nodes.iter() {
                 //TODO: check node is defined before the given ident
-                let node = self.get_node(node_id.clone());
+                let node = self.get_node(node_id.clone())?;
                 match node.data {
                     AstNodeData::Def(ref def) => {
-                        let name_node = self.get_node(def.name.clone());
-                        if name_node.get_ident() == ident {
-                            let def_expr = self.get_node(def.expr.clone());
+                        let name_node = self.get_node(def.name.clone())?;
+                        if name_node.get_ident()? == ident {
+                            let def_expr = self.get_node(def.expr.clone())?;
                             if def_expr.is_unknown() {
                                 continue;
                             }
-                            return def_expr.infered_type;
+                            return Ok(def_expr.infered_type);
                         }
                     }
                     AstNodeData::Ident(ref name) => {
@@ -189,16 +193,16 @@ impl Compiler {
                             continue;
                         }
                         if ident == name.clone() {
-                            return node.infered_type.clone();
+                            return Ok(node.infered_type.clone());
                         }
                     }
                     AstNodeData::Decl(ref name_id) => {
-                        let name_node = self.get_node(name_id.clone());
+                        let name_node = self.get_node(name_id.clone())?;
                         if node.infered_type.is_unknown() {
                             continue;
                         }
-                        if name_node.get_ident().clone() == ident {
-                            return node.infered_type.clone();
+                        if name_node.get_ident()?.clone() == ident {
+                            return Ok(node.infered_type.clone());
                         }
                     }
 
@@ -207,23 +211,23 @@ impl Compiler {
             }
         }
 
-        return AstNodeType::Unknown;
+        return Ok(AstNodeType::Unknown);
     }
 
-    fn is_defined(&self, ident: String) -> bool {
+    fn is_defined(&self, ident: String) -> Result<bool> {
         for (node_id, node) in self.nodes.iter() {
             match node.data {
                 AstNodeData::Decl(ref id) => {
-                    let ident_node = self.get_node(id.clone());
-                    if ident_node.get_ident() == ident {
-                        return true;
+                    let ident_node = self.get_node(id.clone())?;
+                    if ident_node.get_ident()? == ident {
+                        return Ok(true);
                     }
                 }
 
                 AstNodeData::Def(ref def) => {
-                    let ident_node = self.get_node(def.name.clone());
-                    if ident_node.get_ident() == ident {
-                        return true;
+                    let ident_node = self.get_node(def.name.clone())?;
+                    if ident_node.get_ident()? == ident {
+                        return Ok(true);
                     }
                 }
 
@@ -231,7 +235,7 @@ impl Compiler {
             }
         }
 
-        return false;
+        return Ok(false);
     }
 
     fn infer_types(&mut self) -> Result<()> {
@@ -248,10 +252,10 @@ impl Compiler {
             }
 
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
-                if !self.is_defined(ident.clone()) {
+                if !self.is_defined(ident.clone())? {
                     return Err(anyhow!("In file {} undeclared ident: {} at line: {} column: {}", ident, unknown_node.filename, unknown_node.line, unknown_node.col));
                 }
-                let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope);
+                let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope)?;
                 if ty.is_unknown() {
                     self.add_unknown(&unknown_id);
                     continue;
@@ -261,7 +265,7 @@ impl Compiler {
             }
 
             if let AstNodeData::Deref(ref object) = unknown_node.data {
-                let pointer = self.get_node(object.clone());
+                let pointer = self.get_node(object.clone())?;
                 if pointer.infered_type.is_unknown() {
                     self.add_unknown(&object.clone());
                     self.add_unknown(&unknown_id);
@@ -272,14 +276,14 @@ impl Compiler {
                     }
                     self.add_type_inference(
                         &unknown_id,
-                        pointer.infered_type.get_pointer_pointee(),
+                        pointer.infered_type.get_pointer_pointee()?,
                     );
                     continue;
                 }
             }
 
             if let AstNodeData::PointerTo(ref object) = unknown_node.data {
-                let pointee = self.get_node(object.clone());
+                let pointee = self.get_node(object.clone())?;
                 if pointee.infered_type.is_unknown() {
                     self.add_unknown(&object.clone());
                     self.add_unknown(&unknown_id);
@@ -294,17 +298,17 @@ impl Compiler {
             }
             if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
                 let namespace_access = ns.clone();
-                let namespace = self.get_node(namespace_access.namespace.clone());
+                let namespace = self.get_node(namespace_access.namespace.clone())?;
                 let mut namespace_ty = namespace.infered_type.clone();
                 if namespace_ty.is_unknown() {
                     namespace_ty =
-                        self.find_ident_ast_type(namespace.get_ident(), unknown_node.scope);
+                        self.find_ident_ast_type(namespace.get_ident()?, unknown_node.scope)?;
                 }
 
-                let field = self.get_node(namespace_access.field.clone()); // TODO: need scope in this one
+                let field = self.get_node(namespace_access.field.clone())?; // TODO: need scope in this one
                 let mut field_ty = field.infered_type.clone();
                 if field_ty.is_unknown() {
-                    field_ty = self.find_ident_ast_type(field.get_ident(), unknown_node.scope);
+                    field_ty = self.find_ident_ast_type(field.get_ident()?, unknown_node.scope)?;
                 }
                 if namespace_ty.is_unknown() {
                     self.add_unknown(&namespace.id.clone());
