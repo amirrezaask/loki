@@ -1,6 +1,7 @@
 #host "string";
 
 constant_uint :: 2;
+constant_float :: 2.2;
 constant_char :: 'c';
 // f :: 3.2;
 constant_string :: "salam";

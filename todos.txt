@@ -1,14 +1,10 @@
-- refactor whole error system.
-  - use our own error reporting instead of rust Result and panic!
-
-- float32, float64 support
-
 - after compiler::infer_types and compiler::type_check we should produce Bytecode and code gen should use IR instead of AST.
   - Bytecode is a fully check both in terms of semantics and types.
   - it's the simplest instruction set possible.
   - when lowering into byte code we should re order stuff based on dependency.
 
 - initializers should just generate code to set each field seperately
+- enums should not depend on host language, they should just be normal constants.
 
 - arrays:
   - dynamic array
@@ -19,7 +15,9 @@
 - defer
     *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 
-- enums should not depend on host language, they should just be normal constants.
+- type casting using as keyword
+
+- finish error-system branch
 
 - unions
 
