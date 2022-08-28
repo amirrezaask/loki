@@ -261,7 +261,7 @@ impl<'a> CPP<'a> {
                 ))
             }
             AstNodeData::Load(_) => Ok("".to_string()),
-            AstNodeData::Assign(name, val) => {
+            AstNodeData::Assign{lhs: name, rhs: val} => {
                 Ok(format!("{} = {}", self.repr_ast_node(name.clone())?, self.repr_ast_node(val.clone())?))
             }
             AstNodeData::Decl(name) => {

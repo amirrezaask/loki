@@ -184,18 +184,6 @@ pub enum AstOperation {
     BinaryAnd,
     BinaryOr,
 }
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstCaseBlock {
-    pub cases: Vec<(NodeID, Vec<NodeID>)>,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstDef {
-    pub mutable: bool,
-    pub name: NodeID,
-    pub expr: NodeID,
-}
-
 pub type BitSize = usize;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -210,6 +198,9 @@ pub enum ScopeType {
     If,
     Else,
 
+    Struct,
+    Enum,
+
     File(String),
 }
 
@@ -219,6 +210,7 @@ pub type ScopeID = isize;
 pub struct Scope {
     pub scope_type: ScopeType,
     pub parent: ScopeID,
+    pub owner_node: NodeID,
     pub start: TokenIndex,
     pub end: TokenIndex,
 }
@@ -226,6 +218,7 @@ impl Default for Scope {
     fn default() -> Self {
         Self {
             scope_type: ScopeType::Unknown,
+            owner_node: "".to_string(),
             parent: -1,
             start: -1,
             end: -1,
@@ -258,7 +251,7 @@ pub enum AstNodeData {
         expr: NodeID,
     },
     Decl(NodeID),
-    Assign(NodeID, NodeID),
+    Assign{lhs: NodeID, rhs: NodeID},
 
     CVarArgs,
     CString,

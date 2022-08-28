@@ -63,9 +63,14 @@ impl Context {
             None => -1,
         };
     }
+    pub fn set_scope_owner(&mut self, scope_id: ScopeID, owner: NodeID) {
+        let scope = &mut self.scopes.get_mut(scope_id as usize).unwrap();
+        scope.owner_node = owner;
+    }
     pub fn add_scope(&mut self, scope_ty: ScopeType, start: isize, end: isize) -> ScopeID {
         self.scopes.push(Scope {
             scope_type: scope_ty,
+            owner_node: "".to_string(),
             parent: self.top_of_scope_stack(),
             start,
             end,
