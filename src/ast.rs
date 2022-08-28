@@ -3,7 +3,7 @@ use std::default;
 
 use crate::lexer::{Token, TokenType};
 use anyhow::anyhow;
-use crate::compiler::Compiler;
+use crate::context::Context;
 use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
@@ -52,7 +52,7 @@ pub enum AstNodeType {
 }
 
 impl AstNodeType {
-    pub fn new(node: &AstNode, compiler: &Compiler) -> Result<Self> {
+    pub fn new(node: &AstNode, compiler: &Context) -> Result<Self> {
         match node.data {
             AstNodeData::Ident(ref ident) => {
                 return Ok(AstNodeType::TypeName(ident.clone()));
@@ -85,19 +85,19 @@ impl AstNodeType {
         }
     }
     pub fn make_fn_signature(
-        node_manager: &Compiler,
+        compiler: &Context,
         args: &Vec<NodeID>,
         ret: &AstNode,
     ) -> Result<Self> {
         let args_ty: Vec<AstNodeType> = args
             .iter()
             .map(|arg| {
-                let arg = node_manager.get_node(arg.clone()).unwrap();
+                let arg = compiler.get_node(arg.clone()).unwrap();
                 arg.infered_type.clone()
             })
             .collect();
 
-        return Ok(AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, node_manager)?)));
+        return Ok(AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, compiler)?)));
     }
     pub fn is_type_def(&self) -> bool {
         match self {
@@ -252,7 +252,11 @@ pub enum AstNodeData {
     CompilerFlags(String),
     Load(String),
     Host(String),
-    Def(AstDef),
+    Def{
+        mutable: bool,
+        name: NodeID,
+        expr: NodeID,
+    },
     Decl(NodeID),
     Assign(NodeID, NodeID),
 
@@ -278,7 +282,7 @@ pub enum AstNodeData {
     },
 
     Struct(Vec<NodeID>),
-    Enum(bool, Vec<(NodeID, Option<NodeID>)>),
+    Enum(Vec<NodeID>),
 
     //Expressions
     Uint(u64),
@@ -307,6 +311,7 @@ pub enum AstNodeData {
         sign: NodeID,
         body: Vec<NodeID>,
     },
+    
     FnCall{fn_name: NodeID, args: Vec<NodeID>},
 
     PointerTo(NodeID),
@@ -316,9 +321,9 @@ pub enum AstNodeData {
         cases: Vec<(NodeID, Vec<NodeID>)>,
     },
 
-    For(NodeID, NodeID, NodeID, Vec<NodeID>),
-    ForIn(NodeID, NodeID, Vec<NodeID>),
-    While(NodeID, Vec<NodeID>),
+    For { start: NodeID, cond: NodeID, cont: NodeID, body: Vec<NodeID>},
+    ForIn{ iterator: NodeID, iterable: NodeID, body: Vec<NodeID>},
+    While{cond: NodeID, body: Vec<NodeID>},
 
     Break,
     Continue,
@@ -352,15 +357,15 @@ impl AstNode {
         return false;
     }
     pub fn is_def(&self) -> bool {
-        if let AstNodeData::Def(_) = self.data {
+        if let AstNodeData::Def{mutable: _, name: _, expr: _} = self.data {
             return true;
         }
         return false;
     }
 
-    pub fn get_def(&self) -> Result<AstDef> {
-        if let AstNodeData::Def(ref def) = self.data {
-            return Ok(def.clone());
+    pub fn get_def(&self) -> Result<(bool, NodeID, NodeID)> {
+        if let AstNodeData::Def{mutable, name: ref name, expr: ref expr} = self.data {
+            return Ok((mutable,  name.clone(), expr.clone()));
         }
         Err(anyhow!("expected AstNodeData::Def got: {:?}", self))
     }
@@ -377,10 +382,10 @@ impl AstNode {
         Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
  
     }
-    pub fn get_name_for_defs_and_decls(&self, node_manager: &Compiler) -> Option<NodeID> {
+    pub fn get_name_for_defs_and_decls(&self, compiler: &Context) -> Option<NodeID> {
         match &self.data {
-            AstNodeData::Def(def) => {
-                return Some(def.name.clone());
+            AstNodeData::Def{mutable, name, expr} => {
+                return Some(name.clone());
             }
 
             AstNodeData::Decl(ident_id) => {
@@ -388,6 +393,13 @@ impl AstNode {
             }
             _ => None,
         }
+    }
+
+    pub fn get_enum_variants(&self) -> Result<Vec<NodeID>> {
+        if let AstNodeData::Enum(ref variants) = self.data {
+            return Ok(variants.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Enum got: {:?}", self))
     }
 
     pub fn is_initialize(&self) -> bool {
@@ -433,7 +445,7 @@ impl Ast {
         src: String,
         tokens: Vec<Token>,
         top_level: Vec<NodeID>,
-        node_manager: &mut Compiler,
+        compiler: &mut Context,
     ) -> Result<Self> {
         Ok(Self {
             filename,

@@ -6,7 +6,7 @@ use std::time::Instant;
 
 // compiler that glue all parts together
 use super::parser::Parser;
-use crate::compiler::Compiler;
+use crate::context::Context;
 use crate::ast::{Ast};
 use crate::ast::AstNodeData;
 use crate::lexer::Token;
@@ -19,13 +19,13 @@ use std::process::Command;
 pub struct Pipeline {
     total_lines: u64,
     total_tokens: u64,
-    compiler: Compiler    
+    compiler: Context    
 }
 
 
 impl Pipeline {
     pub fn new() -> Self {
-        Self {total_lines: 0 , total_tokens: 0, compiler: Compiler::new() }
+        Self {total_lines: 0 , total_tokens: 0, compiler: Context::new() }
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
@@ -54,15 +54,15 @@ impl Pipeline {
         Ok(())
     }
 
-    pub fn dump_node_manager_before(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("node_manager_before_infer_dump.json")?;
+    pub fn dump_compiler_context_before(&self) -> Result<()> {
+        let mut out_file = std::fs::File::create("compiler_context_before_infer_dump.json")?;
         out_file.write_all(serde_json::to_string_pretty(&self.compiler).unwrap().as_bytes())?;
 
         Ok(())
     }
 
-    pub fn dump_node_manager_after(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("node_manager_after_infer_dump.json")?;
+    pub fn dump_compiler_context_after(&self) -> Result<()> {
+        let mut out_file = std::fs::File::create("compiler_context_after_infer_dump.json")?;
         out_file.write_all(serde_json::to_string_pretty(&self.compiler).unwrap().as_bytes())?;
 
         Ok(())
@@ -119,10 +119,10 @@ impl Pipeline {
         let mut asts = self.get_ast_for(path)?;
         let mut codes = Vec::<String>::new();
 
-        self.dump_node_manager_before()?;
+        self.dump_compiler_context_before()?;
         let asts = self.compiler.process(asts)?;
 
-        self.dump_node_manager_after()?;
+        self.dump_compiler_context_after()?;
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();

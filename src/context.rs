@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use anyhow::anyhow;
+use rand::distributions::Alphanumeric;
+use rand::distributions::DistString;
 use serde::Serialize;
 
 use crate::ast::{
@@ -14,7 +16,7 @@ pub type FilePath = String;
 
 // this struct will hold all data of your whole compilation.
 #[derive(Debug, Clone, Serialize, Default)]
-pub struct Compiler {
+pub struct Context {
     pub nodes: HashMap<NodeID, AstNode>,
     pub scopes: Vec<Scope>,
     pub scope_stack: Vec<ScopeID>,
@@ -23,7 +25,7 @@ pub struct Compiler {
     unknowns: Vec<NodeID>,
 }
 
-impl Compiler {
+impl Context {
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
@@ -93,6 +95,16 @@ impl Compiler {
         if node.infered_type.is_unknown() {
             self.unknowns.push(node.id.clone());
         }
+    }
+
+    pub fn remove_node_from_scope(&mut self, node: &AstNode) -> Result<()> {
+        let scope_nodes = self.scope_nodes.get_mut(&node.scope).unwrap();
+        if scope_nodes.contains(&node.id) {
+            let index = scope_nodes.iter().position(|x| x == &node.id).unwrap();
+            scope_nodes.remove(index);
+        }
+
+        Ok(())
     }
 
     pub fn add_scope_to_node(&mut self, id: &NodeID, scope: ScopeID) {
@@ -178,10 +190,10 @@ impl Compiler {
                 //TODO: check node is defined before the given ident
                 let node = self.get_node(node_id.clone())?;
                 match node.data {
-                    AstNodeData::Def(ref def) => {
-                        let name_node = self.get_node(def.name.clone())?;
+                    AstNodeData::Def{mutable, name, expr} => {
+                        let name_node = self.get_node(name.clone())?;
                         if name_node.get_ident()? == ident {
-                            let def_expr = self.get_node(def.expr.clone())?;
+                            let def_expr = self.get_node(expr.clone())?;
                             if def_expr.is_unknown() {
                                 continue;
                             }
@@ -224,8 +236,8 @@ impl Compiler {
                     }
                 }
 
-                AstNodeData::Def(ref def) => {
-                    let ident_node = self.get_node(def.name.clone())?;
+                AstNodeData::Def{mutable, name: ref name, expr: ref expr} => {
+                    let ident_node = self.get_node(name.clone())?;
                     if ident_node.get_ident()? == ident {
                         return Ok(true);
                     }
@@ -357,25 +369,70 @@ impl Compiler {
             // TODO: Initialize, InitializeArray, FnCall
         }
 
-        // println!("unknowns: {:?}", self.unknowns);
+        Ok(())
+    }
+    /*
+        lower will edit current ast to a much more low-level version of ast so we can have simpler backends.
+        - enum -> constants
+        - initialize -> normal assignments
+        - for -> while
+        - forIn -> while
+        - defer -> goto
+        - switch -> if/else
+    */
 
+    fn enum_variant_name(enum_name: String, variant_name: String) -> String {
+        format!("{}_{}", enum_name, variant_name)
+    }
+    fn lower(&mut self) -> Result<()> {
+        for (_, node_id) in self.nodes.clone().keys().enumerate() {
+            let mut node = self.get_node(node_id.clone())?;
+            if let AstNodeData::Enum(variants) = &node.data {
+                // remove enum node from nodes_scope;
+                self.remove_node_from_scope(&node);
+                // remove from nodes
+                
+                // for each variant add a node to scope that is a def of that variant
+
+                for (idx, variant_id) in variants.iter().enumerate() {
+                    let variant = self.get_node(variant_id.clone())?;
+                    let variant_name = self.get_node(variant.get_decl()?)?.get_ident()?;
+
+                    let expr_id = Alphanumeric.sample_string(&mut rand::thread_rng(), 24);
+                    let expr = self.add_node(AstNode {
+                        id: expr_id.clone(),
+                        data: AstNodeData::Uint(idx as u64),
+                        infered_type: AstNodeType::UnsignedInt(64),
+                        scope: node.scope,
+                        tags: vec![],
+                        line: variant.line,
+                        col: variant.col,
+                        filename: node.filename.clone(),
+ 
+                    })?;
+                    self.add_node(AstNode {
+                        id: Alphanumeric.sample_string(&mut rand::thread_rng(), 24),
+                        data: AstNodeData::Def { 
+                            mutable: false, 
+                            name: Self::enum_variant_name(node.id.clone(), variant_name), 
+                            expr: expr_id,
+                        },
+                        infered_type: AstNodeType::NoType,
+                        scope: node.scope,
+                        tags: vec![],
+                        line: variant.line,
+                        col: variant.col,
+                        filename: node.filename.clone(),
+                    });
+                }
+           }
+        }
+        // unimplemented!();
         Ok(())
     }
 
-    fn lower_ast(&mut self, ast: Ast) -> Result<Ast> {
-        // enum should be lowered into normal constants
-            // we should find every namespace access to an enum and convert them to just reference the normal constant we generated.
-        // all initialization nodes should convert to decl, following a series of assignments of fields.     
-
-        unimplemented!();
-    }
-
-    fn lower_asts(&mut self, mut asts: Vec<Ast>) -> Result<Vec<Ast>> {
-        for (idx ,ast) in asts.clone().iter().enumerate() { //TODO: fix
-            asts.insert(idx, self.lower_ast(ast.clone())?);
-        }
-
-        unimplemented!();
+    fn sema_check(&self, asts: &Vec<Ast>) -> Result<()> {
+        Ok(())
     }
 
     fn type_check(&mut self) -> Result<()> {
@@ -384,12 +441,10 @@ impl Compiler {
     }
 
     pub fn process(&mut self, asts: Vec<Ast>) -> Result<Vec<Ast>> {
-        // type infer
         self.infer_types()?;
-        // ast lowering
-        //self.lower_asts(asts)?;
-        // type check
         self.type_check()?;
+        // self.sema_check(&asts);
+        // self.lower()?;
 
         Ok(asts)
     }

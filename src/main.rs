@@ -5,7 +5,7 @@ mod parser;
 mod lexer;
 mod pipeline;
 mod ast;
-mod compiler;
+mod context;
 mod tests;
 // mod symbol_table;
 use anyhow::Result;
