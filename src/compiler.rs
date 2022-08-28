@@ -296,16 +296,18 @@ impl Compiler {
                     continue;
                 }
             }
-            if let AstNodeData::NamespaceAccess(ref ns) = unknown_node.data {
-                let namespace_access = ns.clone();
-                let namespace = self.get_node(namespace_access.namespace.clone())?;
+            if let AstNodeData::NamespaceAccess{ namespace: namespace_id, field: field_id } = &unknown_node.data {
+                let namespace_id = namespace_id.clone().to_owned();
+                let field_id = field_id.clone().to_owned();
+                // let namespace_access = ns.clone();
+                let namespace = self.get_node(namespace_id.clone())?;
                 let mut namespace_ty = namespace.infered_type.clone();
                 if namespace_ty.is_unknown() {
                     namespace_ty =
                         self.find_ident_ast_type(namespace.get_ident()?, unknown_node.scope)?;
                 }
 
-                let field = self.get_node(namespace_access.field.clone())?; // TODO: need scope in this one
+                let field = self.get_node(field_id.clone())?; // TODO: need scope in this one
                 let mut field_ty = field.infered_type.clone();
                 if field_ty.is_unknown() {
                     field_ty = self.find_ident_ast_type(field.get_ident()?, unknown_node.scope)?;
@@ -324,13 +326,13 @@ impl Compiler {
                     continue;
                 }
 
-                self.add_type_inference(&namespace_access.namespace, namespace_ty);
-                self.add_type_inference(&namespace_access.field, field_ty.clone());
+                self.add_type_inference(&namespace_id, namespace_ty);
+                self.add_type_inference(&field_id.clone(), field_ty.clone());
                 self.add_type_inference(&unknown_id, field_ty.clone());
                 continue;
             }
-            if let AstNodeData::BinaryOperation(ref bop) = unknown_node.data {
-                match bop.operation {
+            if let AstNodeData::BinaryOperation {ref operation, ref left, ref right } = unknown_node.data {
+                match operation {
                     AstOperation::Equal
                     | AstOperation::NotEqual
                     | AstOperation::Greater

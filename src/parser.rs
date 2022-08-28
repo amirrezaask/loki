@@ -1,7 +1,7 @@
 #![allow(clippy::needless_return)]
 use crate::ast::{
-    Ast, AstBinaryOperation, AstCaseBlock, AstDef, AstFnDef, AstFnSignature, AstNode, AstNodeData,
-    AstNodeType, AstOperation, AstTag, NamespaceAccess, NodeID, Scope, ScopeID, ScopeType,
+    Ast, AstCaseBlock, AstDef, AstNode, AstNodeData,
+    AstNodeType, AstOperation, AstTag, NodeID, Scope, ScopeID, ScopeType,
 };
 use crate::lexer::Token;
 use crate::lexer::TokenType;
@@ -251,21 +251,18 @@ impl<'a> Parser<'a> {
             self.node_manager.remove_from_scope_stack();
             // fn type only
             let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty)?;
-            let sign = AstFnSignature {
+            let node = self.new_node(AstNodeData::FnType {
                 args,
                 ret: ret_ty.id,
-            };
-            let node = self.new_node(AstNodeData::FnType(sign), proto_ty, self.current_line(), self.current_col());
+            }, proto_ty, self.current_line(), self.current_col());
+
             return Ok(node);
         }
         
         let body = self.expect_block(ScopeType::Function)?;
         let proto_ty = AstNodeType::make_fn_signature(self.node_manager, &args, &ret_ty)?;
-        let sign = AstFnSignature {
-            args,
-            ret: ret_ty.id,
-        };
-        Ok(self.new_node(AstNodeData::FnDef(AstFnDef { sign, body }), proto_ty, self.current_line(), self.current_col()))
+        let sign = self.new_node(AstNodeData::FnType { args, ret: ret_ty.id }, proto_ty.clone(),self.current_line(), self.current_col()); //@Bug: line & col are wrong
+        Ok(self.new_node(AstNodeData::FnDef{ sign: sign.id, body }, proto_ty, self.current_line(), self.current_col()))
     }
 
     fn expect_fn_call(&mut self) -> Result<AstNode> {
@@ -296,7 +293,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(self.new_node(AstNodeData::FnCall(name.id, args), AstNodeType::Unknown,self.current_line(), self.current_col()))
+        Ok(self.new_node(AstNodeData::FnCall{fn_name: name.id, args}, AstNodeType::Unknown,self.current_line(), self.current_col()))
     }
     fn expect_expr_container_field(&mut self) -> Result<AstNode> {
         let container = self.expect_expr_initialize()?;
@@ -304,11 +301,7 @@ impl<'a> Parser<'a> {
             TokenType::Dot => {
                 self.forward_token();
                 let field = self.expect_expr()?;
-                let cf = NamespaceAccess {
-                    namespace: container.id,
-                    field: field.id,
-                };
-                return Ok(self.new_node(AstNodeData::NamespaceAccess(cf), AstNodeType::Unknown, self.current_line(), self.current_col()));
+                return Ok(self.new_node(AstNodeData::NamespaceAccess{ namespace: container.id, field: field.id }, AstNodeType::Unknown, self.current_line(), self.current_col()));
             }
             _ => {
                 return Ok(container);
@@ -370,7 +363,7 @@ impl<'a> Parser<'a> {
                             }
                         }
                         return Ok(self.new_node(
-                            AstNodeData::Initialize(ty.id.clone(), fields),
+                            AstNodeData::Initialize{ty: ty.id.clone(), fields},
                             AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, self.node_manager)?)),
                         self.current_line(), self.current_col()));
                     } else {
@@ -576,7 +569,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
                 return Ok(self.new_node(
-                    AstNodeData::ArrayTy(len.extract_uint(), AstNodeType::new(&ty, self.node_manager)?),
+                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: AstNodeType::new(&ty, self.node_manager)? },
                     AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             }
@@ -722,14 +715,8 @@ impl<'a> Parser<'a> {
                 let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                 self.forward_token();
                 let rhs = self.expect_expr_container_field()?;
-                let binary_operation = AstBinaryOperation {
-                    operation: op,
-                    left: lhs.id,
-                    right: rhs.id,
-                };
-
                 Ok(self.new_node(
-                    AstNodeData::BinaryOperation(binary_operation),
+                    AstNodeData::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id },
                     AstNodeType::Bool, self.current_line(), self.current_col()
                 ))
             }
@@ -761,14 +748,9 @@ impl<'a> Parser<'a> {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation {
-                    operation: AstOperation::Multiply,
-                    left: lhs.id,
-                    right: rhs.id,
-                };
                 Ok(self.new_node(
-                    AstNodeData::BinaryOperation(binary_operation),
-                    infered_ty.clone(), self.current_line(), self.current_col()
+                    AstNodeData::BinaryOperation{ operation: AstOperation::Multiply, left: lhs.id, right:rhs.id },
+                    AstNodeType::Bool, self.current_line(), self.current_col()
                 ))
             }
             TokenType::Percent => {
@@ -791,15 +773,9 @@ impl<'a> Parser<'a> {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation {
-                    operation: AstOperation::Modulu,
-                    left: lhs.id,
-                    right: rhs.id,
-                };
-
                 Ok(self.new_node(
-                    AstNodeData::BinaryOperation(binary_operation),
-                    infered_ty.clone(), self.current_line(), self.current_col()
+                    AstNodeData::BinaryOperation{ operation: AstOperation::Modulu, left: lhs.id, right:rhs.id },
+                    AstNodeType::Bool, self.current_line(), self.current_col()
                 ))
             }
             TokenType::ForwardSlash => {
@@ -822,15 +798,9 @@ impl<'a> Parser<'a> {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-
-                let binary_operation = AstBinaryOperation {
-                    operation: AstOperation::Multiply,
-                    left: lhs.id,
-                    right: rhs.id,
-                };
-                Ok(self.new_node(
-                    AstNodeData::BinaryOperation(binary_operation),
-                    infered_ty.clone(), self.current_line(), self.current_col()
+               Ok(self.new_node(
+                    AstNodeData::BinaryOperation{ operation: AstOperation::Multiply, left: lhs.id, right:rhs.id },
+                    AstNodeType::Bool, self.current_line(), self.current_col()
                 ))
             }
             _ => Ok(lhs),
@@ -861,12 +831,10 @@ impl<'a> Parser<'a> {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation {
-                    operation: AstOperation::Subtract,
-                    left: lhs.id,
-                    right: rhs.id,
-                };
-                Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col()))
+                Ok(self.new_node(
+                    AstNodeData::BinaryOperation{ operation: AstOperation::Subtract, left: lhs.id, right:rhs.id },
+                    AstNodeType::Bool, self.current_line(), self.current_col()
+                ))
             }
             TokenType::Plus => {
                 self.forward_token();
@@ -888,12 +856,10 @@ impl<'a> Parser<'a> {
                 if lhs.infered_type.is_unknown() {
                     lhs.infered_type = rhs.infered_type.clone();
                 }
-                let binary_operation = AstBinaryOperation {
-                    operation: AstOperation::Sum,
-                    left: lhs.id,
-                    right: rhs.id,
-                };
-                Ok(self.new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col()))
+                Ok(self.new_node(
+                    AstNodeData::BinaryOperation{ operation: AstOperation::Sum, left: lhs.id, right:rhs.id },
+                    AstNodeType::Bool, self.current_line(), self.current_col()
+                ))
             }
 
             _ => Ok(lhs),
@@ -1028,11 +994,11 @@ impl<'a> Parser<'a> {
             if self.current_token().ty == TokenType::KeywordIf {
                 let else_if = self.expect_if()?;
                 let mut cond_thens = vec![(cond.id, then)];
-                for cond_then in &else_if.extract_if().cases {
+                for cond_then in else_if.extract_if() {
                     cond_thens.push(cond_then.clone());
                 }
                 return Ok(self.new_node(
-                    AstNodeData::If(AstCaseBlock { cases: cond_thens }),
+                    AstNodeData::If{ cases: cond_thens },
                     AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             } else if self.current_token().ty == TokenType::OpenBrace {
@@ -1042,7 +1008,7 @@ impl<'a> Parser<'a> {
                 let default_case = self.new_node(AstNodeData::Bool(true), AstNodeType::Bool, self.current_line(), self.current_col());
                 let cases = vec![(cond.id, then), (default_case.id, _else)];
                 return Ok(self.new_node(
-                    AstNodeData::If(AstCaseBlock { cases }),
+                    AstNodeData::If { cases },
                     AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             } else {
@@ -1050,9 +1016,9 @@ impl<'a> Parser<'a> {
             }
         }
         return Ok(self.new_node(
-            AstNodeData::If(AstCaseBlock {
+            AstNodeData::If{
                 cases: vec![(cond.id, then)],
-            }),
+            },
             AstNodeType::Unknown, self.current_line(), self.current_col()
         ));
     }
@@ -1081,15 +1047,10 @@ impl<'a> Parser<'a> {
                         self.forward_token();
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
-
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Sum,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
+
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
@@ -1101,14 +1062,9 @@ impl<'a> Parser<'a> {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Subtract,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Subtract, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
@@ -1120,14 +1076,9 @@ impl<'a> Parser<'a> {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Modulu,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Modulu, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
@@ -1139,14 +1090,9 @@ impl<'a> Parser<'a> {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Multiply,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Multiply, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
@@ -1158,14 +1104,9 @@ impl<'a> Parser<'a> {
                         let rhs = self.expect_expr()?;
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Divide,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Divide, left: lhs.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
 
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
@@ -1177,14 +1118,9 @@ impl<'a> Parser<'a> {
                         let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Sum,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }
@@ -1196,14 +1132,9 @@ impl<'a> Parser<'a> {
                         let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.infered_type = rhs.infered_type.clone();
 
-                        let binary_operation = AstBinaryOperation {
-                            operation: AstOperation::Subtract,
-                            left: lhs.id.clone(),
-                            right: rhs.id,
-                        };
                         let infered_ty = rhs.infered_type;
                         let inner = self
-                            .new_node(AstNodeData::BinaryOperation(binary_operation), infered_ty, self.current_line(), self.current_col());
+                            .new_node(AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: lhs.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
                         return Ok(self
                             .new_node(AstNodeData::Assign(lhs.id, inner.id), AstNodeType::NoType, self.current_line(), self.current_col()));
                     }

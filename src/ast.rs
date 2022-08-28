@@ -70,13 +70,13 @@ impl AstNodeType {
                 let pointee = compiler.get_node(obj.clone())?;
                 return Ok(AstNodeType::Pointer(Box::new(pointee.infered_type)));
             }
-            AstNodeData::FnType(ref sign) => {
+            AstNodeData::FnType { args: ref fn_args, ret: ref ret } => {
                 let mut args: Vec<AstNodeType> = vec![];
-                for decl in sign.args.iter() {
+                for decl in fn_args.iter() {
                     let decl_node = compiler.get_node(decl.clone())?;
                     args.push(decl_node.infered_type);
                 }
-                let ret = compiler.get_node(sign.ret.clone())?.infered_type;
+                let ret = compiler.get_node(ret.clone())?.infered_type;
 
                 return Ok(AstNodeType::FnType(args, Box::new(ret)));
             }
@@ -169,24 +169,6 @@ pub enum AstTag {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct NamespaceAccess {
-    pub namespace: NodeID,
-    pub field: NodeID,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstFnSignature {
-    pub args: Vec<NodeID>,
-    pub ret: NodeID,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstFnDef {
-    pub sign: AstFnSignature,
-    pub body: Vec<NodeID>,
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstOperation {
     Sum,
     Subtract,
@@ -201,12 +183,6 @@ pub enum AstOperation {
     NotEqual,
     BinaryAnd,
     BinaryOr,
-}
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct AstBinaryOperation {
-    pub operation: AstOperation,
-    pub left: NodeID,
-    pub right: NodeID,
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstCaseBlock {
@@ -292,8 +268,14 @@ pub enum AstNodeData {
     StringTy,
     CharTy,
     VoidTy,
-    ArrayTy(u64, AstNodeType), // len ty
-    FnType(AstFnSignature),
+    ArrayTy {
+        length: u64, 
+        elem_ty: AstNodeType
+    },
+    FnType {
+        args: Vec<NodeID>,
+        ret: NodeID,
+    },
 
     Struct(Vec<NodeID>),
     Enum(bool, Vec<(NodeID, Option<NodeID>)>),
@@ -307,20 +289,32 @@ pub enum AstNodeData {
     Char(char),
     Ident(String),
 
-    BinaryOperation(AstBinaryOperation),
+    BinaryOperation {
+        operation: AstOperation,
+        left: NodeID,
+        right: NodeID,
+    },
 
-    NamespaceAccess(NamespaceAccess),
+    NamespaceAccess {
+        namespace: NodeID,
+        field: NodeID,
+    },
 
-    Initialize(NodeID, Vec<(NodeID, NodeID)>),
+    Initialize{ty: NodeID, fields: Vec<(NodeID, NodeID)>},
     InitializeArray(Option<NodeID>, Vec<NodeID>),
 
-    FnDef(AstFnDef),
-    FnCall(NodeID, Vec<NodeID>),
+    FnDef{
+        sign: NodeID,
+        body: Vec<NodeID>,
+    },
+    FnCall{fn_name: NodeID, args: Vec<NodeID>},
 
     PointerTo(NodeID),
     Deref(NodeID),
 
-    If(AstCaseBlock),
+    If {
+        cases: Vec<(NodeID, Vec<NodeID>)>,
+    },
 
     For(NodeID, NodeID, NodeID, Vec<NodeID>),
     ForIn(NodeID, NodeID, Vec<NodeID>),
@@ -376,6 +370,13 @@ impl AstNode {
         }
         Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
     }
+    pub fn get_fn_signature(&self) -> Result<(Vec<NodeID>, NodeID)> {
+        if let AstNodeData::FnType {args, ret} = &self.data {
+            return Ok((args.clone(), ret.clone()));
+        }
+        Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
+ 
+    }
     pub fn get_name_for_defs_and_decls(&self, node_manager: &Compiler) -> Option<NodeID> {
         match &self.data {
             AstNodeData::Def(def) => {
@@ -390,7 +391,7 @@ impl AstNode {
     }
 
     pub fn is_initialize(&self) -> bool {
-        if let AstNodeData::Initialize(_, _) = self.data {
+        if let AstNodeData::Initialize{ty: _, fields: _} = self.data {
             return true;
         }
         return false;
@@ -410,9 +411,9 @@ impl AstNode {
         unreachable!();
     }
 
-    pub fn extract_if(&self) -> &AstCaseBlock {
-        if let AstNodeData::If(ref ast_if) = self.data {
-            return ast_if;
+    pub fn extract_if(&self) -> &Vec<(NodeID, Vec<NodeID>)> {
+        if let AstNodeData::If { ref cases } = self.data {
+            return cases;
         }
         unreachable!();
     }
