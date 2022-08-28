@@ -361,8 +361,8 @@ impl<'a> CPP<'a> {
             }
             
             // primitive types
-            AstNodeData::Uint(number) => Ok(format!("{}", number)),
-            AstNodeData::Int(number) => Ok(format!("{}", number)),
+            AstNodeData::Unsigned(number) => Ok(format!("{}", number)),
+            AstNodeData::Signed(number) => Ok(format!("{}", number)),
             AstNodeData::StringLiteral(s) => {
                 Ok(format!("\"{}\"", s))
             }

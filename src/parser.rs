@@ -425,7 +425,7 @@ impl<'a> Parser<'a> {
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let literal = literal.parse::<u64>()?;
-                Ok(self.new_node(AstNodeData::Uint(literal), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col()))
+                Ok(self.new_node(AstNodeData::Unsigned(literal), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col()))
             }
             TokenType::Float => {
                 self.forward_token();
@@ -1115,7 +1115,7 @@ impl<'a> Parser<'a> {
                         self.backward_token();
                         let mut lhs = self.expect_lhs()?;
                         self.forward_token();
-                        let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
+                        let rhs = self.new_node(AstNodeData::Unsigned(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.infered_type = rhs.infered_type.clone();
 
                         let infered_ty = rhs.infered_type;
@@ -1129,7 +1129,7 @@ impl<'a> Parser<'a> {
                         let mut lhs = self.expect_lhs()?;
                         self.forward_token();
 
-                        let rhs = self.new_node(AstNodeData::Uint(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
+                        let rhs = self.new_node(AstNodeData::Unsigned(1), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.infered_type = rhs.infered_type.clone();
 
                         let infered_ty = rhs.infered_type;

@@ -285,8 +285,8 @@ pub enum AstNodeData {
     Enum(Vec<NodeID>),
 
     //Expressions
-    Uint(u64),
-    Int(i64),
+    Unsigned(u64),
+    Signed(i64),
     StringLiteral(String),
     Float(f64),
     Bool(bool),
@@ -322,8 +322,8 @@ pub enum AstNodeData {
     },
 
     For { start: NodeID, cond: NodeID, cont: NodeID, body: Vec<NodeID>},
-    ForIn{ iterator: NodeID, iterable: NodeID, body: Vec<NodeID>},
-    While{cond: NodeID, body: Vec<NodeID>},
+    ForIn{ iterator: NodeID, iterable: NodeID, body: Vec<NodeID> },
+    While{ cond: NodeID, body: Vec<NodeID> },
 
     Break,
     Continue,
@@ -417,7 +417,7 @@ impl AstNode {
     // }
 
     pub fn extract_uint(&self) -> u64 {
-        if let AstNodeData::Uint(u) = self.data {
+        if let AstNodeData::Unsigned(u) = self.data {
             return u;
         }
         unreachable!();

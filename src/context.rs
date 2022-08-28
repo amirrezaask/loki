@@ -378,7 +378,11 @@ impl Context {
         Ok(())
     }
 
-    fn lower_enum(&mut self, mut ast: &Ast) -> Result<()> {
+    fn lower_enum(&mut self, mut ast: &mut Ast) -> Result<()> {
+        for node_id in &ast.top_level {
+            
+
+        }
         Ok(())
     }
 
@@ -386,12 +390,12 @@ impl Context {
         Ok(())
     }
     
-    pub fn process(&mut self, asts: Vec<Ast>) -> Result<Vec<Ast>> {
+    pub fn process(&mut self, mut asts: Vec<Ast>) -> Result<Vec<Ast>> {
         self.infer_types()?;
         self.type_check()?;
-        for ast in &asts {
+        for mut ast in &mut asts {
             self.sema_check(&ast)?;
-            self.lower_enum(&ast)?;
+            self.lower_enum(&mut ast)?;
             self.lower_initialize(&ast)?;
         }
 
