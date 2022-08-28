@@ -129,8 +129,9 @@ impl<'a> CPP<'a> {
         Ok(output.join("\n"))
     }
 
-    fn repr_block(&self, nodes: &Vec<NodeID>) -> Result<String> {
+    fn repr_block(&self, id: &NodeID) -> Result<String> {
         let mut output = Vec::<String>::new();
+        let nodes = self.compiler_ctx.get_node(id.to_string())?.get_block()?;
         for node in nodes.iter() {
             output.push(format!("\t{};", self.repr_ast_node(node.clone())?));
         }
@@ -429,7 +430,8 @@ impl<'a> CPP<'a> {
 
     pub fn generate(&mut self) -> Result<String> {
         let mut out: Vec<String> = vec![];
-        for node in self.ast.top_level.iter() {
+        let top_leve_nodes = self.compiler_ctx.get_node(self.ast.top_level.clone())?.get_block()?;
+        for node in top_leve_nodes.iter() {
             let repr = self.repr_ast_node(node.clone())?;
             if repr == "" {
                 continue;

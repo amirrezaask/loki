@@ -74,7 +74,8 @@ impl Pipeline {
         self.total_tokens += main_ast.tokens.len() as u64;
         let mut loads = Vec::<String>::new();
         let mut asts = Vec::<Ast>::new();
-        for node_id in main_ast.top_level.iter() {
+        let top_leve_nodes = self.compiler.get_node(main_ast.top_level.clone())?.get_block()?;
+        for node_id in top_leve_nodes.iter() {
             let node = self.compiler.get_node(node_id.clone())?;
             match node.data {
                 AstNodeData::Load(ref path) => {

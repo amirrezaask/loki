@@ -63,6 +63,10 @@ impl Context {
             None => -1,
         };
     }
+    /*
+        struct
+        enum
+    */
     pub fn set_scope_owner(&mut self, scope_id: ScopeID, owner: NodeID) {
         let scope = &mut self.scopes.get_mut(scope_id as usize).unwrap();
         scope.owner_node = owner;
@@ -113,6 +117,9 @@ impl Context {
     }
 
     pub fn add_scope_to_node(&mut self, id: &NodeID, scope: ScopeID) {
+        if scope == -1 {
+            return;
+        }
         let mut node = self.nodes.get_mut(id).unwrap();
         node.scope = scope;
         let scope_nodes = self.scope_nodes.get_mut(&scope).unwrap();
@@ -185,6 +192,18 @@ impl Context {
         }
 
         Ok(())
+    }
+    pub fn find_struct_def(&self, name: String, scope_id: ScopeID) -> Result<Vec<NodeID>> {
+        let scopes = self.get_relevant_scopes(scope_id);
+        for scope in &scopes {
+            let nodes = self.scope_nodes.get(scope).unwrap();
+            for node in nodes {
+
+            }
+        }
+
+
+        Ok(vec![])
     }
 
     pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> Result<AstNodeType> {
@@ -324,7 +343,7 @@ impl Context {
                         self.find_ident_ast_type(namespace.get_ident()?, unknown_node.scope)?;
                 }
 
-                let field = self.get_node(field_id.clone())?; // TODO: need scope in this one
+                let field = self.get_node(field_id.clone())?; // TODO: need scope in this one @Bug.
                 let mut field_ty = field.infered_type.clone();
                 if field_ty.is_unknown() {
                     field_ty = self.find_ident_ast_type(field.get_ident()?, unknown_node.scope)?;
@@ -379,15 +398,74 @@ impl Context {
     fn type_check(&mut self) -> Result<()> {
         Ok(())
     }
-    fn lower_initialize(&mut self, mut ast: &Ast) -> Result<()> {
-        Ok(())
+
+    fn random_string(len: usize) -> String {
+        Alphanumeric.sample_string(&mut rand::thread_rng(), len)
     }
 
-    fn lower_enum(&mut self, mut ast: &mut Ast) -> Result<()> {
-        for node_id in &ast.top_level {
-            
+    fn lower_enum(&mut self) -> Result<()> {
 
-        }
+        // for (node_id, node) in &self.nodes {
+        //     if !node.is_def() {
+        //         continue;    
+        //     }
+        //     let (_, def_name_id, expr_id) = node.get_def()?;
+        //     let expr_node = self.get_node(expr_id)?;
+        //     if !expr_node.infered_type.is_enum() {
+        //         continue;
+        //     }
+        //     let def_scope = &self.scopes[node.scope as usize];
+        //     let def_name = self.get_node(def_name_id.clone())?.get_ident()?;
+        //     let def_owner = self.nodes.get_mut(&def_scope.owner_node.clone()).unwrap();
+        //     let variants = expr_node.get_enum_variants()?;
+        //     for (idx, variant_id) in variants.iter().enumerate() {
+        //         let variant_decl = self.get_node(variant_id.clone())?;
+        //         let variant_name_id = variant_decl.get_decl()?;
+        //         let variant_name = self.get_node(variant_id.clone())?;
+        //         let variant_name = variant_name.get_ident()?;
+        //         let const_name_id = Self::random_string(24);
+        //         let const_expr_id = Self::random_string(24);
+        //         let const_id = Self::random_string(24);
+        //         self.add_node(AstNode {
+        //             id: const_name_id,
+        //             data: AstNodeData::Ident(format!("{}_{}_{}_{}", def_name, variant_name, variant_decl.line, variant_decl.col)),
+        //             infered_type: AstNodeType::UnsignedInt(64),
+        //             scope: node.scope,
+        //             tags: vec![],
+        //             line: variant_decl.line,
+        //             col: variant_decl.col,
+        //             filename: variant_decl.filename,
+        //         });
+        //         self.add_node(AstNode {
+        //             id: const_expr_id,
+        //             data: AstNodeData::Unsigned(idx as u64),
+        //             infered_type: AstNodeType::UnsignedInt(64),
+        //             scope: node.scope,
+        //             tags: vec![],
+        //             line: variant_decl.line,
+        //             col: variant_decl.col,
+        //             filename: variant_decl.filename,
+        //         });
+                
+        //         self.add_node(AstNode {
+        //             id: const_id,
+        //             data: AstNodeData::Def {
+        //                 mutable: false,
+        //                 name: const_name_id,
+        //                 expr: const_expr_id,
+        //             },
+        //             infered_type: AstNodeType::NoType,
+        //             scope: node.scope,
+        //             tags: vec![],
+        //             line: variant_decl.line,
+        //             col: variant_decl.col,
+        //             filename: variant_decl.filename,
+        //         });
+
+
+        //     }
+        // }
+        // Ok(())
         Ok(())
     }
 
@@ -400,10 +478,10 @@ impl Context {
         self.type_check()?;
         for mut ast in &mut asts {
             self.sema_check(&ast)?;
-            self.lower_enum(&mut ast)?;
-            self.lower_initialize(&ast)?;
+            self.lower_enum()?;
         }
 
         Ok(asts)
     }
 }
+

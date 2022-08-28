@@ -19,8 +19,8 @@
                     "kind": "bin"
                 }
             },
-            "args": ["test.loki"],
-            "cwd": "${workspaceFolder}/samples"
+            "args": ["01_functions.loki"],
+            "cwd": "${workspaceFolder}/examples"
         },
         {
             "type": "lldb",

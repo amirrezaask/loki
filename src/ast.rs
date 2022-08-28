@@ -274,6 +274,8 @@ pub enum AstNodeData {
         ret: NodeID,
     },
 
+    Namespace(Vec<NodeID>),
+
     Struct(Vec<NodeID>),
     Enum(Vec<NodeID>),
 
@@ -302,7 +304,7 @@ pub enum AstNodeData {
 
     FnDef{
         sign: NodeID,
-        body: Vec<NodeID>,
+        body: NodeID,
     },
     
     FnCall{fn_name: NodeID, args: Vec<NodeID>},
@@ -311,12 +313,12 @@ pub enum AstNodeData {
     Deref(NodeID),
 
     If {
-        cases: Vec<(NodeID, Vec<NodeID>)>,
+        cases: Vec<(NodeID, NodeID)>,
     },
 
-    For { start: NodeID, cond: NodeID, cont: NodeID, body: Vec<NodeID>},
-    ForIn{ iterator: NodeID, iterable: NodeID, body: Vec<NodeID> },
-    While{ cond: NodeID, body: Vec<NodeID> },
+    For { start: NodeID, cond: NodeID, cont: NodeID, body: NodeID},
+    ForIn{ iterator: NodeID, iterable: NodeID, body: NodeID },
+    While{ cond: NodeID, body: NodeID },
 
     Break,
     Continue,
@@ -341,6 +343,13 @@ impl AstNode {
 
     pub fn is_unknown(&self) -> bool {
         return self.infered_type.is_unknown();
+    }
+
+    pub fn get_block(&self) -> Result<Vec<NodeID>> {
+        if let AstNodeData::Namespace(ref nodes) = self.data {
+            return Ok(nodes.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
     }
 
     pub fn is_pointer(&self) -> bool {
@@ -388,6 +397,17 @@ impl AstNode {
         }
     }
 
+    pub fn add_node_to_block(&mut self, id: NodeID) -> Result<()> {
+        match &mut self.data {
+            
+            _ => unimplemented!(),
+
+        }
+        Ok(())
+    }
+
+
+
     pub fn get_enum_variants(&self) -> Result<Vec<NodeID>> {
         if let AstNodeData::Enum(ref variants) = self.data {
             return Ok(variants.clone());
@@ -416,7 +436,7 @@ impl AstNode {
         unreachable!();
     }
 
-    pub fn extract_if(&self) -> &Vec<(NodeID, Vec<NodeID>)> {
+    pub fn extract_if(&self) -> &Vec<(NodeID, NodeID)> {
         if let AstNodeData::If { ref cases } = self.data {
             return cases;
         }
@@ -429,7 +449,7 @@ pub struct Ast {
     pub filename: String,
     pub src: String,
     pub tokens: Vec<Token>,
-    pub top_level: Vec<NodeID>,
+    pub top_level: NodeID,
 }
 
 impl Ast {
@@ -437,7 +457,7 @@ impl Ast {
         filename: String,
         src: String,
         tokens: Vec<Token>,
-        top_level: Vec<NodeID>,
+        top_level: NodeID,
         compiler: &mut Context,
     ) -> Result<Self> {
         Ok(Self {
