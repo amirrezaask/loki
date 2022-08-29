@@ -11,6 +11,10 @@ impl<T> Stack<T> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        return self.data.len();
+    }
+
     pub fn push(&mut self, elem: T) {
         self.data.push(elem);
     }

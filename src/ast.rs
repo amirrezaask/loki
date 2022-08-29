@@ -254,6 +254,11 @@ pub struct AstNode {
     pub filename: String,
 }
 
+pub enum AstBlockType {
+    File,
+    NotImportant,
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstNodeData {
     //top level items
@@ -289,7 +294,10 @@ pub enum AstNodeData {
         ret: NodeID,
     },
 
-    Block(Vec<NodeID>),
+    Block{
+        is_file_root: bool,
+        nodes: Vec<NodeID>
+    },
 
     Struct(Vec<NodeID>),
     Enum(Vec<NodeID>),

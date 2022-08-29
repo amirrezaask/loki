@@ -902,6 +902,7 @@ impl<'a> Parser<'a> {
         }
         let mut stmts = Vec::<NodeID>::new();
         let block_id = Self::get_id();
+        let is_file_root = self.block_stack.len() == 0;
         self.block_stack.push(block_id.clone());
         loop {
             if self.current_token().ty == TokenType::CloseBrace || self.cur >= self.tokens.len() {
@@ -918,7 +919,7 @@ impl<'a> Parser<'a> {
         let current_scope = &mut self.context.scopes[current_scope_idx];
         current_scope.end = self.cur as isize;
         self.context.remove_from_scope_stack();
-        let block_node = self.new_node(block_id, AstNodeData::Block(stmts), AstNodeType::NoType, self.current_line(), self.current_col()); 
+        let block_node = self.new_node(block_id, AstNodeData::Block{nodes: stmts, is_file_root}, AstNodeType::NoType, self.current_line(), self.current_col()); 
         self.forward_token();
         Ok(block_node.id)
     }
