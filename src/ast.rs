@@ -245,6 +245,7 @@ pub struct AstNode {
     pub id: NodeID,
     pub data: AstNodeData,
     pub infered_type: AstNodeType,
+    pub parent_block: NodeID,
     pub scope: ScopeID,
     pub tags: Vec<AstTag>,
     
@@ -288,7 +289,7 @@ pub enum AstNodeData {
         ret: NodeID,
     },
 
-    Namespace(Vec<NodeID>),
+    Block(Vec<NodeID>),
 
     Struct(Vec<NodeID>),
     Enum(Vec<NodeID>),
@@ -359,8 +360,15 @@ impl AstNode {
         return self.infered_type.is_unknown();
     }
 
+    pub fn set_block(&mut self, mut stmts: Vec<NodeID>) -> Result<()> {
+        if let AstNodeData::Block(ref mut nodes) = self.data {
+            nodes.append(&mut stmts);
+        }
+        Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
+    }
+
     pub fn get_block(&self) -> Result<Vec<NodeID>> {
-        if let AstNodeData::Namespace(ref nodes) = self.data {
+        if let AstNodeData::Block(ref nodes) = self.data {
             return Ok(nodes.clone());
         }
         Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))

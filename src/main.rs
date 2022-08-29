@@ -2,6 +2,7 @@
 #![allow(warnings, unused)]
 mod code_gen;
 mod parser;
+mod stack;
 mod lexer;
 mod pipeline;
 mod ast;
