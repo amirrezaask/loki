@@ -112,6 +112,18 @@ impl AstNodeType {
             _ => return false,
         }
     }
+    pub fn is_type_name(&self) -> bool {
+        match self {
+            AstNodeType::TypeName(_)=> true,
+            _ => false,
+        }
+    }
+    pub fn get_type_name(&self) -> String {
+        match self {
+            AstNodeType::TypeName(name)=> name.to_string(),
+            _ => panic!("{:?} is not type name", self),
+        }
+    }
 
     pub fn get_pointer_pointee(&self) -> Result<AstNodeType> {
         match self {
@@ -166,6 +178,8 @@ impl AstNodeType {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstTag {
     Foreign,
+    IsUsedInNamespaceAccess,
+    IsUsedInInitialize,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -364,7 +378,12 @@ impl AstNode {
         }
         return false;
     }
-
+    pub fn is_decl(&self) -> bool {
+        if let AstNodeData::Decl(_) = self.data {
+            return true;
+        }
+        return false;
+    }
     pub fn get_def(&self) -> Result<(bool, NodeID, NodeID)> {
         if let AstNodeData::Def{mutable, name: ref name, expr: ref expr} = self.data {
             return Ok((mutable,  name.clone(), expr.clone()));

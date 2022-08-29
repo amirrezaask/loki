@@ -124,7 +124,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                self.context.add_type_inference(&dest.id, infered_ty);
+                // self.context.add_type_inference(&dest.id, infered_ty);
                 let node = self.new_node(AstNodeData::Assign{lhs: dest.id, rhs: rhs.id}, AstNodeType::NoType, self.current_token().line, self.current_token().col);
                 Ok(node)
             }
@@ -301,6 +301,8 @@ impl<'a> Parser<'a> {
             TokenType::Dot => {
                 self.forward_token();
                 let field = self.expect_expr()?;
+                let f = self.context.nodes.get_mut(&field.id).unwrap();
+                f.tags.push(AstTag::IsUsedInNamespaceAccess);
                 return Ok(self.new_node(AstNodeData::NamespaceAccess{ namespace: container.id, field: field.id }, AstNodeType::Unknown, self.current_line(), self.current_col()));
             }
             _ => {
@@ -349,8 +351,10 @@ impl<'a> Parser<'a> {
                             self.expect_token(TokenType::Equal)?;
                             self.forward_token();
                             let value = self.expect_expr()?;
+                            let mut name = self.context.nodes.get_mut(&name.id.clone()).unwrap();
                             name.infered_type = value.infered_type.clone();
-                            fields.push((name.id, value.id));
+                            name.tags.push(AstTag::IsUsedInInitialize);
+                            fields.push((name.id.clone(), value.id));
                             match self.current_token().ty {
                                 TokenType::Comma => {
                                     self.forward_token();
@@ -473,7 +477,7 @@ impl<'a> Parser<'a> {
                 ))
             }
             TokenType::KeywordStruct => {
-                // self.context.add_scope(ScopeType::Struct, self.cur as isize, -1 as isize);
+                self.context.add_scope(ScopeType::Struct, self.cur as isize, -1 as isize);
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
                 self.forward_token();
@@ -503,18 +507,18 @@ impl<'a> Parser<'a> {
                         _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                     }
                 }
-                // let current_scope_idx = self.context.top_of_scope_stack() as usize;
-                // let current_scope = &mut self.context.scopes[current_scope_idx];
-                // self.context.remove_from_scope_stack();
+                let current_scope_idx = self.context.top_of_scope_stack() as usize;
+                let current_scope = &mut self.context.scopes[current_scope_idx];
+                self.context.remove_from_scope_stack();
                 let node = self.new_node(AstNodeData::Struct(fields), AstNodeType::Struct, self.current_line(), self.current_col());
-                // self.context.set_scope_owner(current_scope_idx as isize, node.id.clone());
+                self.context.set_scope_owner(current_scope_idx as isize, node.id.clone());
                 Ok(node)
             }
             TokenType::KeywordEnum => {
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
                 self.forward_token();
-                // self.context.add_scope(ScopeType::Struct, self.cur as isize, -1 as isize);
+                self.context.add_scope(ScopeType::Enum, self.cur as isize, -1 as isize);
                 let mut variants = Vec::<NodeID>::new();
                 let mut is_union = false;
                 loop {
@@ -549,11 +553,11 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
-                // let current_scope_idx = self.context.top_of_scope_stack() as usize;
-                // let current_scope = &mut self.context.scopes[current_scope_idx];
-                // self.context.remove_from_scope_stack();
+                let current_scope_idx = self.context.top_of_scope_stack() as usize;
+                let current_scope = &mut self.context.scopes[current_scope_idx];
+                self.context.remove_from_scope_stack();
                 let node = self.new_node(AstNodeData::Enum(variants), AstNodeType::Enum, self.current_line(), self.current_col());
-                // self.context.set_scope_owner(current_scope_idx as isize, node.id.clone());
+                self.context.set_scope_owner(current_scope_idx as isize, node.id.clone());
                 Ok(node)
             }
             TokenType::OpenParen => {
@@ -1048,7 +1052,6 @@ impl<'a> Parser<'a> {
         return Ok(node);
     }
     fn expect_stmt(&mut self) -> Result<AstNode> {
-        println!("expecting statment:: {:?}", self.current_token());
         match self.current_token().ty {
             TokenType::LoadDirective => {
                 self.forward_token();

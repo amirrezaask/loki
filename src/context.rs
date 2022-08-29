@@ -193,22 +193,9 @@ impl Context {
 
         Ok(())
     }
-    pub fn find_struct_def(&self, name: String, scope_id: ScopeID) -> Result<Vec<NodeID>> {
-        let scopes = self.get_relevant_scopes(scope_id);
-        for scope in &scopes {
-            let nodes = self.scope_nodes.get(scope).unwrap();
-            for node in nodes {
 
-            }
-        }
-
-
-        Ok(vec![])
-    }
-
-    pub fn find_ident_ast_type(&self, ident: String, scope_id: ScopeID) -> Result<AstNodeType> {
-        let scopes = self.get_relevant_scopes(scope_id);
-        for scope in scopes {
+    pub fn find_ident_ast_type(&self, ident: String, scopes_to_search: Vec<ScopeID>) -> Result<AstNodeType> {
+        for scope in scopes_to_search {
             let nodes = self.scope_nodes.get(&scope).unwrap();
             for node_id in nodes.iter() {
                 //TODO: check node is defined before the given ident
@@ -273,6 +260,39 @@ impl Context {
 
         return Ok(false);
     }
+    fn find_def_in_scope(&self, def_name: String, scopes_to_search: Vec<ScopeID>) -> Result<NodeID> {
+        for scope in scopes_to_search {
+            for node_id in self.scope_nodes.get(&scope).unwrap() {
+                let node = self.get_node(node_id.clone())?;
+                if node.is_def() {
+                    let (_, name_id, expr_id ) = node.get_def()?;
+                    let name = self.get_node(name_id.clone())?.get_ident()?;
+                    if name == def_name {
+                        println!("def expr is {:?}", self.get_node(expr_id.clone())?);
+                        return Ok(expr_id.to_string());
+                    }
+                }
+                if node.is_decl() {
+                    let name_id = node.get_decl()?;
+                    let name = self.get_node(name_id.clone())?.get_ident()?;
+                    if name == def_name {
+                        return Ok(node_id.to_string());
+                    }
+                }
+            }
+        }
+
+        Err(anyhow!("no def with name {} found", def_name))
+    }
+    fn find_child_scope(&self, owner: NodeID) -> Result<ScopeID> {
+        for (id, scope) in self.scopes.iter().enumerate() {
+            if scope.owner_node == owner {
+                return Ok(id as isize)
+            }
+        }
+
+        Err(anyhow!("no scope for owner {} found", owner))
+    }
 
     fn infer_types(&mut self) -> Result<()> {
         loop {
@@ -286,12 +306,13 @@ impl Context {
             if !unknown_node.infered_type.is_unknown() {
                 continue;
             }
+            let scopes_to_search = self.get_relevant_scopes(unknown_node.scope);
 
             if let AstNodeData::Ident(ref ident) = unknown_node.data {
                 if !self.is_defined(ident.clone())? {
                     return Err(anyhow!("In file {} undeclared ident: {} at line: {} column: {}", ident, unknown_node.filename, unknown_node.line, unknown_node.col));
                 }
-                let ty = self.find_ident_ast_type(ident.clone(), unknown_node.scope)?;
+                let ty = self.find_ident_ast_type(ident.clone(), scopes_to_search)?;
                 if ty.is_unknown() {
                     self.add_unknown(&unknown_id);
                     continue;
@@ -340,28 +361,35 @@ impl Context {
                 let mut namespace_ty = namespace.infered_type.clone();
                 if namespace_ty.is_unknown() {
                     namespace_ty =
-                        self.find_ident_ast_type(namespace.get_ident()?, unknown_node.scope)?;
+                        self.find_ident_ast_type(namespace.get_ident()?, scopes_to_search.clone())?;
+                        continue;
                 }
 
-                let field = self.get_node(field_id.clone())?; // TODO: need scope in this one @Bug.
-                let mut field_ty = field.infered_type.clone();
-                if field_ty.is_unknown() {
-                    field_ty = self.find_ident_ast_type(field.get_ident()?, unknown_node.scope)?;
-                }
                 if namespace_ty.is_unknown() {
                     self.add_unknown(&namespace.id.clone());
                     self.add_unknown(&unknown_id.clone());
                 }
 
+                let field = self.get_node(field_id.clone())?;
+                let mut field_ty = field.infered_type.clone();
+                if field_ty.is_unknown() {
+                    if namespace_ty.is_type_name() {
+                        let namespace_def_id = self.find_def_in_scope(namespace_ty.get_type_name(), scopes_to_search)?;
+                        field_ty = self.find_ident_ast_type(field.get_ident()?, vec![self.find_child_scope(namespace_def_id)?])?;
+                    }
+                    if namespace_ty.is_enum() {
+                        field_ty = AstNodeType::UnsignedInt(64);
+                    }
+                }
                 if field_ty.is_unknown() {
                     self.add_unknown(&field.id.clone());
                     self.add_unknown(&unknown_id.clone());
                 }
 
-                if namespace_ty.is_unknown() || field_ty.is_unknown() {
+                if field_ty.is_unknown() {
                     continue;
                 }
-
+                println!("adding inference ns:{:?} field: {:?}", namespace_ty, field_ty);
                 self.add_type_inference(&namespace_id, namespace_ty);
                 self.add_type_inference(&field_id.clone(), field_ty.clone());
                 self.add_type_inference(&unknown_id, field_ty.clone());
@@ -427,7 +455,7 @@ impl Context {
         //         let const_expr_id = Self::random_string(24);
         //         let const_id = Self::random_string(24);
         //         self.add_node(AstNode {
-        //             id: const_name_id,
+        //             id: const_name_id.clone(),
         //             data: AstNodeData::Ident(format!("{}_{}_{}_{}", def_name, variant_name, variant_decl.line, variant_decl.col)),
         //             infered_type: AstNodeType::UnsignedInt(64),
         //             scope: node.scope,
@@ -465,7 +493,6 @@ impl Context {
 
         //     }
         // }
-        // Ok(())
         Ok(())
     }
 

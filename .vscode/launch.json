@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["01_functions.loki"],
+            "args": ["04_structs.loki"],
             "cwd": "${workspaceFolder}/examples"
         },
         {

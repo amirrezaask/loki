@@ -12,5 +12,5 @@ main :: () int {
         age = 24,
         name = "amirreza",
     };
-    
+
 }
