@@ -368,15 +368,8 @@ impl AstNode {
         return self.infered_type.is_unknown();
     }
 
-    pub fn set_block(&mut self, mut stmts: Vec<NodeID>) -> Result<()> {
-        if let AstNodeData::Block(ref mut nodes) = self.data {
-            nodes.append(&mut stmts);
-        }
-        Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
-    }
-
     pub fn get_block(&self) -> Result<Vec<NodeID>> {
-        if let AstNodeData::Block(ref nodes) = self.data {
+        if let AstNodeData::Block{nodes: ref nodes, is_file_root: _} = self.data {
             return Ok(nodes.clone());
         }
         Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
