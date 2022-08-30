@@ -290,26 +290,6 @@ pub enum ScopeType {
 }
 
 pub type TokenIndex = isize;
-pub type ScopeID = isize;
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct Scope {
-    pub scope_type: ScopeType,
-    pub parent: ScopeID,
-    pub owner_node: NodeID,
-    pub start: TokenIndex,
-    pub end: TokenIndex,
-}
-impl Default for Scope {
-    fn default() -> Self {
-        Self {
-            scope_type: ScopeType::Unknown,
-            owner_node: "".to_string(),
-            parent: -1,
-            start: -1,
-            end: -1,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct AstNode {
@@ -317,7 +297,6 @@ pub struct AstNode {
     pub data: AstNodeData,
     pub type_information: Type,
     pub parent_block: NodeID,
-    pub scope: ScopeID,
     pub tags: Vec<AstTag>,
     
     pub line: usize,

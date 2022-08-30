@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{
-    Ast, Type, AstNode, AstNodeData, NodeID, Scope, ScopeID, ScopeType, AstOperation, AstTag,
+    Ast, Type, AstNode, AstNodeData, NodeID, AstOperation, AstTag,
 };
 use crate::lexer::Token;
 use crate::lexer::TokenType;
@@ -48,7 +48,6 @@ impl Parser {
             data,
             type_information: type_annotation,
             tags: vec![],
-            scope: Default::default(),
             line: start_line, col: start_col,
             parent_block: self.block_stack.top().clone(),
             filename: self.filename.clone()
@@ -212,16 +211,6 @@ impl Parser {
             }
         }
     }
-    /*
-    expr -> A (add_minus A)*
-    A -> B (mul_div_mod B)*
-    B -> initialize (< <= | >= > initialize)*
-    container_field -> initialize (. IDENT)
-    initialize -> exact_expr ({})*
-    exact_expr -> int | unsigned_int | float | string | bool | ident | '(' expr ')' | deref: *expr | ref: &expr
-        | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
-    */
-
     fn current_line(&self) -> usize {
         return self.current_token().line;
     }
@@ -266,7 +255,7 @@ impl Parser {
             }, proto_ty, self.current_line(), self.current_col());
             return Ok(node);
         }
-        let body = self.expect_block(ScopeType::Function)?;
+        let body = self.expect_block()?;
         let proto_ty = Type::make_fn_signature(&self.ast, &args, &ret_ty)?;
         let sign = self.new_node(Self::get_id(), AstNodeData::FnType { args, ret: ret_ty.id }, proto_ty.clone(),self.current_line(), self.current_col()); //@Bug: line & col are wrong
         let fn_def = self.new_node(Self::get_id(), AstNodeData::FnDef{ sign: sign.id, body: body }, proto_ty, self.current_line(), self.current_col());
@@ -886,7 +875,7 @@ impl Parser {
         return Ok(());
     }
 
-    fn expect_block(&mut self, scope_ty: ScopeType) -> Result<NodeID> {
+    fn expect_block(&mut self) -> Result<NodeID> {
         if self.current_token().ty == TokenType::OpenBrace {
             self.forward_token()
         }
@@ -924,7 +913,7 @@ impl Parser {
         let cont = self.expect_stmt()?;
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
-        let body = self.expect_block(ScopeType::For)?;
+        let body = self.expect_block()?;
         let for_node = self.new_node(Self::get_id(), 
             AstNodeData::For{start: start.id, cond: cond.id, cont: cont.id, body: body},
             Type::Unknown, self.current_line(), self.current_col()
@@ -962,7 +951,7 @@ impl Parser {
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
-        let body = self.expect_block(ScopeType::ForIn)?;
+        let body = self.expect_block()?;
         let node = self.new_node(Self::get_id(), 
             AstNodeData::ForIn{iterator: iterator.id, iterable: iterable.id, body},
             Type::Unknown, self.current_line(), self.current_col()
@@ -974,7 +963,7 @@ impl Parser {
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
-        let body = self.expect_block(ScopeType::ForIn)?;
+        let body = self.expect_block()?;
         let iterator = self.new_node(Self::get_id(), AstNodeData::Ident("it".to_string()), Type::Unknown, self.current_line(), self.current_col());
         let node = self.new_node(Self::get_id(), 
             AstNodeData::ForIn{iterator: iterator.id, iterable: iterable.id, body},
@@ -994,7 +983,7 @@ impl Parser {
         self.forward_token();
 
         self.expect_token(TokenType::OpenBrace)?;
-        let then = self.expect_block(ScopeType::If)?;
+        let then = self.expect_block()?;
         if self.current_token().ty == TokenType::KeywordElse {
             self.forward_token();
             if self.current_token().ty == TokenType::KeywordIf {
@@ -1009,7 +998,7 @@ impl Parser {
                 );
                 return Ok(node);
             } else if self.current_token().ty == TokenType::OpenBrace {
-                let _else = self.expect_block(ScopeType::Else)?;
+                let _else = self.expect_block()?;
                 let default_case = self.new_node(Self::get_id(), AstNodeData::Bool(true), Type::Bool, self.current_line(), self.current_col());
                 let cases = vec![(cond.id, then), (default_case.id, _else)];
                 let node = self.new_node(Self::get_id(), 
@@ -1220,7 +1209,7 @@ impl Parser {
                 }
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
-                let body = self.expect_block(ScopeType::While)?;
+                let body = self.expect_block()?;
                 let node = self.new_node(Self::get_id(), AstNodeData::While{cond: cond.id, body}, Type::Unknown, self.current_line(), self.current_col());
                 return Ok(node);
             }
@@ -1293,7 +1282,7 @@ impl Parser {
     }
 
     pub fn get_ast(mut self) -> Result<Ast> {
-        let block_id = self.expect_block(ScopeType::File(self.filename.clone()))?;      
+        let block_id = self.expect_block()?;      
         self.ast.top_level = block_id;
         Ok(self.ast)
     }

@@ -45,29 +45,22 @@ impl Pipeline {
         Ok(())
     }
 
-    pub fn dump_ast(name: &str, ast: &Ast) -> Result<()> {
-        let mut out_file = std::fs::File::create(format!("{}_ast_dump.json", name))?;
-        out_file.write_all(serde_json::to_string(&ast.top_level).unwrap().as_bytes())?;
+    pub fn dump_ast_before(&self, ast: &Ast) -> Result<()> {
+        println!("{}", format!("ast_{}_before_analyze_dump.json", ast.filename));
+        let mut out_file = std::fs::File::create(format!("ast_{}_before_analyze_dump.json", ast.filename))?;
+        out_file.write_all(serde_json::to_string_pretty(ast).unwrap().as_bytes())?;
 
         Ok(())
     }
 
-    // pub fn dump_ast_before(&self) -> Result<()> {
-    //     let mut out_file = std::fs::File::create("compiler_context_before_infer_dump.json")?;
-    //     out_file.write_all(serde_json::to_string_pretty().unwrap().as_bytes())?;
+    pub fn dump_ast_after(&self, ast: &Ast) -> Result<()> {
+        let mut out_file = std::fs::File::create(format!("ast_{}_after_analyze_dump.json", ast.filename))?;
+        out_file.write_all(serde_json::to_string_pretty(ast).unwrap().as_bytes())?;
 
-    //     Ok(())
-    // }
-
-    // pub fn dump_ast_after(&self) -> Result<()> {
-    //     let mut out_file = std::fs::File::create("compiler_context_after_infer_dump.json")?;
-    //     out_file.write_all(serde_json::to_string_pretty().unwrap().as_bytes())?;
-
-    //     Ok(())
-    // }
+        Ok(())
+    }
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         let main_ast = self.parse_file(path)?;
-        // Self::dump_ast(path, &main_ast)?;
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.len() as u64;
         let mut loads = Vec::<String>::new();
@@ -116,18 +109,17 @@ impl Pipeline {
         let mut asts = self.get_ast_for(path)?;
         let mut codes = Vec::<String>::new();
 
-        // self.dump_compiler_context_before()?;
-        // let asts = self.compiler.process(asts)?;
-        for ast in asts.iter_mut() {
-            ast.infer_types()?;
-        }
-        // self.dump_compiler_context_after()?;
+       
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();
-
         
-
+        for ast in asts.iter_mut() {
+            // self.dump_ast_before(ast)?;
+            ast.infer_types()?;
+            // self.dump_ast_after(ast)?;
+        }
+        
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();
@@ -136,11 +128,7 @@ impl Pipeline {
             let code = codegen.generate()?;
             codes.push(code);
         }
-        // println!("st: {:?}", self.st);
-        // let mut compiler_flags_by_user = Vec::<String>::new();
-        // for ast in asts.iter() {
-        //     compiler_flags_by_user.append(&mut ast.get_compiler_flags());
-        // }
+        
         let backend_codegen_elapsed = backend_code_gen_time_start.elapsed();
 
         
@@ -158,9 +146,7 @@ impl Pipeline {
 
         cpp_command.arg("-o").arg(bin_name).arg(&out_file_name);
 
-        // for flag in compiler_flags_by_user {
-        //     cpp_command.arg(flag);
-        // }
+        
         let cpp_output = cpp_command.output()?;
 
         // std::fs::remove_file(out_file_name)?;

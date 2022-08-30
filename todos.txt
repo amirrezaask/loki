@@ -1,21 +1,21 @@
 
 ----- Features -----
-- initializers should just generate code to set each field seperately
-- enums should not depend on host language, they should just be normal constants.
 - unions
 - type casting using `as` keyword
 - arrays:
   - dynamic array
-  - strings should be our own dynamicarray impl. 
+  - strings should be our own dynamic array impl. 
   - variadic args
   - slicing arrays
 - defer
     *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 
+- LLVM
 ------ refactoring ------
 - checkout if we can create something called a type expression in ast and split type expression from other expressions.
 - finish error-system branch
-
+- initializers should just generate code to set each field seperately
+- enums should not depend on host language, they should just be normal constants.
 ------ Future ------
 - load files into a namespace
 - generics

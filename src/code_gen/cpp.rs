@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
-use crate::ast::{Type, AstOperation, NodeID, AstTag, ScopeID};
+use crate::ast::{Type, AstOperation, NodeID, AstTag};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
 use anyhow::anyhow;
