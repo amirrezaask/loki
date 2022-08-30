@@ -113,11 +113,12 @@ impl Pipeline {
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();
-        
-        for ast in asts.iter_mut() {
+        let mut asts_clone = asts.clone();
+        for (idx, ast) in asts.iter_mut().enumerate() {
             // self.dump_ast_before(ast)?;
-            ast.infer_types()?;
+            ast.infer_types(&asts_clone)?;
             // self.dump_ast_after(ast)?;
+            asts_clone.insert(idx, ast.clone());
         }
         
         let ty_infer_elapsed = ty_infer_time_start.elapsed();

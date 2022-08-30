@@ -1,0 +1,6 @@
+#load "modules/universe_number.loki"
+
+
+a :: answer;
+
+main :: () int {}

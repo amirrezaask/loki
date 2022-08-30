@@ -61,7 +61,7 @@ impl Type {
     pub fn new(node: &AstNode, ast: &Ast) -> Result<Self> {
         match node.data {
             AstNodeData::Ident(ref ident) => {
-                let ty = ast.find_identifier_type(node.parent_block.clone(), -1, ident.clone())?;
+                let ty = ast.find_identifier_type(node.parent_block.clone(), -1, ident.clone(), &vec![])?;
                 return Ok(ty);
             }
 
@@ -430,6 +430,12 @@ impl AstNode {
             _ => return Err(anyhow!("expected ast node fn call found: {:?}", self)),
         }
     }
+    pub fn get_load(&self) -> Result<String> {
+        match self.data {
+            AstNodeData::Load(ref path)  => Ok(path.clone()),
+            _ => return Err(anyhow!("expected ast node load found: {:?}", self)),
+        }
+    }
     pub fn get_block(&self) -> Result<Vec<NodeID>> {
         if let AstNodeData::Block{nodes: ref nodes, is_file_root: _} = self.data {
             return Ok(nodes.clone());
@@ -522,6 +528,12 @@ impl AstNode {
     }
     pub fn is_decl(&self) -> bool {
         if let AstNodeData::Decl(_) = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn is_load(&self) -> bool {
+        if let AstNodeData::Load(_) = self.data {
             return true;
         }
         return false;
@@ -632,8 +644,23 @@ impl Ast {
         }
     }
     pub fn sema_check(&self) {}
-    fn find_identifier_type(&self, start_block: NodeID, index_in_block: isize, ident: String) -> Result<Type> {
-        let block = self.get_node(start_block)?;
+    fn get_file_loads_from_block(&self, block_id: NodeID) -> Result<Vec<NodeID>> {
+        let mut loads = vec![];
+        let block = self.get_node(block_id.clone())?;
+        for node_id in block.get_block()? {
+            let node = self.get_node(node_id.clone())?;
+            if node.is_load() {
+                loads.push(node_id);
+            }
+        }
+
+
+        Ok(loads)
+    }
+
+
+    fn find_identifier_type(&self, start_block: NodeID, index_in_block: isize, ident: String, other_asts: &Vec<Ast>) -> Result<Type> {
+        let block = self.get_node(start_block.clone())?;
         let block_nodes = block.get_block()?; 
         for (index, node_id) in block_nodes.iter().enumerate() {
             if index_in_block >0 && index > index_in_block as usize && !block.block_is_file_root()? {
@@ -663,22 +690,36 @@ impl Ast {
 
         // if we reach here we didn't find type of that identifier in the block
         if block.parent_block != "" {
-            return self.find_identifier_type(block.parent_block, -1, ident);
+            return self.find_identifier_type(block.parent_block, -1, ident, other_asts);
+        }
+
+        if block.parent_block == "" {
+            // we are at root of the file so we should check file loads.
+            let load_nodes = self.get_file_loads_from_block(start_block.clone())?;
+            for node_id in &load_nodes {
+                let load_node = self.get_node(node_id.clone())?;
+                let path = load_node.get_load()?;
+                for ast in other_asts {
+                    if ast.filename == path {
+                        return ast.find_identifier_type(ast.top_level.clone(), -1, ident.clone(), other_asts);
+                    }
+                }
+            }
         }
 
         return Ok(Type::Unknown);
     }
-    fn infer_type_expr(&mut self, expr_id: NodeID, index_in_block: usize) -> Result<()> {
+    fn infer_type_expr(&mut self, expr_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
         let expr = self.get_node(expr_id.clone())?;
         if expr.is_ident() {
             let expr_ident = expr.get_ident()?;
-            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, expr_ident)?;
+            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, expr_ident, other_asts)?;
             self.add_type_inference(&expr_id.clone(), infered_type.clone());
         }
 
         if expr.is_fn_def() {
             if let AstNodeData::FnDef{sign: _, ref body } = expr.data {
-                self.infer_types_block(body.to_string())?;
+                self.infer_types_block(body.to_string(), other_asts)?;
             } else {
                 unreachable!()
             }
@@ -686,14 +727,14 @@ impl Ast {
 
         if expr.is_deref() {
             let deref_expr_id = expr.get_deref_expr()?;
-            let infered_type = self.infer_type_expr(deref_expr_id.clone(), index_in_block)?;
+            let infered_type = self.infer_type_expr(deref_expr_id.clone(), index_in_block, other_asts)?;
             let deref_expr = self.get_node(deref_expr_id)?;
             self.add_type_inference(&expr_id, deref_expr.type_information.get_pointer_pointee()?)
         }
 
         if expr.is_pointer() {
             let pointer_expr_id = expr.get_pointer_expr()?;
-            let infered_type = self.infer_type_expr(pointer_expr_id.clone(), index_in_block)?;
+            let infered_type = self.infer_type_expr(pointer_expr_id.clone(), index_in_block, other_asts)?;
             let pointer_expr = self.get_node(pointer_expr_id)?;
             self.add_type_inference(&expr_id, Type::Pointer(Box::new(pointer_expr.type_information)))
         }
@@ -702,14 +743,14 @@ impl Ast {
         if expr.is_fn_call() {
             let fn_name_id = expr.get_fn_call_fn_name()?;
             let fn_name = self.get_node(fn_name_id.to_string())?.get_ident()?;
-            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, fn_name)?;
+            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, fn_name, other_asts)?;
             self.add_type_inference(&expr_id.clone(), infered_type.clone());
         }
 
         if expr.is_initialize() {
             let type_name_id = expr.get_initialize_type_name()?;
             let type_name = self.get_node(type_name_id.clone())?.get_ident()?;
-            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, type_name.clone())?;
+            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, type_name.clone(), other_asts)?;
             self.add_type_inference(&expr_id, Type::TypeRef { name: type_name.clone(), actual_ty: Box::new(infered_type.clone()) });
         }
 
@@ -720,7 +761,7 @@ impl Ast {
             let field_id = expr.get_namespace_field_id()?;
             let field = self.get_node(field_id)?.get_ident()?;
             let ns = self.get_node(ns_id.clone())?;
-            self.infer_type_expr(ns_id.clone(), index_in_block)?;
+            self.infer_type_expr(ns_id.clone(), index_in_block, other_asts)?;
             let ns_ty = self.get_node(ns_id.clone())?.type_information;
             if !ns_ty.is_type_def() 
                 && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def()) 
@@ -791,45 +832,45 @@ impl Ast {
         }
         Ok(())
     }
-    fn infer_type_def(&mut self, node_id: NodeID, index_in_block: usize) -> Result<()> {
+    fn infer_type_def(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
         let node = self.get_node(node_id.to_string())?;
         let (_, name_id, expr_id) = node.get_def()?;
         let name = self.get_node(name_id.clone())?.get_ident()?;
-        self.infer_type_expr(expr_id.clone(), index_in_block)?;
+        self.infer_type_expr(expr_id.clone(), index_in_block, other_asts)?;
         let expr = self.get_node(expr_id)?;
         self.add_type_inference(&name_id.clone(), expr.type_information);
         Ok(())
     }
 
-    fn infer_type_fn_call(&mut self, node_id: NodeID, index_in_block: usize) -> Result<()> {
+    fn infer_type_fn_call(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
         let fn_call_node = self.get_node(node_id.clone())?;
         let (fn_name, args) = fn_call_node.get_fn_call()?;
         // check fn_name ?
         for arg_id in &args {
-            self.infer_type_expr(arg_id.clone(), index_in_block)?;
+            self.infer_type_expr(arg_id.clone(), index_in_block, other_asts)?;
         }
 
         Ok(())
     }
 
-    fn infer_types_block(&mut self, block_id: NodeID) -> Result<()> {
+    fn infer_types_block(&mut self, block_id: NodeID, other_asts: &Vec<Ast>) -> Result<()> {
         let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
             if node.is_def() {
-                self.infer_type_def(node.id.clone(), index)?;
+                self.infer_type_def(node.id.clone(), index, other_asts)?;
                 continue;
             }
             if node.is_fn_call() {
-                self.infer_type_fn_call(node_id.clone(), index)?;
+                self.infer_type_fn_call(node_id.clone(), index, other_asts)?;
                 continue;
             }
         }
 
         Ok(())
     }
-    pub fn infer_types(&mut self) -> Result<()> {
-        self.infer_types_block(self.top_level.to_string())?;
+    pub fn infer_types(&mut self, other_asts: &Vec<Ast>) -> Result<()> {
+        self.infer_types_block(self.top_level.to_string(), other_asts)?;
         Ok(())
     }
 
