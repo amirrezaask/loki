@@ -169,6 +169,7 @@ impl AstNodeType {
             _ => return Err(anyhow!("expected type ref found: {:?}", self)),
         }
     }
+    
     pub fn is_struct(&self) -> bool {
         match self {
             AstNodeType::Struct{fields: _}  => true,
@@ -444,7 +445,12 @@ impl AstNode {
         }
         Err(anyhow!("expected AstNodeData::Block got: {:?}", self))
     }
-
+    pub fn get_fn_call(&self) -> Result<(NodeID, Vec<NodeID>)> {
+        match self.data {
+            AstNodeData::FnCall{fn_name: ref name, args: ref args}  => Ok((name.clone(), args.clone())),
+            _ => return Err(anyhow!("expected ast node fn call found: {:?}", self)),
+        }
+    }
     pub fn get_block(&self) -> Result<Vec<NodeID>> {
         if let AstNodeData::Block{nodes: ref nodes, is_file_root: _} = self.data {
             return Ok(nodes.clone());
@@ -744,7 +750,11 @@ impl Ast {
             let ns = self.get_node(ns_id.clone())?;
             self.infer_type_expr(ns_id.clone(), index_in_block)?;
             let ns_ty = self.get_node(ns_id.clone())?.infered_type;
-            if !ns_ty.is_type_def() && !ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def() {
+            if !ns_ty.is_type_def() 
+                && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def()) 
+                && !(ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def()) 
+                && !(ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_ref() && ns_ty.get_pointer_pointee()?.get_actual_ty_type_ref()?.is_type_def()) 
+                {
                 return Err(anyhow!(". operator can only be used for structs and enums but you used {:?}", ns_ty));
             }
             
@@ -819,12 +829,27 @@ impl Ast {
         Ok(())
     }
 
+    fn infer_type_fn_call(&mut self, node_id: NodeID, index_in_block: usize) -> Result<()> {
+        let fn_call_node = self.get_node(node_id.clone())?;
+        let (fn_name, args) = fn_call_node.get_fn_call()?;
+        // check fn_name ?
+        for arg_id in &args {
+            self.infer_type_expr(arg_id.clone(), index_in_block)?;
+        }
+
+        Ok(())
+    }
+
     fn infer_types_block(&mut self, block_id: NodeID) -> Result<()> {
         let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
             if node.is_def() {
                 self.infer_type_def(node.id.clone(), index)?;
+                continue;
+            }
+            if node.is_fn_call() {
+                self.infer_type_fn_call(node_id.clone(), index)?;
                 continue;
             }
         }
