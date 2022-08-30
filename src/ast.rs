@@ -157,23 +157,35 @@ impl AstNodeType {
             _ => return false,
         }
     }
+    pub fn is_type_ref(&self) -> bool {
+        match self {
+            AstNodeType::TypeRef{name: _, actual_ty: _}  => true,
+            _ => return false,
+        }
+    }
+    pub fn get_actual_ty_type_ref(&self) -> Result<AstNodeType> {
+        match self {
+            AstNodeType::TypeRef{name: _, actual_ty: ref ty}  => Ok(*ty.clone()),
+            _ => return Err(anyhow!("expected type ref found: {:?}", self)),
+        }
+    }
     pub fn is_struct(&self) -> bool {
         match self {
             AstNodeType::Struct{fields: _}  => true,
             _ => return false,
         }
     }
-    pub fn get_struct_fields(&self) -> Vec<(String, AstNodeType)> {
+    pub fn get_struct_fields(&self) -> Result<Vec<(String, AstNodeType)>> {
         match self {
-            AstNodeType::Struct{ref fields} => fields.clone(),
-            _ => panic!("expected struct type found: {:?}", self),
+            AstNodeType::Struct{ref fields} => Ok(fields.clone()),
+            _ => Err(anyhow!("expected struct type found: {:?}", self)),
         }
     }
     
-    pub fn get_enum_variants(&self) -> Vec<String> {
+    pub fn get_enum_variants(&self) -> Result<Vec<String>> {
         match self {
-            AstNodeType::Enum{ref variants} => variants.clone(),
-            _ => panic!("expected enum type found: {:?}", self),
+            AstNodeType::Enum{ref variants} => Ok(variants.clone()),
+            _ => Err(anyhow!("expected enum type found: {:?}", self)),
         }
     }
     pub fn is_enum(&self) -> bool {
@@ -698,8 +710,6 @@ impl Ast {
             let deref_expr_id = expr.get_deref_expr()?;
             let infered_type = self.infer_type_expr(deref_expr_id.clone(), index_in_block)?;
             let deref_expr = self.get_node(deref_expr_id)?;
-            println!("deref expr is : {:?}", deref_expr);
-            println!("infered type is {:?}", deref_expr.infered_type);
             self.add_type_inference(&expr_id, deref_expr.infered_type.get_pointer_pointee()?)
         }
 
@@ -731,7 +741,7 @@ impl Ast {
             let ns_id = expr.get_namespace_ns_id()?;
             let field_id = expr.get_namespace_field_id()?;
             let field = self.get_node(field_id)?.get_ident()?;
-            let ns_identifier = self.get_node(ns_id.clone())?.get_ident()?;
+            let ns = self.get_node(ns_id.clone())?;
             self.infer_type_expr(ns_id.clone(), index_in_block)?;
             let ns_ty = self.get_node(ns_id.clone())?.infered_type;
             if !ns_ty.is_type_def() && !ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def() {
@@ -740,7 +750,7 @@ impl Ast {
             
             if ns_ty.is_struct() {
                 let mut infered_type = AstNodeType::Unknown;
-                for (name, ty) in ns_ty.get_struct_fields() {
+                for (name, ty) in ns_ty.get_struct_fields()? {
                     if name == field {
                         infered_type = ty;
                     }
@@ -752,25 +762,53 @@ impl Ast {
 
             } else if ns_ty.is_enum() {
                 let mut infered_type = AstNodeType::Unknown;
-                for name in ns_ty.get_enum_variants() {
+                for name in ns_ty.get_enum_variants()? {
                     if name == field {
                         infered_type = AstNodeType::UnsignedInt(64);
                     }
                 }
                 if infered_type.is_unknown() {
-                    return Err(anyhow!("no enum {} has no variant named {}", ns_identifier.clone(), field));
+                    return Err(anyhow!("enum {:?} has no variant named {}", ns_ty.clone(), field));
                 }
                 self.add_type_inference(&expr_id.clone(), AstNodeType::UnsignedInt(64));
                 self.add_type_inference(&ns_id, ns_ty);
             } else if ns_ty.is_pointer() {
                 let pointee_ty = ns_ty.get_pointer_pointee()?;
-                println!("pointee ty is {:?}", pointee_ty);
+                self.add_type_inference(&ns_id, AstNodeType::Pointer(Box::new(pointee_ty.clone())));
+                if pointee_ty.is_struct() {
+                    let mut infered_type = AstNodeType::Unknown;
+                    for (name, ty) in pointee_ty.get_struct_fields()? {
+                        if name == field {
+                            infered_type = ty;
+                        }
+                    }
+                    if infered_type.is_unknown() {
+                        return Err(anyhow!("struct {:?} has no field named {}", pointee_ty.clone(), field));
+                    }
+                    self.add_type_inference(&expr_id.clone(), infered_type.clone());
+                }
+
+                if pointee_ty.is_type_ref() {
+                    if pointee_ty.get_actual_ty_type_ref()?.is_struct() {
+                        let mut infered_type = AstNodeType::Unknown;
+                        for (name, ty) in pointee_ty.get_actual_ty_type_ref()?.get_struct_fields()? {
+                            if name == field {
+                                infered_type = ty;
+                            }
+                        }
+                        if infered_type.is_unknown() {
+                            return Err(anyhow!("struct {:?} has no field named {}", pointee_ty.clone(), field));
+                        }
+                        self.add_type_inference(&expr_id.clone(), infered_type.clone());
+                    } else {
+                        return Err(anyhow!("you can only use a pointer to struct type as a namespace but you used {:?}", pointee_ty.clone()));
+                    }
+                    
+                }
             }
         }
-
         Ok(())
     }
-    
     fn infer_type_def(&mut self, node_id: NodeID, index_in_block: usize) -> Result<()> {
         let node = self.get_node(node_id.to_string())?;
         let (_, name_id, expr_id) = node.get_def()?;
