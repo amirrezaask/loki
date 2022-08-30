@@ -32,6 +32,9 @@ fn test_suite() -> Result<()> {
         }
     }
 
+    println!("=========================Results=============================");
+
+
     if has_error {
         return Err(anyhow::format_err!("FAILED"));
     }

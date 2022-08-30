@@ -32,7 +32,7 @@ impl Pipeline {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
-        self.dump_tokens(path, &tokens)?;
+        // self.dump_tokens(path, &tokens)?;
         let parser = Parser::new(path.to_string(), program, tokens)?;
         let ast = parser.get_ast()?;
         Ok(ast)

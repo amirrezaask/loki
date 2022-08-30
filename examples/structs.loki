@@ -1,0 +1,19 @@
+#host "string"
+
+
+Human :: struct {
+    age: s32,
+    name: string,
+}
+
+
+main :: () int {
+    amirreza := Human {
+        age = 24,
+        name = "amirreza",
+    };
+    amirreza.age = 12;
+
+    printf("amirreza age is %d\n", amirreza.age);
+    printf("inline age is %d\n", Human {age=12, name="comrade"}.age);
+}
