@@ -30,17 +30,20 @@ pub enum AstNodeType {
     Array(i8, Box<AstNodeType>),
     DynamicArray(Box<AstNodeType>),
 
-    TypeName(String),
-
     Initialize(Box<AstNodeType>),
 
     Struct {
-        fields: HashMap<String, AstNodeType>, // name: type 
+        fields: Vec<(String, AstNodeType)>, // name: type 
     },
     Enum {
         variants: Vec<String>,
     },
     Union,
+
+    TypeRef {
+        name: String,
+        actual_ty: Box<AstNodeType>,
+    },
 
     Pointer(Box<AstNodeType>),
 
@@ -58,16 +61,17 @@ impl AstNodeType {
     pub fn new(node: &AstNode, ast: &Ast) -> Result<Self> {
         match node.data {
             AstNodeData::Ident(ref ident) => {
-                return Ok(AstNodeType::TypeName(ident.clone()));
+                let ty = ast.find_identifier_type(node.parent_block.clone(), -1, ident.clone())?;
+                return Ok(ty);
             }
 
             AstNodeData::StructTy(ref decls) => {
-                let mut fields = HashMap::<String, AstNodeType>::new();
+                let mut fields = Vec::<(String, AstNodeType)>::new();
                 for decl_id in decls {
                     let decl = ast.get_node(decl_id.clone())?;
                     let field_id = decl.get_decl()?;
                     let field = ast.get_node(field_id)?;
-                    fields.insert(field.get_ident()?.clone(), decl.infered_type);
+                    fields.push((field.get_ident()?.clone(), decl.infered_type));
                 }
 
                 Ok(AstNodeType::Struct{fields})
@@ -111,12 +115,12 @@ impl AstNodeType {
         }
     }
     pub fn from_struct_fields(decls: Vec<NodeID>, ast: &Ast) -> Result<AstNodeType> {
-        let mut fields = HashMap::<String, AstNodeType>::new();
+        let mut fields = Vec::<(String, AstNodeType)>::new();
         for decl_id in decls {
             let decl = ast.get_node(decl_id.clone())?;
             let field_id = decl.get_decl()?;
             let field = ast.get_node(field_id)?;
-            fields.insert(field.get_ident()?.clone(), decl.infered_type);
+            fields.push((field.get_ident()?.clone(), decl.infered_type));
         }
 
         Ok(AstNodeType::Struct{fields})
@@ -159,7 +163,7 @@ impl AstNodeType {
             _ => return false,
         }
     }
-    pub fn get_struct_fields(&self) -> HashMap<String, AstNodeType> {
+    pub fn get_struct_fields(&self) -> Vec<(String, AstNodeType)> {
         match self {
             AstNodeType::Struct{ref fields} => fields.clone(),
             _ => panic!("expected struct type found: {:?}", self),
@@ -176,18 +180,6 @@ impl AstNodeType {
         match self {
             AstNodeType::Enum{variants: _} => true,
             _ => return false,
-        }
-    }
-    pub fn is_type_name(&self) -> bool {
-        match self {
-            AstNodeType::TypeName(_)=> true,
-            _ => false,
-        }
-    }
-    pub fn get_type_name(&self) -> String {
-        match self {
-            AstNodeType::TypeName(name)=> name.to_string(),
-            _ => panic!("{:?} is not type name", self),
         }
     }
 
@@ -485,6 +477,20 @@ impl AstNode {
         }
         return false;
     }
+    
+    pub fn get_initialize_fields(&self) -> Result<Vec<(NodeID, NodeID)>> {
+        if let AstNodeData::Initialize{ty: _, ref fields} = self.data {
+            return Ok(fields.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Initialize got: {:?}", self))
+    }
+
+    pub fn get_initialize_type_name(&self) -> Result<NodeID> {
+        if let AstNodeData::Initialize{ref ty, fields: _} = self.data {
+            return Ok(ty.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Initialize got: {:?}", self))
+    }
 
     pub fn get_namespace_ns_id(&self) -> Result<NodeID> {
         if let AstNodeData::NamespaceAccess{ref namespace, field: _} = self.data {
@@ -666,8 +672,11 @@ impl Ast {
         }
 
         // if we reach here we didn't find type of that identifier in the block
+        if block.parent_block != "" {
+            return self.find_identifier_type(block.parent_block, -1, ident);
+        }
 
-        return self.find_identifier_type(block.parent_block, -1, ident);
+        return Ok(AstNodeType::Unknown);
     }
     fn infer_type_expr(&mut self, expr_id: NodeID, index_in_block: usize) -> Result<()> {
         let expr = self.get_node(expr_id.clone())?;
@@ -689,7 +698,9 @@ impl Ast {
             let deref_expr_id = expr.get_deref_expr()?;
             let infered_type = self.infer_type_expr(deref_expr_id.clone(), index_in_block)?;
             let deref_expr = self.get_node(deref_expr_id)?;
-            self.add_type_inference(&expr_id, deref_expr.infered_type)
+            println!("deref expr is : {:?}", deref_expr);
+            println!("infered type is {:?}", deref_expr.infered_type);
+            self.add_type_inference(&expr_id, deref_expr.infered_type.get_pointer_pointee()?)
         }
 
         if expr.is_pointer() {
@@ -707,13 +718,23 @@ impl Ast {
             self.add_type_inference(&expr_id.clone(), infered_type.clone());
         }
 
+        if expr.is_initialize() {
+            let type_name_id = expr.get_initialize_type_name()?;
+            let type_name = self.get_node(type_name_id.clone())?.get_ident()?;
+            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, type_name.clone())?;
+            self.add_type_inference(&expr_id, AstNodeType::TypeRef { name: type_name.clone(), actual_ty: Box::new(infered_type.clone()) });
+        }
+
+
         if expr.is_namespace_access() {
+            // expresion is a namespace access, namespace part can be any expression but field is always an identifier.
             let ns_id = expr.get_namespace_ns_id()?;
             let field_id = expr.get_namespace_field_id()?;
             let field = self.get_node(field_id)?.get_ident()?;
             let ns_identifier = self.get_node(ns_id.clone())?.get_ident()?;
-            let ns_ty = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, ns_identifier.clone())?;
-            if !ns_ty.is_type_def() {
+            self.infer_type_expr(ns_id.clone(), index_in_block)?;
+            let ns_ty = self.get_node(ns_id.clone())?.infered_type;
+            if !ns_ty.is_type_def() && !ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def() {
                 return Err(anyhow!(". operator can only be used for structs and enums but you used {:?}", ns_ty));
             }
             
@@ -741,6 +762,9 @@ impl Ast {
                 }
                 self.add_type_inference(&expr_id.clone(), AstNodeType::UnsignedInt(64));
                 self.add_type_inference(&ns_id, ns_ty);
+            } else if ns_ty.is_pointer() {
+                let pointee_ty = ns_ty.get_pointer_pointee()?;
+                println!("pointee ty is {:?}", pointee_ty);
             }
         }
 

@@ -376,7 +376,7 @@ impl Parser {
                         }
                         return Ok(self.new_node(Self::get_id(), 
                             AstNodeData::Initialize{ty: ty.id.clone(), fields},
-                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, &self.ast)?)),
+                            AstNodeType::Unknown,
                         self.current_line(), self.current_col()));
                     } else {
                         let mut fields = Vec::<NodeID>::new();

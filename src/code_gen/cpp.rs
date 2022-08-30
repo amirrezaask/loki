@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
@@ -33,6 +34,9 @@ impl<'a> CPP<'a> {
         match ty {
             AstNodeType::LoadedFile => {
                 Ok("".to_string())
+            }
+            AstNodeType::TypeRef { ref name, actual_ty } => {
+                Ok(name.to_string())
             }
             AstNodeType::NoType => {
                 unreachable!()
@@ -73,11 +77,8 @@ impl<'a> CPP<'a> {
             AstNodeType::DynamicArray(_) => {
                 unreachable!()
             }
-            AstNodeType::TypeName(name) => {
-                Ok(name)
-            }
-            AstNodeType::Struct{fields: _} => {
-                Ok("".to_string())
+            AstNodeType::Struct{fields} => {
+                Ok(format!("struct {{\n{}\n}}", self.repr_struct_fields_for_type(fields)?))
             }
             AstNodeType::Enum{variants: _} => {
                 Ok("".to_string())
@@ -137,6 +138,16 @@ impl<'a> CPP<'a> {
             output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
         }
         Ok(output.join(", "))
+    }
+    fn repr_struct_fields_for_type(&self, fields: Vec<(String, AstNodeType)>) -> Result<String> {
+        let mut output = Vec::<String>::new();
+        for (name, ty) in fields {
+            output.push(format!("\t{} {};", self.repr_ast_ty(ty)?, name));
+        }
+
+
+        Ok(output.join(";\n"))
+
     }
     fn repr_struct_fields(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
@@ -203,6 +214,7 @@ impl<'a> CPP<'a> {
 
         Ok(output.join("."))
     }
+
 
     fn repr_operator(&self, op: &TokenType) -> Result<String> {
         match op {
