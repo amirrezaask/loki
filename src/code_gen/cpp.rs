@@ -165,10 +165,16 @@ impl<'a> CPP<'a> {
         }
         Ok(output.join("\n"))
     }
-    fn repr_struct_init_fields(&self, fields: &Vec<(NodeID, NodeID)>) -> Result<String> {
-        let mut output = Vec::<String>::new();
+    fn repr_struct_init_fields(&self, mut ty: Type, fields: &Vec<(NodeID, NodeID)>) -> Result<String> {
+        let mut output = vec!["".to_string(); fields.len()];
+        if ty.is_type_ref() {
+            ty = ty.get_actual_ty_type_ref()?;
+        }
+        let ordered_struct_fields = ty.get_struct_fields()?;
         for node in fields {
-            output.push(format!("\t{}:{}", self.repr_ast_node(node.0.clone())?, self.repr_ast_node(node.1.clone())?));
+            let name = self.ast.get_node(node.0.clone())?.get_ident()?;
+            let idx = ordered_struct_fields.iter().position(|f| f.0 == name).unwrap();
+            output[idx] =  format!("\t{}:{}", self.repr_ast_node(node.0.clone())?, self.repr_ast_node(node.1.clone())?);
         }
         Ok(output.join(",\n"))
     }
@@ -317,7 +323,7 @@ impl<'a> CPP<'a> {
 
                 AstNodeData::Initialize{ty: _, fields} => {
                     let ty = self.get_def_typ(&node)?;
-                    let fields = self.repr_struct_init_fields(&fields)?;
+                    let fields = self.repr_struct_init_fields(ty.clone(), &fields)?;
                     match mutable {
                         false => Ok(format!(
                             "const {} {} = {{\n{}}}",
@@ -358,7 +364,7 @@ impl<'a> CPP<'a> {
             }
             },
             AstNodeData::Initialize{ty, fields} => {
-                let fields = self.repr_struct_init_fields(&fields)?;
+                let fields = self.repr_struct_init_fields(node.type_information, &fields)?;
                 return Ok(format!("({}){{\n{}\n}}", self.repr_ast_node(ty.clone())?, fields));
             }
             

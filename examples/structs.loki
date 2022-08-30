@@ -9,11 +9,12 @@ Human :: struct {
 
 main :: () int {
     amirreza := Human {
-        age = 24,
         name = "amirreza",
+        age = 24,
+
     };
     amirreza.age = 12;
 
     printf("amirreza age is %d\n", amirreza.age);
-    printf("inline age is %d\n", Human {age=12, name="comrade"}.age);
+    printf("inline age is %d\n", Human {name="comrade", age=12}.age);
 }
