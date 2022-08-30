@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
-use crate::ast::{AstNodeType, AstOperation, NodeID, AstTag, ScopeID};
+use crate::ast::{Type, AstOperation, NodeID, AstTag, ScopeID};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
 use anyhow::anyhow;
@@ -30,86 +30,86 @@ impl<'a> CPP<'a> {
             AstOperation::BinaryAnd =>  Ok("&&".to_string()),
         }
     }
-    fn repr_ast_ty(&self, ty: AstNodeType) -> Result<String> {
+    fn repr_ast_ty(&self, ty: Type) -> Result<String> {
         match ty {
-            AstNodeType::LoadedFile => {
+            Type::LoadedFile => {
                 Ok("".to_string())
             }
-            AstNodeType::TypeRef { ref name, actual_ty } => {
+            Type::TypeRef { ref name, actual_ty } => {
                 Ok(name.to_string())
             }
-            AstNodeType::NoType => {
+            Type::NoType => {
                 unreachable!()
             },
-            AstNodeType::Initialize(name) => {
+            Type::Initialize(name) => {
                 Ok(format!("{}", self.repr_ast_ty(*name)?))
             }
-            AstNodeType::Unknown => {
+            Type::Unknown => {
                 Ok("UNKNOWN".to_string())
             }
-            AstNodeType::SignedInt(_) => {
+            Type::SignedInt(_) => {
                 Ok("int".to_string())
             }
-            AstNodeType::CVarArgs => {
+            Type::CVarArgs => {
                 Ok("...".to_string())
             }
-            AstNodeType::CString => {
+            Type::CString => {
                 Ok("char*".to_string())
             }
-            AstNodeType::UnsignedInt(_) => {
+            Type::UnsignedInt(_) => {
                 Ok("unsigned int".to_string())
             }
-            AstNodeType::Float(_) => {
+            Type::Float(_) => {
                 Ok("float".to_string())
             }
-            AstNodeType::Bool => {
+            Type::Bool => {
                 Ok("bool".to_string())
             }
-            AstNodeType::Char => {
+            Type::Char => {
                 Ok("char".to_string())
             }
-            AstNodeType::String => {
+            Type::String => {
                 Ok("std::string".to_string())
             }
-            AstNodeType::Array(_, _) => {
+            Type::Array(_, _) => {
                 unreachable!()
             }
-            AstNodeType::DynamicArray(_) => {
+            Type::DynamicArray(_) => {
                 unreachable!()
             }
-            AstNodeType::Struct{fields} => {
+            Type::Struct{fields} => {
                 Ok(format!("struct {{\n{}\n}}", self.repr_struct_fields_for_type(fields)?))
             }
-            AstNodeType::Enum{variants: _} => {
+            Type::Enum{variants: _} => {
                 Ok("".to_string())
             }
-            AstNodeType::Union => {
+            Type::Union => {
                 Ok("".to_string())
             }
-            AstNodeType::Pointer(name) => {
+            Type::Pointer(name) => {
                 Ok(format!("{}*", self.repr_ast_ty(name.deref().clone())?))
             }
-            AstNodeType::NamespaceAccess(nsa) => {
+            Type::NamespaceAccess(nsa) => {
                 Ok(self.repr_ast_ty(nsa.field.deref().clone())?)
             }
-            AstNodeType::Void => {
+            Type::Void => {
                 Ok("void".to_string())
             }
 
-            AstNodeType::FnType(_, _) => {unreachable!()},
+            Type::FnType(_, _) => {unreachable!()},
         }
     }
-    fn get_def_typ(&self, node: &AstNode) -> Result<AstNodeType> {
+    fn get_def_typ(&self, node: &AstNode) -> Result<Type> {
         match &node.data {
             AstNodeData::Def{mutable, name, expr} => {
                 let def_expr = self.ast.get_node(expr.clone())?;
-                match def_expr.infered_type {
-                    AstNodeType::Unknown => {
+                match def_expr.type_information {
+                    Type::Unknown => {
                         let expr = self.ast.get_node(expr.clone())?;
                         println!("type inference bug, type of {:?} is not declared", expr);
                         unreachable!();
                     }
-                    _ => Ok(def_expr.infered_type.clone()),
+                    _ => Ok(def_expr.type_information.clone()),
                 }
 
             },
@@ -135,11 +135,11 @@ impl<'a> CPP<'a> {
             let ident_node_id = node.get_decl()?;
             let ident_node = self.ast.get_node(ident_node_id)?;
             let name = ident_node.get_ident()?;
-            output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
+            output.push(format!("{} {}", self.repr_ast_ty(node.type_information.clone())?, name));
         }
         Ok(output.join(", "))
     }
-    fn repr_struct_fields_for_type(&self, fields: Vec<(String, AstNodeType)>) -> Result<String> {
+    fn repr_struct_fields_for_type(&self, fields: Vec<(String, Type)>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for (name, ty) in fields {
             output.push(format!("\t{} {};", self.repr_ast_ty(ty)?, name));
@@ -155,7 +155,7 @@ impl<'a> CPP<'a> {
             let node = self.ast.get_node(node_id.clone())?;
             match &node.data {
                 AstNodeData::Decl(name_id) => {
-                    output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name_id.clone())?));
+                    output.push(format!("\t{} {};", self.repr_ast_ty(node.type_information.clone())?, self.repr_ast_node(name_id.clone())?));
                 }
                 _ => {
                     unreachable!();
@@ -233,11 +233,11 @@ impl<'a> CPP<'a> {
     fn repr_namespace_access(&self, namespace: &str, field: &str) -> Result<String> {
         let ns_ty = self.ast.get_node(namespace.to_string())?;
         let _ = self.ast.get_node(field.to_string())?;
-        if ns_ty.infered_type.is_enum() {
+        if ns_ty.type_information.is_enum() {
             return Ok(format!("{}::{}", self.repr_ast_node(namespace.to_string())?, self.repr_ast_node(field.to_string())?));
         }
 
-        if ns_ty.infered_type.is_pointer() {
+        if ns_ty.type_information.is_pointer() {
             return Ok(format!("{}->{}", self.repr_ast_node(namespace.to_string())?, self.repr_ast_node(field.to_string())?));
         }
 
@@ -270,7 +270,7 @@ impl<'a> CPP<'a> {
                 if node.tags.contains(&AstTag::Foreign) {
                     return Ok("".to_string());
                 }
-                Ok(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name.clone())?))
+                Ok(format!("{} {}", self.repr_ast_ty(node.type_information.clone())?, self.repr_ast_node(name.clone())?))
             }
 
             AstNodeData::ForIn{iterator, iterable, body} => {
