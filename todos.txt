@@ -1,12 +1,15 @@
 
 ----- Features -----
-- unions
-- type casting using `as` keyword
-- arrays:
-  - dynamic array
+- arrays
+
+- dynamic array:
   - strings should be our own dynamic array impl. 
   - variadic args
   - slicing arrays
+  - converting a dynamic array into c variadic array.
+
+- unions
+- type casting using `as` keyword
 - defer
     *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 
