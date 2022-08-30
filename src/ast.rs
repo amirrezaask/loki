@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::default;
 
-use crate::lexer::{Token, TokenType};
+use crate::{lexer::{Token, TokenType}, context};
 use anyhow::anyhow;
 use crate::context::Context;
 use anyhow::Result;
@@ -35,8 +35,12 @@ pub enum AstNodeType {
 
     Initialize(Box<AstNodeType>),
 
-    Struct,
-    Enum,
+    Struct {
+        fields: HashMap<String, AstNodeType>, // name: type 
+    },
+    Enum {
+        variants: Vec<String>,
+    },
     Union,
 
     Pointer(Box<AstNodeType>),
@@ -52,12 +56,35 @@ pub enum AstNodeType {
 }
 
 impl AstNodeType {
-    pub fn new(node: &AstNode, compiler: &Context) -> Result<Self> {
+    pub fn new(node: &AstNode, context: &Context) -> Result<Self> {
         match node.data {
             AstNodeData::Ident(ref ident) => {
                 return Ok(AstNodeType::TypeName(ident.clone()));
             }
 
+            AstNodeData::StructTy(ref decls) => {
+                let mut fields = HashMap::<String, AstNodeType>::new();
+                for decl_id in decls {
+                    let decl = context.get_node(decl_id.clone())?;
+                    let field_id = decl.get_decl()?;
+                    let field = context.get_node(field_id)?;
+                    fields.insert(field.get_ident()?.clone(), decl.infered_type);
+                }
+
+                Ok(AstNodeType::Struct{fields})
+            }
+
+            AstNodeData::EnumTy(ref vs) => {
+                let mut variants = Vec::<String>::new();
+                for decl_id in vs {
+                    let decl = context.get_node(decl_id.clone())?;
+                    let variant_id = decl.get_decl()?;
+                    let variant = context.get_node(variant_id)?;
+                    variants.push(variant.get_ident()?.clone());
+                }
+
+                Ok(AstNodeType::Enum{variants})
+            }
             AstNodeData::UintTy(bitsize) => Ok(AstNodeType::UnsignedInt(bitsize)),
             AstNodeData::IntTy(bitsize) => Ok(AstNodeType::SignedInt(bitsize)),
             AstNodeData::CharTy => Ok(AstNodeType::Char),
@@ -67,22 +94,44 @@ impl AstNodeType {
             AstNodeData::CVarArgs => Ok(AstNodeType::CVarArgs),
             AstNodeData::CString => Ok(AstNodeType::CString),
             AstNodeData::Deref(ref obj) => { // TODO: this is a temporary fix, this should be handled in parser and this would become PointerTo
-                let pointee = compiler.get_node(obj.clone())?;
+                let pointee = context.get_node(obj.clone())?;
                 return Ok(AstNodeType::Pointer(Box::new(pointee.infered_type)));
             }
             AstNodeData::FnType { args: ref fn_args, ret: ref ret } => {
                 let mut args: Vec<AstNodeType> = vec![];
                 for decl in fn_args.iter() {
-                    let decl_node = compiler.get_node(decl.clone())?;
+                    let decl_node = context.get_node(decl.clone())?;
                     args.push(decl_node.infered_type);
                 }
-                let ret = compiler.get_node(ret.clone())?.infered_type;
+                let ret = context.get_node(ret.clone())?.infered_type;
 
                 return Ok(AstNodeType::FnType(args, Box::new(ret)));
             }
             AstNodeData::VoidTy => Ok(AstNodeType::Void),
             _ => Ok(AstNodeType::Unknown),
         }
+    }
+    pub fn from_struct_fields(decls: Vec<NodeID>, context: &Context) -> Result<AstNodeType> {
+        let mut fields = HashMap::<String, AstNodeType>::new();
+        for decl_id in decls {
+            let decl = context.get_node(decl_id.clone())?;
+            let field_id = decl.get_decl()?;
+            let field = context.get_node(field_id)?;
+            fields.insert(field.get_ident()?.clone(), decl.infered_type);
+        }
+
+        Ok(AstNodeType::Struct{fields})
+    }
+    pub fn from_enum_variants(vs: Vec<NodeID>, context: &Context) -> Result<AstNodeType> {
+        let mut variants = Vec::<String>::new();
+        for decl_id in vs {
+            let decl = context.get_node(decl_id.clone())?;
+            let variant_id = decl.get_decl()?;
+            let variant = context.get_node(variant_id)?;
+            variants.push(variant.get_ident()?.clone());
+        }
+
+        Ok(AstNodeType::Enum{variants})
     }
     pub fn make_fn_signature(
         compiler: &Context,
@@ -101,14 +150,32 @@ impl AstNodeType {
     }
     pub fn is_type_def(&self) -> bool {
         match self {
-            AstNodeType::Struct | AstNodeType::Union | AstNodeType::Enum => true,
+            AstNodeType::Struct{fields: _} | AstNodeType::Union | AstNodeType::Enum{variants: _} => true,
             _ => return false,
         }
     }
-
+    pub fn is_struct(&self) -> bool {
+        match self {
+            AstNodeType::Struct{fields: _}  => true,
+            _ => return false,
+        }
+    }
+    pub fn get_struct_fields(&self) -> HashMap<String, AstNodeType> {
+        match self {
+            AstNodeType::Struct{ref fields} => fields.clone(),
+            _ => panic!("expected struct type found: {:?}", self),
+        }
+    }
+    
+    pub fn get_enum_variants(&self) -> Vec<String> {
+        match self {
+            AstNodeType::Enum{ref variants} => variants.clone(),
+            _ => panic!("expected enum type found: {:?}", self),
+        }
+    }
     pub fn is_enum(&self) -> bool {
         match self {
-            AstNodeType::Enum => true,
+            AstNodeType::Enum{variants: _} => true,
             _ => return false,
         }
     }
@@ -163,7 +230,7 @@ impl AstNodeType {
     }
     pub fn is_type_def_enum(&self) -> bool {
         match self {
-            AstNodeType::Enum => true,
+            AstNodeType::Enum{variants:_} => true,
             _ => return false,
         }
     }
@@ -299,8 +366,8 @@ pub enum AstNodeData {
         nodes: Vec<NodeID>
     },
 
-    Struct(Vec<NodeID>),
-    Enum(Vec<NodeID>),
+    StructTy(Vec<NodeID>),
+    EnumTy(Vec<NodeID>),
 
     //Expressions
     Unsigned(u64),
@@ -368,13 +435,77 @@ impl AstNode {
         return self.infered_type.is_unknown();
     }
 
+    pub fn block_is_file_root(&self) -> Result<bool> {
+        if let AstNodeData::Block{nodes: _, is_file_root} = self.data {
+            return Ok(is_file_root);
+        }
+        Err(anyhow!("expected AstNodeData::Block got: {:?}", self))
+    }
+
     pub fn get_block(&self) -> Result<Vec<NodeID>> {
         if let AstNodeData::Block{nodes: ref nodes, is_file_root: _} = self.data {
             return Ok(nodes.clone());
         }
+        
         Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
     }
 
+    pub fn is_fn_call(&self) -> bool {
+        if let AstNodeData::FnCall{fn_name: _, args: _} = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn is_fn_def(&self) -> bool {
+        if let AstNodeData::FnDef{sign: _, body: _} = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn is_deref(&self) -> bool {
+        if let AstNodeData::Deref(_) = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn get_deref_expr(&self) -> Result<NodeID> {
+        if let AstNodeData::Deref(ref expr_id) = self.data {
+            return Ok(expr_id.clone());
+        }
+        return Err(anyhow!("expected a deref expression got {:?}", self));
+    }
+    pub fn get_pointer_expr(&self) -> Result<NodeID> {
+        if let AstNodeData::PointerTo(ref expr_id) = self.data {
+            return Ok(expr_id.clone());
+        }
+        return Err(anyhow!("expected a pointer to expression got {:?}", self));
+    }
+    pub fn is_namespace_access(&self) -> bool {
+        if let AstNodeData::NamespaceAccess{namespace: _, field: _} = self.data {
+            return true;
+        }
+        return false;
+    }
+
+    pub fn get_namespace_ns_id(&self) -> Result<NodeID> {
+        if let AstNodeData::NamespaceAccess{ref namespace, field: _} = self.data {
+            return Ok(namespace.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
+    }
+
+    pub fn get_namespace_field_id(&self) -> Result<NodeID> {
+        if let AstNodeData::NamespaceAccess{namespace: _, ref field} = self.data {
+            return Ok(field.clone());
+        }
+        Err(anyhow!("expected AstNodeData::Namespace got: {:?}", self))
+    }
+    pub fn get_fn_call_fn_name(&self) -> Result<NodeID> {
+        if let AstNodeData::FnCall{ref fn_name, args: _} = self.data {
+            return Ok(fn_name.clone());
+        }
+        Err(anyhow!("expected AstNodeData::FnCall got: {:?}", self))
+    }
     pub fn is_pointer(&self) -> bool {
         if let AstNodeData::PointerTo(_) = self.data {
             return true;
@@ -437,7 +568,7 @@ impl AstNode {
 
 
     pub fn get_enum_variants(&self) -> Result<Vec<NodeID>> {
-        if let AstNodeData::Enum(ref variants) = self.data {
+        if let AstNodeData::EnumTy(ref variants) = self.data {
             return Ok(variants.clone());
         }
         Err(anyhow!("expected AstNodeData::Enum got: {:?}", self))
@@ -472,7 +603,7 @@ impl AstNode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Ast {
     pub filename: String,
     pub src: String,
@@ -481,6 +612,147 @@ pub struct Ast {
 }
 
 impl Ast {
+    pub fn sema_check(&self, context: &Context) {}
+    fn find_identifier_type(&self, context: &Context, start_block: NodeID, index_in_block: isize, ident: String) -> Result<AstNodeType> {
+        let block = context.get_node(start_block)?;
+        let block_nodes = block.get_block()?; 
+        for (index, node_id) in block_nodes.iter().enumerate() {
+            if index_in_block >0 && index > index_in_block as usize && !block.block_is_file_root()? {
+                break;
+            }
+
+            let node = context.get_node(node_id.clone())?;
+            if node.is_def() {
+                let (_, name_id, expr_id) = node.get_def()?;
+                let name = context.get_node(name_id)?.get_ident()?;
+                if name == ident  {
+                    let expr = context.get_node(expr_id)?;
+                    return Ok(expr.infered_type);
+                }
+            }
+
+            if node.is_decl() {
+                let name_id = node.get_decl()?;
+                let name_node = context.get_node(name_id)?;
+                let name = name_node.get_ident()?;
+
+                if name == ident {
+                    return Ok(name_node.infered_type);
+                }
+            }
+        }
+
+        // if we reach here we didn't find type of that identifier in the block
+
+        return self.find_identifier_type(context, block.parent_block, -1, ident);
+    }
+    fn infer_type_expr(&self, context: &mut Context, expr_id: NodeID, index_in_block: usize) -> Result<()> {
+        let expr = context.get_node(expr_id.clone())?;
+        if expr.is_ident() {
+            let expr_ident = expr.get_ident()?;
+            let infered_type = self.find_identifier_type(context, expr.parent_block.clone(), index_in_block as isize, expr_ident)?;
+            context.add_type_inference(&expr_id.clone(), infered_type.clone());
+        }
+
+        if expr.is_fn_def() {
+            if let AstNodeData::FnDef{sign: _, ref body } = expr.data {
+                self.infer_types_block(context, body.to_string())?;
+            } else {
+                unreachable!()
+            }
+        }
+
+        if expr.is_deref() {
+            let deref_expr_id = expr.get_deref_expr()?;
+            let infered_type = self.infer_type_expr(context, deref_expr_id.clone(), index_in_block)?;
+            let deref_expr = context.get_node(deref_expr_id)?;
+            context.add_type_inference(&expr_id, deref_expr.infered_type)
+        }
+
+        if expr.is_pointer() {
+            let pointer_expr_id = expr.get_pointer_expr()?;
+            let infered_type = self.infer_type_expr(context, pointer_expr_id.clone(), index_in_block)?;
+            let pointer_expr = context.get_node(pointer_expr_id)?;
+            context.add_type_inference(&expr_id, AstNodeType::Pointer(Box::new(pointer_expr.infered_type)))
+        }
+
+
+        if expr.is_fn_call() {
+            let fn_name_id = expr.get_fn_call_fn_name()?;
+            let fn_name = context.get_node(fn_name_id.to_string())?.get_ident()?;
+            let infered_type = self.find_identifier_type(context, expr.parent_block.clone(), index_in_block as isize, fn_name)?;
+            context.add_type_inference(&expr_id.clone(), infered_type.clone());
+        }
+
+        if expr.is_namespace_access() {
+            let ns_id = expr.get_namespace_ns_id()?;
+            let field_id = expr.get_namespace_field_id()?;
+            let field = context.get_node(field_id)?.get_ident()?;
+            let ns_identifier = context.get_node(ns_id.clone())?.get_ident()?;
+            let ns_ty = self.find_identifier_type(context, expr.parent_block.clone(), index_in_block as isize, ns_identifier.clone())?;
+            if !ns_ty.is_type_def() {
+                return Err(anyhow!(". operator can only be used for structs and enums but you used {:?}", ns_ty));
+            }
+            
+            if ns_ty.is_struct() {
+                let mut infered_type = AstNodeType::Unknown;
+                for (name, ty) in ns_ty.get_struct_fields() {
+                    if name == field {
+                        infered_type = ty;
+                    }
+                }
+                if infered_type.is_unknown() {
+                    return Err(anyhow!("struct {:?} has no field named {}", ns_ty.clone(), field));
+                }
+                context.add_type_inference(&expr_id.clone(), infered_type.clone());
+
+            } else if ns_ty.is_enum() {
+                let mut infered_type = AstNodeType::Unknown;
+                for name in ns_ty.get_enum_variants() {
+                    if name == field {
+                        infered_type = AstNodeType::UnsignedInt(64);
+                    }
+                }
+                if infered_type.is_unknown() {
+                    return Err(anyhow!("no enum {} has no variant named {}", ns_identifier.clone(), field));
+                }
+                context.add_type_inference(&expr_id.clone(), AstNodeType::UnsignedInt(64));
+                context.add_type_inference(&ns_id, ns_ty);
+            }
+        }
+
+        Ok(())
+    }
+    
+    fn infer_type_def(&self, context: &mut Context, node_id: NodeID, index_in_block: usize) -> Result<()> {
+        let node = context.get_node(node_id.to_string())?;
+        let (_, name_id, expr_id) = node.get_def()?;
+        let name = context.get_node(name_id.clone())?.get_ident()?;
+        self.infer_type_expr(context, expr_id.clone(), index_in_block)?;
+        let expr = context.get_node(expr_id)?;
+        context.add_type_inference(&name_id.clone(), expr.infered_type);
+        Ok(())
+    }
+
+    fn infer_types_block(&self, context: &mut Context, block_id: NodeID) -> Result<()> {
+        let mut block = context.get_node(block_id.to_string())?.get_block()?;
+        for (index, node_id) in block.iter().enumerate() {
+            let node = context.get_node(node_id.to_string())?;
+            if node.is_def() {
+                self.infer_type_def(context, node.id.clone(), index)?;
+                continue;
+            }
+        }
+
+        Ok(())
+    }
+    pub fn infer_types(&self, context: &mut Context) -> Result<()> {
+        self.infer_types_block(context, self.top_level.to_string())?;
+        Ok(())
+    }
+    pub fn type_check(&self, context: &Context) {}
+
+
     pub fn new(
         filename: String,
         src: String,

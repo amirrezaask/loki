@@ -20,4 +20,8 @@ variable_uint32: u32 = 12;
 
 variable_signed_int32: s32 = 12;
 
-main :: () int {}
+c1 :: 2; 
+
+main :: () int {
+    c2 :: c1;
+}

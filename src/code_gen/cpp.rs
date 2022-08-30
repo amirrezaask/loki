@@ -78,10 +78,10 @@ impl<'a> CPP<'a> {
             AstNodeType::TypeName(name) => {
                 Ok(name)
             }
-            AstNodeType::Struct => {
+            AstNodeType::Struct{fields: _} => {
                 Ok("".to_string())
             }
-            AstNodeType::Enum => {
+            AstNodeType::Enum{variants: _} => {
                 Ok("".to_string())
             }
             AstNodeType::Union => {
@@ -106,6 +106,7 @@ impl<'a> CPP<'a> {
                 let def_expr = self.compiler_ctx.get_node(expr.clone())?;
                 match def_expr.infered_type {
                     AstNodeType::Unknown => {
+                        let expr = self.compiler_ctx.get_node(expr.clone())?;
                         println!("type inference bug, type of {:?} is not declared", expr);
                         unreachable!();
                     }
@@ -119,16 +120,6 @@ impl<'a> CPP<'a> {
             }
         }
     }
-    fn repr_scope(&self, scope_id: ScopeID) -> Result<String> {
-        let nodes = self.compiler_ctx.scope_nodes.get(&scope_id).unwrap();
-        let mut output = Vec::<String>::new();
-        for node in nodes.iter() {
-            output.push(format!("\t{};", self.repr_ast_node(node.clone())?));
-        }
-
-        Ok(output.join("\n"))
-    }
-
     fn repr_block(&self, id: &NodeID) -> Result<String> {
         let mut output = Vec::<String>::new();
         let nodes = self.compiler_ctx.get_node(id.to_string())?.get_block()?;
@@ -300,13 +291,13 @@ impl<'a> CPP<'a> {
                 },
                 
 
-                AstNodeData::Struct(fields) => Ok(format!(
+                AstNodeData::StructTy(fields) => Ok(format!(
                     "struct {} {{\n{}\n}};",
                     self.repr_ast_node(name.clone())?,
                     self.repr_struct_fields(fields)?
                 )),
 
-                AstNodeData::Enum(variants) => {
+                AstNodeData::EnumTy(variants) => {
                     Ok(format!(
                         "enum {} {{\n{}\n}};",
                         self.repr_ast_node(name.clone())?,

@@ -1,10 +1,10 @@
 
 #[derive(Debug)]
-pub struct Stack<T> {
+pub struct Stack<T: Clone + Default> {
     data: Vec<T>
 }
 
-impl<T> Stack<T> {
+impl<T: Clone + Default> Stack<T> {
     pub fn new() -> Self {
         Self {
             data: vec![],
@@ -18,14 +18,18 @@ impl<T> Stack<T> {
     pub fn push(&mut self, elem: T) {
         self.data.push(elem);
     }
-    pub fn pop(&mut self) -> &T {
+    pub fn pop(&mut self) -> T {
         let last_index = self.data.len()-1;
-        let last_elem = &self.data[last_index];
+        let last_elem = self.data[last_index].clone();
+        self.data.remove(last_index);
         return last_elem;
     }
-    pub fn top(&mut self) -> &T {
+    pub fn top(&mut self) -> T {
+        if self.data.len() < 1 {
+            return T::default();
+        }
         let last_index = self.data.len()-1;
 
-        return &self.data[last_index]; 
+        return self.data[last_index].clone(); 
     }
 }

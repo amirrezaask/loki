@@ -86,13 +86,11 @@ impl Pipeline {
                 }
             }
         }
-        self.compiler.file_loads.insert(path.to_string(), loads.clone());
         for file in &loads {
             let mut file_ast = self.get_ast_for(&file)?;
             asts.append(&mut file_ast)
         }
 
-        self.compiler.resolve_loads(path.to_string(), loads.clone());
         asts.push(main_ast);
         Ok(asts)
 
@@ -121,8 +119,10 @@ impl Pipeline {
         let mut codes = Vec::<String>::new();
 
         self.dump_compiler_context_before()?;
-        let asts = self.compiler.process(asts)?;
-
+        // let asts = self.compiler.process(asts)?;
+        for ast in asts.iter() {
+            ast.infer_types(&mut self.compiler)?;
+        }
         self.dump_compiler_context_after()?;
         let frontend_elapsed = frontend_time_start.elapsed();
 
