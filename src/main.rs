@@ -6,7 +6,6 @@ mod stack;
 mod lexer;
 mod pipeline;
 mod ast;
-mod context;
 mod tests;
 // mod symbol_table;
 use anyhow::Result;

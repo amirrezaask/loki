@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::default;
 
-use crate::{lexer::{Token, TokenType}, context};
+use crate::{lexer::{Token, TokenType}};
 use anyhow::anyhow;
-use crate::context::Context;
 use anyhow::Result;
 use serde::Serialize;
 pub type NodeID = String;
@@ -56,7 +55,7 @@ pub enum AstNodeType {
 }
 
 impl AstNodeType {
-    pub fn new(node: &AstNode, context: &Context) -> Result<Self> {
+    pub fn new(node: &AstNode, ast: &Ast) -> Result<Self> {
         match node.data {
             AstNodeData::Ident(ref ident) => {
                 return Ok(AstNodeType::TypeName(ident.clone()));
@@ -65,9 +64,9 @@ impl AstNodeType {
             AstNodeData::StructTy(ref decls) => {
                 let mut fields = HashMap::<String, AstNodeType>::new();
                 for decl_id in decls {
-                    let decl = context.get_node(decl_id.clone())?;
+                    let decl = ast.get_node(decl_id.clone())?;
                     let field_id = decl.get_decl()?;
-                    let field = context.get_node(field_id)?;
+                    let field = ast.get_node(field_id)?;
                     fields.insert(field.get_ident()?.clone(), decl.infered_type);
                 }
 
@@ -77,9 +76,9 @@ impl AstNodeType {
             AstNodeData::EnumTy(ref vs) => {
                 let mut variants = Vec::<String>::new();
                 for decl_id in vs {
-                    let decl = context.get_node(decl_id.clone())?;
+                    let decl = ast.get_node(decl_id.clone())?;
                     let variant_id = decl.get_decl()?;
-                    let variant = context.get_node(variant_id)?;
+                    let variant = ast.get_node(variant_id)?;
                     variants.push(variant.get_ident()?.clone());
                 }
 
@@ -94,16 +93,16 @@ impl AstNodeType {
             AstNodeData::CVarArgs => Ok(AstNodeType::CVarArgs),
             AstNodeData::CString => Ok(AstNodeType::CString),
             AstNodeData::Deref(ref obj) => { // TODO: this is a temporary fix, this should be handled in parser and this would become PointerTo
-                let pointee = context.get_node(obj.clone())?;
+                let pointee = ast.get_node(obj.clone())?;
                 return Ok(AstNodeType::Pointer(Box::new(pointee.infered_type)));
             }
             AstNodeData::FnType { args: ref fn_args, ret: ref ret } => {
                 let mut args: Vec<AstNodeType> = vec![];
                 for decl in fn_args.iter() {
-                    let decl_node = context.get_node(decl.clone())?;
+                    let decl_node = ast.get_node(decl.clone())?;
                     args.push(decl_node.infered_type);
                 }
-                let ret = context.get_node(ret.clone())?.infered_type;
+                let ret = ast.get_node(ret.clone())?.infered_type;
 
                 return Ok(AstNodeType::FnType(args, Box::new(ret)));
             }
@@ -111,42 +110,42 @@ impl AstNodeType {
             _ => Ok(AstNodeType::Unknown),
         }
     }
-    pub fn from_struct_fields(decls: Vec<NodeID>, context: &Context) -> Result<AstNodeType> {
+    pub fn from_struct_fields(decls: Vec<NodeID>, ast: &Ast) -> Result<AstNodeType> {
         let mut fields = HashMap::<String, AstNodeType>::new();
         for decl_id in decls {
-            let decl = context.get_node(decl_id.clone())?;
+            let decl = ast.get_node(decl_id.clone())?;
             let field_id = decl.get_decl()?;
-            let field = context.get_node(field_id)?;
+            let field = ast.get_node(field_id)?;
             fields.insert(field.get_ident()?.clone(), decl.infered_type);
         }
 
         Ok(AstNodeType::Struct{fields})
     }
-    pub fn from_enum_variants(vs: Vec<NodeID>, context: &Context) -> Result<AstNodeType> {
+    pub fn from_enum_variants(vs: Vec<NodeID>, ast: &Ast) -> Result<AstNodeType> {
         let mut variants = Vec::<String>::new();
         for decl_id in vs {
-            let decl = context.get_node(decl_id.clone())?;
+            let decl = ast.get_node(decl_id.clone())?;
             let variant_id = decl.get_decl()?;
-            let variant = context.get_node(variant_id)?;
+            let variant = ast.get_node(variant_id)?;
             variants.push(variant.get_ident()?.clone());
         }
 
         Ok(AstNodeType::Enum{variants})
     }
     pub fn make_fn_signature(
-        compiler: &Context,
+        ast: &Ast,
         args: &Vec<NodeID>,
         ret: &AstNode,
     ) -> Result<Self> {
         let args_ty: Vec<AstNodeType> = args
             .iter()
             .map(|arg| {
-                let arg = compiler.get_node(arg.clone()).unwrap();
+                let arg = ast.get_node(arg.clone()).unwrap();
                 arg.infered_type.clone()
             })
             .collect();
 
-        return Ok(AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, compiler)?)));
+        return Ok(AstNodeType::FnType(args_ty, Box::new(AstNodeType::new(&ret, ast)?)));
     }
     pub fn is_type_def(&self) -> bool {
         match self {
@@ -543,7 +542,7 @@ impl AstNode {
         Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
  
     }
-    pub fn get_name_for_defs_and_decls(&self, compiler: &Context) -> Option<NodeID> {
+    pub fn get_name_for_defs_and_decls(&self) -> Option<NodeID> {
         match &self.data {
             AstNodeData::Def{mutable, name, expr} => {
                 return Some(name.clone());
@@ -609,31 +608,55 @@ pub struct Ast {
     pub src: String,
     pub tokens: Vec<Token>,
     pub top_level: NodeID,
+    pub nodes: HashMap<NodeID, AstNode>,
 }
 
 impl Ast {
-    pub fn sema_check(&self, context: &Context) {}
-    fn find_identifier_type(&self, context: &Context, start_block: NodeID, index_in_block: isize, ident: String) -> Result<AstNodeType> {
-        let block = context.get_node(start_block)?;
+    pub fn add_node(&mut self, node: AstNode) -> Result<()> {
+        match self.nodes.insert(node.id.clone(), node) {
+            None => Ok(()),
+            Some(n) => Ok(()),
+        }
+    }
+
+    pub fn add_type_inference(&mut self, id: &NodeID, type_infer: AstNodeType) {
+        let mut node = self.nodes.get_mut(id).unwrap();
+        node.infered_type = type_infer;
+    }
+   
+    pub fn add_tag(&mut self, id: &NodeID, tag: AstTag) {
+        let node = self.nodes.get_mut(id).unwrap();
+        node.tags.push(tag);
+    }
+
+    pub fn get_node(&self, id: NodeID) -> Result<AstNode> {
+        match self.nodes.get(&id) {
+            Some(n) => Ok(n.clone()),
+            None => Err(anyhow!("node {} does not exist", id)),
+        }
+    }
+    pub fn sema_check(&self) {}
+    fn find_identifier_type(&self, start_block: NodeID, index_in_block: isize, ident: String) -> Result<AstNodeType> {
+        let block = self.get_node(start_block)?;
         let block_nodes = block.get_block()?; 
         for (index, node_id) in block_nodes.iter().enumerate() {
             if index_in_block >0 && index > index_in_block as usize && !block.block_is_file_root()? {
                 break;
             }
 
-            let node = context.get_node(node_id.clone())?;
+            let node = self.get_node(node_id.clone())?;
             if node.is_def() {
                 let (_, name_id, expr_id) = node.get_def()?;
-                let name = context.get_node(name_id)?.get_ident()?;
+                let name = self.get_node(name_id)?.get_ident()?;
                 if name == ident  {
-                    let expr = context.get_node(expr_id)?;
+                    let expr = self.get_node(expr_id)?;
                     return Ok(expr.infered_type);
                 }
             }
 
             if node.is_decl() {
                 let name_id = node.get_decl()?;
-                let name_node = context.get_node(name_id)?;
+                let name_node = self.get_node(name_id)?;
                 let name = name_node.get_ident()?;
 
                 if name == ident {
@@ -644,19 +667,19 @@ impl Ast {
 
         // if we reach here we didn't find type of that identifier in the block
 
-        return self.find_identifier_type(context, block.parent_block, -1, ident);
+        return self.find_identifier_type(block.parent_block, -1, ident);
     }
-    fn infer_type_expr(&self, context: &mut Context, expr_id: NodeID, index_in_block: usize) -> Result<()> {
-        let expr = context.get_node(expr_id.clone())?;
+    fn infer_type_expr(&mut self, expr_id: NodeID, index_in_block: usize) -> Result<()> {
+        let expr = self.get_node(expr_id.clone())?;
         if expr.is_ident() {
             let expr_ident = expr.get_ident()?;
-            let infered_type = self.find_identifier_type(context, expr.parent_block.clone(), index_in_block as isize, expr_ident)?;
-            context.add_type_inference(&expr_id.clone(), infered_type.clone());
+            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, expr_ident)?;
+            self.add_type_inference(&expr_id.clone(), infered_type.clone());
         }
 
         if expr.is_fn_def() {
             if let AstNodeData::FnDef{sign: _, ref body } = expr.data {
-                self.infer_types_block(context, body.to_string())?;
+                self.infer_types_block(body.to_string())?;
             } else {
                 unreachable!()
             }
@@ -664,32 +687,32 @@ impl Ast {
 
         if expr.is_deref() {
             let deref_expr_id = expr.get_deref_expr()?;
-            let infered_type = self.infer_type_expr(context, deref_expr_id.clone(), index_in_block)?;
-            let deref_expr = context.get_node(deref_expr_id)?;
-            context.add_type_inference(&expr_id, deref_expr.infered_type)
+            let infered_type = self.infer_type_expr(deref_expr_id.clone(), index_in_block)?;
+            let deref_expr = self.get_node(deref_expr_id)?;
+            self.add_type_inference(&expr_id, deref_expr.infered_type)
         }
 
         if expr.is_pointer() {
             let pointer_expr_id = expr.get_pointer_expr()?;
-            let infered_type = self.infer_type_expr(context, pointer_expr_id.clone(), index_in_block)?;
-            let pointer_expr = context.get_node(pointer_expr_id)?;
-            context.add_type_inference(&expr_id, AstNodeType::Pointer(Box::new(pointer_expr.infered_type)))
+            let infered_type = self.infer_type_expr(pointer_expr_id.clone(), index_in_block)?;
+            let pointer_expr = self.get_node(pointer_expr_id)?;
+            self.add_type_inference(&expr_id, AstNodeType::Pointer(Box::new(pointer_expr.infered_type)))
         }
 
 
         if expr.is_fn_call() {
             let fn_name_id = expr.get_fn_call_fn_name()?;
-            let fn_name = context.get_node(fn_name_id.to_string())?.get_ident()?;
-            let infered_type = self.find_identifier_type(context, expr.parent_block.clone(), index_in_block as isize, fn_name)?;
-            context.add_type_inference(&expr_id.clone(), infered_type.clone());
+            let fn_name = self.get_node(fn_name_id.to_string())?.get_ident()?;
+            let infered_type = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, fn_name)?;
+            self.add_type_inference(&expr_id.clone(), infered_type.clone());
         }
 
         if expr.is_namespace_access() {
             let ns_id = expr.get_namespace_ns_id()?;
             let field_id = expr.get_namespace_field_id()?;
-            let field = context.get_node(field_id)?.get_ident()?;
-            let ns_identifier = context.get_node(ns_id.clone())?.get_ident()?;
-            let ns_ty = self.find_identifier_type(context, expr.parent_block.clone(), index_in_block as isize, ns_identifier.clone())?;
+            let field = self.get_node(field_id)?.get_ident()?;
+            let ns_identifier = self.get_node(ns_id.clone())?.get_ident()?;
+            let ns_ty = self.find_identifier_type(expr.parent_block.clone(), index_in_block as isize, ns_identifier.clone())?;
             if !ns_ty.is_type_def() {
                 return Err(anyhow!(". operator can only be used for structs and enums but you used {:?}", ns_ty));
             }
@@ -704,7 +727,7 @@ impl Ast {
                 if infered_type.is_unknown() {
                     return Err(anyhow!("struct {:?} has no field named {}", ns_ty.clone(), field));
                 }
-                context.add_type_inference(&expr_id.clone(), infered_type.clone());
+                self.add_type_inference(&expr_id.clone(), infered_type.clone());
 
             } else if ns_ty.is_enum() {
                 let mut infered_type = AstNodeType::Unknown;
@@ -716,55 +739,56 @@ impl Ast {
                 if infered_type.is_unknown() {
                     return Err(anyhow!("no enum {} has no variant named {}", ns_identifier.clone(), field));
                 }
-                context.add_type_inference(&expr_id.clone(), AstNodeType::UnsignedInt(64));
-                context.add_type_inference(&ns_id, ns_ty);
+                self.add_type_inference(&expr_id.clone(), AstNodeType::UnsignedInt(64));
+                self.add_type_inference(&ns_id, ns_ty);
             }
         }
 
         Ok(())
     }
     
-    fn infer_type_def(&self, context: &mut Context, node_id: NodeID, index_in_block: usize) -> Result<()> {
-        let node = context.get_node(node_id.to_string())?;
+    fn infer_type_def(&mut self, node_id: NodeID, index_in_block: usize) -> Result<()> {
+        let node = self.get_node(node_id.to_string())?;
         let (_, name_id, expr_id) = node.get_def()?;
-        let name = context.get_node(name_id.clone())?.get_ident()?;
-        self.infer_type_expr(context, expr_id.clone(), index_in_block)?;
-        let expr = context.get_node(expr_id)?;
-        context.add_type_inference(&name_id.clone(), expr.infered_type);
+        let name = self.get_node(name_id.clone())?.get_ident()?;
+        self.infer_type_expr(expr_id.clone(), index_in_block)?;
+        let expr = self.get_node(expr_id)?;
+        self.add_type_inference(&name_id.clone(), expr.infered_type);
         Ok(())
     }
 
-    fn infer_types_block(&self, context: &mut Context, block_id: NodeID) -> Result<()> {
-        let mut block = context.get_node(block_id.to_string())?.get_block()?;
+    fn infer_types_block(&mut self, block_id: NodeID) -> Result<()> {
+        let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
-            let node = context.get_node(node_id.to_string())?;
+            let node = self.get_node(node_id.to_string())?;
             if node.is_def() {
-                self.infer_type_def(context, node.id.clone(), index)?;
+                self.infer_type_def(node.id.clone(), index)?;
                 continue;
             }
         }
 
         Ok(())
     }
-    pub fn infer_types(&self, context: &mut Context) -> Result<()> {
-        self.infer_types_block(context, self.top_level.to_string())?;
+    pub fn infer_types(&mut self) -> Result<()> {
+        self.infer_types_block(self.top_level.to_string())?;
         Ok(())
     }
-    pub fn type_check(&self, context: &Context) {}
+    pub fn type_check(&self) {}
 
 
     pub fn new(
         filename: String,
         src: String,
         tokens: Vec<Token>,
-        top_level: NodeID,
-        compiler: &mut Context,
+        top_level_block: NodeID,
+        nodes: HashMap<NodeID, AstNode>
     ) -> Result<Self> {
         Ok(Self {
             filename,
             src,
             tokens,
-            top_level,
+            top_level: top_level_block,
+            nodes
         })
     }
 }

@@ -1,7 +1,6 @@
 use std::ops::Deref;
 
 use super::{AstNode, AstNodeData, Repr, Ast};
-use crate::context::Context;
 use crate::ast::{AstNodeType, AstOperation, NodeID, AstTag, ScopeID};
 use crate::lexer::{Tokenizer, TokenType};
 use crate::parser::Parser;
@@ -10,7 +9,6 @@ use anyhow::Result;
 
 pub struct CPP<'a> {
     ast: &'a Ast,
-    compiler_ctx: &'a Context,
 }
 
 impl<'a> CPP<'a> {
@@ -103,10 +101,10 @@ impl<'a> CPP<'a> {
     fn get_def_typ(&self, node: &AstNode) -> Result<AstNodeType> {
         match &node.data {
             AstNodeData::Def{mutable, name, expr} => {
-                let def_expr = self.compiler_ctx.get_node(expr.clone())?;
+                let def_expr = self.ast.get_node(expr.clone())?;
                 match def_expr.infered_type {
                     AstNodeType::Unknown => {
-                        let expr = self.compiler_ctx.get_node(expr.clone())?;
+                        let expr = self.ast.get_node(expr.clone())?;
                         println!("type inference bug, type of {:?} is not declared", expr);
                         unreachable!();
                     }
@@ -122,7 +120,7 @@ impl<'a> CPP<'a> {
     }
     fn repr_block(&self, id: &NodeID) -> Result<String> {
         let mut output = Vec::<String>::new();
-        let nodes = self.compiler_ctx.get_node(id.to_string())?.get_block()?;
+        let nodes = self.ast.get_node(id.to_string())?.get_block()?;
         for node in nodes.iter() {
             output.push(format!("\t{};", self.repr_ast_node(node.clone())?));
         }
@@ -132,9 +130,9 @@ impl<'a> CPP<'a> {
     fn repr_fn_def_args(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node_id in node_tys {
-            let node = self.compiler_ctx.get_node(node_id.clone())?;
+            let node = self.ast.get_node(node_id.clone())?;
             let ident_node_id = node.get_decl()?;
-            let ident_node = self.compiler_ctx.get_node(ident_node_id)?;
+            let ident_node = self.ast.get_node(ident_node_id)?;
             let name = ident_node.get_ident()?;
             output.push(format!("{} {}", self.repr_ast_ty(node.infered_type.clone())?, name));
         }
@@ -143,7 +141,7 @@ impl<'a> CPP<'a> {
     fn repr_struct_fields(&self, node_tys: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for node_id in node_tys {
-            let node = self.compiler_ctx.get_node(node_id.clone())?;
+            let node = self.ast.get_node(node_id.clone())?;
             match &node.data {
                 AstNodeData::Decl(name_id) => {
                     output.push(format!("\t{} {};", self.repr_ast_ty(node.infered_type.clone())?, self.repr_ast_node(name_id.clone())?));
@@ -175,8 +173,8 @@ impl<'a> CPP<'a> {
     fn repr_enum_variants(&self, variants: &Vec<NodeID>) -> Result<String> {
         let mut output = Vec::<String>::new();
         for decl_id in variants.iter() {
-            let decl_node = self.compiler_ctx.get_node(decl_id.clone())?;
-            let ident_id = decl_node.get_name_for_defs_and_decls(&self.compiler_ctx).unwrap();
+            let decl_node = self.ast.get_node(decl_id.clone())?;
+            let ident_id = decl_node.get_name_for_defs_and_decls().unwrap();
             output.push(self.repr_ast_node(ident_id.clone())?);
         }
 
@@ -221,8 +219,8 @@ impl<'a> CPP<'a> {
     }
 
     fn repr_namespace_access(&self, namespace: &str, field: &str) -> Result<String> {
-        let ns_ty = self.compiler_ctx.get_node(namespace.to_string())?;
-        let _ = self.compiler_ctx.get_node(field.to_string())?;
+        let ns_ty = self.ast.get_node(namespace.to_string())?;
+        let _ = self.ast.get_node(field.to_string())?;
         if ns_ty.infered_type.is_enum() {
             return Ok(format!("{}::{}", self.repr_ast_node(namespace.to_string())?, self.repr_ast_node(field.to_string())?));
         }
@@ -244,7 +242,7 @@ impl<'a> CPP<'a> {
     }
 
     fn repr_ast_node(&self, node_id: NodeID) -> Result<String> {
-        let node = self.compiler_ctx.get_node(node_id)?;
+        let node = self.ast.get_node(node_id)?;
         match &node.data {
             AstNodeData::Host(import) => {
                 Ok(format!(
@@ -276,11 +274,11 @@ impl<'a> CPP<'a> {
             }
 
             AstNodeData::Def{mutable, name, expr} => {
-                let def_expr = self.compiler_ctx.get_node(expr.clone())?;
+                let def_expr = self.ast.get_node(expr.clone())?;
                 match &def_expr.data {
                 
                 AstNodeData::FnDef{ sign: sign_id, ref body} => { 
-                    let sign = self.compiler_ctx.get_node(sign_id.to_string())?;
+                    let sign = self.ast.get_node(sign_id.to_string())?;
                     let (args, ret) = sign.get_fn_signature()?;
                     Ok(format!("{} {}({}) {{\n{}\n}}",
                         self.repr_ast_node(ret.clone())?,
@@ -415,13 +413,13 @@ impl<'a> CPP<'a> {
             }
         }
     }
-    pub fn new(ast: &'a Ast, compiler_ctx: &'a Context) -> Self {
-        Self { ast, compiler_ctx }
+    pub fn new(ast: &'a Ast) -> Self {
+        Self { ast }
     }
 
     pub fn generate(&mut self) -> Result<String> {
         let mut out: Vec<String> = vec![];
-        let top_leve_nodes = self.compiler_ctx.get_node(self.ast.top_level.clone())?.get_block()?;
+        let top_leve_nodes = self.ast.get_node(self.ast.top_level.clone())?.get_block()?;
         for node in top_leve_nodes.iter() {
             let repr = self.repr_ast_node(node.clone())?;
             if repr == "" {

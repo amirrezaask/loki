@@ -6,7 +6,6 @@ use std::time::Instant;
 
 // compiler that glue all parts together
 use super::parser::Parser;
-use crate::context::Context;
 use crate::ast::{Ast};
 use crate::ast::AstNodeData;
 use crate::lexer::Token;
@@ -19,13 +18,12 @@ use std::process::Command;
 pub struct Pipeline {
     total_lines: u64,
     total_tokens: u64,
-    compiler: Context    
 }
 
 
 impl Pipeline {
     pub fn new() -> Self {
-        Self {total_lines: 0 , total_tokens: 0, compiler: Context::new() }
+        Self {total_lines: 0 , total_tokens: 0 }
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
@@ -35,7 +33,7 @@ impl Pipeline {
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
         self.dump_tokens(path, &tokens)?;
-        let parser = Parser::new(path.to_string(), program, tokens, &mut self.compiler)?;
+        let parser = Parser::new(path.to_string(), program, tokens)?;
         let ast = parser.get_ast()?;
         Ok(ast)
     }
@@ -54,19 +52,19 @@ impl Pipeline {
         Ok(())
     }
 
-    pub fn dump_compiler_context_before(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("compiler_context_before_infer_dump.json")?;
-        out_file.write_all(serde_json::to_string_pretty(&self.compiler).unwrap().as_bytes())?;
+    // pub fn dump_ast_before(&self) -> Result<()> {
+    //     let mut out_file = std::fs::File::create("compiler_context_before_infer_dump.json")?;
+    //     out_file.write_all(serde_json::to_string_pretty().unwrap().as_bytes())?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    pub fn dump_compiler_context_after(&self) -> Result<()> {
-        let mut out_file = std::fs::File::create("compiler_context_after_infer_dump.json")?;
-        out_file.write_all(serde_json::to_string_pretty(&self.compiler).unwrap().as_bytes())?;
+    // pub fn dump_ast_after(&self) -> Result<()> {
+    //     let mut out_file = std::fs::File::create("compiler_context_after_infer_dump.json")?;
+    //     out_file.write_all(serde_json::to_string_pretty().unwrap().as_bytes())?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
         let main_ast = self.parse_file(path)?;
         // Self::dump_ast(path, &main_ast)?;
@@ -74,9 +72,9 @@ impl Pipeline {
         self.total_tokens += main_ast.tokens.len() as u64;
         let mut loads = Vec::<String>::new();
         let mut asts = Vec::<Ast>::new();
-        let top_leve_nodes = self.compiler.get_node(main_ast.top_level.clone())?.get_block()?;
+        let top_leve_nodes = main_ast.get_node(main_ast.top_level.clone())?.get_block()?;
         for node_id in top_leve_nodes.iter() {
-            let node = self.compiler.get_node(node_id.clone())?;
+            let node = main_ast.get_node(node_id.clone())?;
             match node.data {
                 AstNodeData::Load(ref path) => {
                     loads.push(path.clone());
@@ -118,12 +116,12 @@ impl Pipeline {
         let mut asts = self.get_ast_for(path)?;
         let mut codes = Vec::<String>::new();
 
-        self.dump_compiler_context_before()?;
+        // self.dump_compiler_context_before()?;
         // let asts = self.compiler.process(asts)?;
-        for ast in asts.iter() {
-            ast.infer_types(&mut self.compiler)?;
+        for ast in asts.iter_mut() {
+            ast.infer_types()?;
         }
-        self.dump_compiler_context_after()?;
+        // self.dump_compiler_context_after()?;
         let frontend_elapsed = frontend_time_start.elapsed();
 
         let ty_infer_time_start = Instant::now();
@@ -134,7 +132,7 @@ impl Pipeline {
 
         let backend_code_gen_time_start = Instant::now();
         for ast in asts.iter() {
-            let mut codegen = CPP::new(&ast, &self.compiler);
+            let mut codegen = CPP::new(&ast);
             let code = codegen.generate()?;
             codes.push(code);
         }

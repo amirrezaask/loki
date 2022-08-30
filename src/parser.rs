@@ -1,4 +1,6 @@
 #![allow(clippy::needless_return)]
+use std::collections::HashMap;
+
 use crate::ast::{
     Ast, AstNodeType, AstNode, AstNodeData, NodeID, Scope, ScopeID, ScopeType, AstOperation, AstTag,
 };
@@ -6,24 +8,23 @@ use crate::lexer::Token;
 use crate::lexer::TokenType;
 use crate::lexer::Tokenizer;
 use crate::stack::Stack;
-use crate::context::Context;
 use anyhow::{anyhow, Result};
 use rand::distributions::{Alphanumeric, DistString};
 const ID_LENGTH: usize = 24;
 
 #[derive(Debug)]
-pub struct Parser<'a> {
+pub struct Parser {
     filename: String,
     src: String,
     tokens: Vec<Token>,
     cur: usize,
     node_counter: i64,
-    pub context: &'a mut Context,
+    pub ast: Ast,
     block_stack: Stack<NodeID>,
 }
 
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
-impl<'a> Parser<'a> {
+impl Parser {
     fn err_uexpected_token(&self, what: TokenType) -> anyhow::Error {
         anyhow::format_err!(
             "In file: {}, Expected {:?}, found {:?} at line:{}, column: {}",
@@ -52,7 +53,7 @@ impl<'a> Parser<'a> {
             parent_block: self.block_stack.top().clone(),
             filename: self.filename.clone()
         };
-        self.context.add_node(node.clone()).unwrap();
+        self.ast.add_node(node.clone()).unwrap();
         return node;
     }
     fn current_token(&self) -> &Token {
@@ -71,15 +72,21 @@ impl<'a> Parser<'a> {
         filename: String,
         src: String,
         tokens: Vec<Token>,
-        compiler: &'a mut Context,
     ) -> Result<Self> {
+        let mut ast = Ast::new(
+            filename.clone(),
+            src.clone(),
+            tokens.clone(),
+            "".to_string(),
+            HashMap::new(),
+        )?;
         Ok(Self {
             filename,
             src,
             tokens,
             cur: 0,
             node_counter: 0,
-            context: compiler,
+            ast,
             block_stack: Stack::new(),
         })
     }
@@ -129,7 +136,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                // self.context.add_type_inference(&dest.id, infered_ty);
+                // self.ast.add_type_inference(&dest.id, infered_ty);
                 let node = self.new_node(Self::get_id(), AstNodeData::Assign{lhs: dest.id, rhs: rhs.id}, AstNodeType::NoType, self.current_token().line, self.current_token().col);
                 Ok(node)
             }
@@ -137,7 +144,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                self.context.add_type_inference(&dest.id, infered_ty);
+                self.ast.add_type_inference(&dest.id, infered_ty);
                 let node = self.new_node(
                     Self::get_id(), 
                     AstNodeData::Def {
@@ -154,16 +161,16 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let ty = self.expect_expr()?;
 
-                self.context.add_type_inference(&dest.id, AstNodeType::new(&ty, &self.context)?);
+                self.ast.add_type_inference(&dest.id, AstNodeType::new(&ty, &self.ast)?);
                 if self.current_token().ty != TokenType::Equal
                     && self.current_token().ty != TokenType::Colon
                 {
                     let decl_node = self.new_node(
                         Self::get_id(), AstNodeData::Decl(dest.id.clone()),
-                        AstNodeType::new(&ty, &self.context)?, self.current_line(), self.current_col()
+                        AstNodeType::new(&ty, &self.ast)?, self.current_line(), self.current_col()
                     );
                     if self.current_token().ty == TokenType::ForeignDirective {
-                        self.context.add_tag(&decl_node.id, AstTag::Foreign);
+                        self.ast.add_tag(&decl_node.id, AstTag::Foreign);
                         self.forward_token();
                     }
                     return Ok(decl_node);
@@ -172,7 +179,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
-                self.context.add_type_inference(&dest.id, infered_ty);
+                self.ast.add_type_inference(&dest.id, infered_ty);
                 let node = self.new_node(
                     Self::get_id(), AstNodeData::Def{
                         mutable,
@@ -189,7 +196,7 @@ impl<'a> Parser<'a> {
                 let rhs = self.expect_expr()?;
                 let infered_ty = rhs.infered_type.clone();
                 dest.infered_type = infered_ty.clone();
-                self.context.add_type_inference(&dest.id, infered_ty);
+                self.ast.add_type_inference(&dest.id, infered_ty);
                 let node = self.new_node(
                     Self::get_id(), AstNodeData::Def{
                         mutable: true,
@@ -239,7 +246,7 @@ impl<'a> Parser<'a> {
             self.forward_token();
             let ty = self.expect_expr()?;
 
-            let arg = self.new_node(Self::get_id(), AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, self.context)?, name.line, name.col);
+            let arg = self.new_node(Self::get_id(), AstNodeData::Decl(name.id.clone()), AstNodeType::new(&ty, &self.ast)?, name.line, name.col);
             args.push(arg.id);
         }
         let mut ret_ty: Option<AstNode> = None;
@@ -252,7 +259,7 @@ impl<'a> Parser<'a> {
         
         if self.current_token().ty != TokenType::OpenBrace {
             // fn type only
-            let proto_ty = AstNodeType::make_fn_signature(self.context, &args, &ret_ty)?;
+            let proto_ty = AstNodeType::make_fn_signature(&self.ast, &args, &ret_ty)?;
             let node = self.new_node(Self::get_id(), AstNodeData::FnType {
                 args,
                 ret: ret_ty.id,
@@ -260,7 +267,7 @@ impl<'a> Parser<'a> {
             return Ok(node);
         }
         let body = self.expect_block(ScopeType::Function)?;
-        let proto_ty = AstNodeType::make_fn_signature(self.context, &args, &ret_ty)?;
+        let proto_ty = AstNodeType::make_fn_signature(&self.ast, &args, &ret_ty)?;
         let sign = self.new_node(Self::get_id(), AstNodeData::FnType { args, ret: ret_ty.id }, proto_ty.clone(),self.current_line(), self.current_col()); //@Bug: line & col are wrong
         let fn_def = self.new_node(Self::get_id(), AstNodeData::FnDef{ sign: sign.id, body: body }, proto_ty, self.current_line(), self.current_col());
         Ok(fn_def)
@@ -302,7 +309,7 @@ impl<'a> Parser<'a> {
             TokenType::Dot => {
                 self.forward_token();
                 let field = self.expect_expr()?;
-                let f = self.context.nodes.get_mut(&field.id).unwrap();
+                let f = self.ast.nodes.get_mut(&field.id).unwrap();
                 f.tags.push(AstTag::IsUsedInNamespaceAccess);
                 return Ok(self.new_node(Self::get_id(), AstNodeData::NamespaceAccess{ namespace: container.id, field: field.id }, AstNodeType::Unknown, self.current_line(), self.current_col()));
             }
@@ -352,7 +359,7 @@ impl<'a> Parser<'a> {
                             self.expect_token(TokenType::Equal)?;
                             self.forward_token();
                             let value = self.expect_expr()?;
-                            let mut name = self.context.nodes.get_mut(&name.id.clone()).unwrap();
+                            let mut name = self.ast.nodes.get_mut(&name.id.clone()).unwrap();
                             name.infered_type = value.infered_type.clone();
                             name.tags.push(AstTag::IsUsedInInitialize);
                             fields.push((name.id.clone(), value.id));
@@ -369,7 +376,7 @@ impl<'a> Parser<'a> {
                         }
                         return Ok(self.new_node(Self::get_id(), 
                             AstNodeData::Initialize{ty: ty.id.clone(), fields},
-                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, self.context)?)),
+                            AstNodeType::Initialize(Box::new(AstNodeType::new(&ty, &self.ast)?)),
                         self.current_line(), self.current_col()));
                     } else {
                         let mut fields = Vec::<NodeID>::new();
@@ -492,8 +499,8 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenType::Colon)?;
                     self.forward_token();
                     let ty = self.expect_expr()?;
-                    self.context.add_type_inference(&name.id, AstNodeType::new(&ty, self.context)?);
-                    let field = self.new_node(Self::get_id(), AstNodeData::Decl(name.id), AstNodeType::new(&ty, self.context)?, self.current_line(), self.current_col());
+                    self.ast.add_type_inference(&name.id, AstNodeType::new(&ty, &self.ast)?);
+                    let field = self.new_node(Self::get_id(), AstNodeData::Decl(name.id), AstNodeType::new(&ty, &self.ast)?, self.current_line(), self.current_col());
                     fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -507,7 +514,7 @@ impl<'a> Parser<'a> {
                         _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                     }
                 }
-                let node = self.new_node(Self::get_id(), AstNodeData::StructTy(fields.clone()), AstNodeType::from_struct_fields(fields, &self.context)?, self.current_line(), self.current_col());
+                let node = self.new_node(Self::get_id(), AstNodeData::StructTy(fields.clone()), AstNodeType::from_struct_fields(fields, &self.ast)?, self.current_line(), self.current_col());
                 Ok(node)
             }
             TokenType::KeywordEnum => {
@@ -528,7 +535,7 @@ impl<'a> Parser<'a> {
                     }
 
                     let mut name = self.expect_ident()?;
-                    self.context
+                    self.ast
                         .add_type_inference(&name.id, AstNodeType::UnsignedInt(64));
                     let variant = self.new_node(Self::get_id(), AstNodeData::Decl(name.id), AstNodeType::UnsignedInt(64), self.current_line(), self.current_col());
 
@@ -548,7 +555,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
-                let node = self.new_node(Self::get_id(), AstNodeData::EnumTy(variants.clone()), AstNodeType::from_enum_variants(variants, &self.context)?, self.current_line(), self.current_col());
+                let node = self.new_node(Self::get_id(), AstNodeData::EnumTy(variants.clone()), AstNodeType::from_enum_variants(variants, &self.ast)?, self.current_line(), self.current_col());
                 Ok(node)
             }
             TokenType::OpenParen => {
@@ -574,7 +581,7 @@ impl<'a> Parser<'a> {
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
                 return Ok(self.new_node(Self::get_id(), 
-                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: AstNodeType::new(&ty, self.context)? },
+                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: AstNodeType::new(&ty, &self.ast)? },
                     AstNodeType::Unknown, self.current_line(), self.current_col()
                 ));
             }
@@ -1286,13 +1293,8 @@ impl<'a> Parser<'a> {
     }
 
     pub fn get_ast(mut self) -> Result<Ast> {
-        let block_id = self.expect_block(ScopeType::File(self.filename.clone()))?;         
-        Ast::new(
-            self.filename,
-            self.src,
-            self.tokens,
-            block_id,
-            self.context,
-        )
+        let block_id = self.expect_block(ScopeType::File(self.filename.clone()))?;      
+        self.ast.top_level = block_id;
+        Ok(self.ast)
     }
 }
