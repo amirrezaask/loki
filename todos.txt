@@ -1,6 +1,7 @@
 
 ----- Features -----
 - in lhs in parser we should handle array index syntax.
+- module path env variable, paths that compiler search for file loads.
 - dynamic array:
   - strings should be our own dynamic array impl. 
   - variadic args

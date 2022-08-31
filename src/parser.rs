@@ -598,6 +598,20 @@ impl Parser {
                         self.backward_token();
                         self.expect_fn_call()
                     }
+                    TokenType::OpenBracket => {
+                        self.forward_token();
+                        let arr = self.expect_expr()?;
+                        self.forward_token();
+
+                        let idx = self.expect_expr_exact_expr()?;
+                        self.expect_token(TokenType::CloseBracket)?;
+
+                        Ok(self.new_node(Self::get_id(), 
+                            AstNodeData::ArrayIndex { arr: arr.id, idx: idx.id },
+                            Type::Unknown, self.current_line(), self.current_col())
+                        )
+                        
+                    }
                     _ => {
                         self.backward_token();
                         let name = self.expect_ident()?;
@@ -931,7 +945,12 @@ impl Parser {
                     self.backward_token();
                     let cf = self.expect_expr_container_field();
                     return cf;
-                } else {
+                } else if self.current_token().ty == TokenType::OpenBracket {
+                    self.backward_token();
+                    let arr_idx = self.expect_expr_exact_expr();
+                    return arr_idx;
+                } 
+                else {
                     self.backward_token();
                     return self.expect_ident();
                 }
@@ -1070,6 +1089,7 @@ impl Parser {
                     | TokenType::Colon
                     | TokenType::Equal
                     | TokenType::ColonEqual
+                    | TokenType::OpenBracket
                     | TokenType::Dot => {
                         self.backward_token();
                         let def = self.expect_def()?;

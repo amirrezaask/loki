@@ -414,6 +414,10 @@ impl<'a> CPP<'a> {
             AstNodeData::NamespaceAccess{ ref namespace, ref field} => {
                 Ok(self.repr_namespace_access(namespace, field)?)
             },
+
+            AstNodeData::ArrayIndex { ref arr, ref idx } => {
+                Ok(format!("{}[{}]", self.repr_ast_node(arr.to_string())?, self.repr_ast_node(idx.to_string())?))
+            }
             AstNodeData::FnDef{sign: _, body: _} => {
                 unreachable!();
             }

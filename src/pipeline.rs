@@ -2,6 +2,7 @@ use crate::code_gen::Backend;
 use crate::code_gen::cpp::CPP;
 use std::ffi::OsStr;
 use std::path::Path;
+use std::str::FromStr;
 use std::time::Instant;
 
 // compiler that glue all parts together
@@ -27,8 +28,8 @@ impl Pipeline {
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
-        // let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
-        // println!("{:?}", abs_path);
+        let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
+        println!("{:?}", abs_path);
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
@@ -110,7 +111,6 @@ impl Pipeline {
 
        
         let frontend_elapsed = frontend_time_start.elapsed();
-
         let ty_infer_time_start = Instant::now();
         let mut asts_clone = asts.clone();
         for (idx, ast) in asts.iter_mut().enumerate() {

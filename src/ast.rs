@@ -391,6 +391,11 @@ pub enum AstNodeData {
     Char(char),
     Ident(String),
 
+    ArrayIndex {
+        arr: NodeID,
+        idx: NodeID,
+    },
+
     BinaryOperation {
         operation: AstOperation,
         left: NodeID,
