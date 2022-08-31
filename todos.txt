@@ -1,7 +1,6 @@
 
 ----- Features -----
-- arrays
-
+- in lhs in parser we should handle array index syntax.
 - dynamic array:
   - strings should be our own dynamic array impl. 
   - variadic args

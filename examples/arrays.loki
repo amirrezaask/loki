@@ -1,5 +1,13 @@
+#load "modules/print.loki"
+
 main :: () int {
 	
 	a := [3]int{1,2,3};
-	
+	for (number in a) {
+		printf("num: %d\n", number);
+	}
+
+	for (a) {
+		printf("num: %d\n", it);
+	}
 }

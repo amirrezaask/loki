@@ -22,9 +22,9 @@ main :: () int {
          printf("for each syntax: %d\n", num);
     }
     humans := [3]Human {Human { age = 17, name = "comrade" }, Human { age = 17, name = "comrade" }};
-    // for (humans) {
-    //     printf("for each syntax: %d\n", it.age);
-    // }
+    for (humans) {
+        printf("for each syntax: %d\n", it.age);
+    }
     
     for (numbers) {
         printf("for each syntax: %d\n", it);
