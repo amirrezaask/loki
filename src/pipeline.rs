@@ -28,8 +28,6 @@ impl Pipeline {
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
-        // let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
-        // println!("{:?}", abs_path);
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
@@ -47,22 +45,23 @@ impl Pipeline {
     }
 
     pub fn dump_ast_before(&self, ast: &Ast) -> Result<()> {
-        let mut out_file = std::fs::File::create(format!("ast_{}_before_analyze_dump.json", ast.filename))?;
+        let mut out_file = std::fs::File::create(format!("ast_{}_before_analyze_dump.json", ast.filename.replace("/", "-").replace("\\", "-")))?;
         out_file.write_all(serde_json::to_string_pretty(ast).unwrap().as_bytes())?;
 
         Ok(())
     }
 
     pub fn dump_ast_after(&self, ast: &Ast) -> Result<()> {
-        let mut out_file = std::fs::File::create(format!("ast_{}_after_analyze_dump.json", ast.filename))?;
+        let mut out_file = std::fs::File::create(format!("ast_{}_after_analyze_dump.json", ast.filename.replace("/", "-").replace("\\", "-")))?;
         out_file.write_all(serde_json::to_string_pretty(ast).unwrap().as_bytes())?;
 
         Ok(())
     }
     pub fn get_ast_for(&mut self, path: &str) -> Result<Vec<Ast>> {
-        let main_ast = self.parse_file(path)?;
+        let mut main_ast = self.parse_file(path)?;
         self.total_lines += main_ast.src.lines().count() as u64;
         self.total_tokens += main_ast.tokens.len() as u64;
+        main_ast.src = "".to_string();
         let mut loads = Vec::<String>::new();
         let mut asts = Vec::<Ast>::new();
         let top_leve_nodes = main_ast.get_node(main_ast.top_level.clone())?.get_block()?;
@@ -114,9 +113,9 @@ impl Pipeline {
         let ty_infer_time_start = Instant::now();
         let mut asts_clone = asts.clone();
         for (idx, ast) in asts.iter_mut().enumerate() {
-            // self.dump_ast_before(ast)?;
+            self.dump_ast_before(ast)?;
             ast.infer_types(&asts_clone)?;
-            // self.dump_ast_after(ast)?;
+            self.dump_ast_after(ast)?;
             asts_clone.insert(idx, ast.clone());
         }
         

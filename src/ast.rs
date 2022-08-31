@@ -298,24 +298,6 @@ pub enum AstOperation {
 }
 pub type BitSize = usize;
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub enum ScopeType {
-    Unknown,
-
-    // all use expect_block, they all know where block starts and expect_block knows where it will end.
-    Function,
-    While,
-    For,
-    ForIn,
-    If,
-    Else,
-
-    Struct,
-    Enum,
-
-    File(String),
-}
-
 pub type TokenIndex = isize;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
