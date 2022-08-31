@@ -129,7 +129,7 @@ impl Parser {
         Ok(())
     }
     fn expect_def(&mut self) -> Result<AstNode> {
-        let mut dest = self.expect_lhs()?;
+        let mut dest = self.expect_expr()?;
         match self.current_token().ty {
             TokenType::Equal => {
                 self.forward_token();
@@ -263,7 +263,7 @@ impl Parser {
     }
 
     fn expect_fn_call(&mut self) -> Result<AstNode> {
-        let name = self.expect_lhs()?;
+        let name = self.expect_ident()?;
         self.expect_token(TokenType::OpenParen)?;
         let mut args = Vec::<NodeID>::new();
 
@@ -292,7 +292,7 @@ impl Parser {
         }
         Ok(self.new_node(Self::get_id(), AstNodeData::FnCall{fn_name: name.id, args}, Type::Unknown,self.current_line(), self.current_col()))
     }
-    fn expect_expr_container_field(&mut self) -> Result<AstNode> {
+    fn expect_expr_namespace_access_or_array_index(&mut self) -> Result<AstNode> {
         let container = self.expect_expr_initialize()?;
         match self.current_token().ty {
             TokenType::Dot => {
@@ -302,11 +302,28 @@ impl Parser {
                 f.tags.push(AstTag::IsUsedInNamespaceAccess);
                 return Ok(self.new_node(Self::get_id(), AstNodeData::NamespaceAccess{ namespace: container.id, field: field.id }, Type::Unknown, self.current_line(), self.current_col()));
             }
+            TokenType::OpenBracket => {
+                self.forward_token();
+                let index = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                return Ok(self.new_node(Self::get_id(), AstNodeData::ArrayIndex{ arr: container.id, idx: index.id }, Type::Unknown, self.current_line(), self.current_col()));
+            }
             _ => {
                 return Ok(container);
             }
         }
     }
+    /*
+    expr -> A (add_minus A)*
+    A -> B (mul_div_mod B)*
+    B -> initialize (< <= | >= > initialize)*
+    container_field -> initialize (. IDENT)
+    initialize -> exact_expr ({})*
+    exact_expr -> int | unsigned_int | float | string | bool | ident | '(' expr ')' | deref: *expr | ref: &expr
+        | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
+    */
+    
     fn expect_expr_initialize(&mut self) -> Result<AstNode> {
         let ty = self.expect_expr_exact_expr()?;
         match self.current_token().ty {
@@ -598,20 +615,6 @@ impl Parser {
                         self.backward_token();
                         self.expect_fn_call()
                     }
-                    TokenType::OpenBracket => {
-                        self.forward_token();
-                        let arr = self.expect_expr()?;
-                        self.forward_token();
-
-                        let idx = self.expect_expr_exact_expr()?;
-                        self.expect_token(TokenType::CloseBracket)?;
-
-                        Ok(self.new_node(Self::get_id(), 
-                            AstNodeData::ArrayIndex { arr: arr.id, idx: idx.id },
-                            Type::Unknown, self.current_line(), self.current_col())
-                        )
-                        
-                    }
                     _ => {
                         self.backward_token();
                         let name = self.expect_ident()?;
@@ -694,6 +697,7 @@ impl Parser {
             }
 
             _ => {
+                println!("{:?}", self.ast.nodes);
                 println!("unknown expr: {:?}", self.current_token());
                 unreachable!();
             }
@@ -717,7 +721,7 @@ impl Parser {
     }
 
     fn expect_expr_binary_operations(&mut self) -> Result<AstNode> {
-        let lhs = self.expect_expr_container_field()?;
+        let lhs = self.expect_expr_namespace_access_or_array_index()?;
 
         match self.current_token().ty {
             TokenType::LeftAngle
@@ -730,7 +734,7 @@ impl Parser {
             | TokenType::NotEqual => {
                 let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                 self.forward_token();
-                let rhs = self.expect_expr_container_field()?;
+                let rhs = self.expect_expr_namespace_access_or_array_index()?;
                 Ok(self.new_node(Self::get_id(), 
                     AstNodeData::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id },
                     Type::Bool, self.current_line(), self.current_col()
@@ -825,7 +829,6 @@ impl Parser {
 
     fn expect_expr(&mut self) -> Result<AstNode> {
         let mut lhs = self.expect_expr_mul_div_mod()?;
-
         match self.current_token().ty {
             TokenType::Minus => {
                 self.forward_token();
@@ -936,34 +939,34 @@ impl Parser {
         return Ok(for_node);
     }
 
-    // expect_dest will return a node that can be used as a lhs of an assignment.
-    fn expect_lhs(&mut self) -> Result<AstNode> {
-        match self.current_token().ty {
-            TokenType::Ident => {
-                self.forward_token();
-                if self.current_token().ty == TokenType::Dot {
-                    self.backward_token();
-                    let cf = self.expect_expr_container_field();
-                    return cf;
-                } else if self.current_token().ty == TokenType::OpenBracket {
-                    self.backward_token();
-                    let arr_idx = self.expect_expr_exact_expr();
-                    return arr_idx;
-                } 
-                else {
-                    self.backward_token();
-                    return self.expect_ident();
-                }
-            }
+    // // expect_dest will return a node that can be used as a lhs of an assignment.
+    // fn expect_lhs(&mut self) -> Result<AstNode> {
+    //     match self.current_token().ty {
+    //         TokenType::Ident => {
+    //             self.forward_token();
+    //             if self.current_token().ty == TokenType::Dot {
+    //                 self.backward_token();
+    //                 let cf = self.expect_expr_namespace_access_or_array_index();
+    //                 return cf;
+    //             } else if self.current_token().ty == TokenType::OpenBracket {
+    //                 self.backward_token();
+    //                 let arr_idx = self.expect_expr_exact_expr();
+    //                 self.expect_token(TokenType::CloseBracket)?;
+    //                 self.forward_token();
+    //                 println!("array {:?}", arr_idx);
+    //                 return arr_idx;
+    //             } 
+    //             else {
+    //                 self.backward_token();
+    //                 return self.expect_ident();
+    //             }
+    //         }
 
-            _ => {
-                return Err(self.wrap_err(format!(
-                        "expected some kind of destination for left hand side of an assignment found: {:?}", 
-                             self.current_token(),
-                            )));
-            }
-        }
-    }
+    //         _ => {
+    //             return Err(self.wrap_err(format!("expected some kind of destination for left hand side of an assignment found: {:?}",self.current_token())));
+    //         }
+    //     }
+    // }
     fn expect_for_each(&mut self) -> Result<AstNode> {
         let iterator = self.expect_ident()?;
         self.forward_token();
@@ -1101,7 +1104,7 @@ impl Parser {
                     }
                     TokenType::PlusEqual => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
 
                         self.forward_token();
                         let rhs = self.expect_expr()?;
@@ -1115,7 +1118,7 @@ impl Parser {
                     }
                     TokenType::MinusEqual => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -1129,7 +1132,7 @@ impl Parser {
                     }
                     TokenType::ModEqual => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -1143,7 +1146,7 @@ impl Parser {
                     }
                     TokenType::MulEqual => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -1157,7 +1160,7 @@ impl Parser {
                     }
                     TokenType::DivEqual => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
                         self.forward_token();
 
                         let rhs = self.expect_expr()?;
@@ -1172,7 +1175,7 @@ impl Parser {
                     }
                     TokenType::DoublePlus => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
                         self.forward_token();
                         let rhs = self.new_node(Self::get_id(), AstNodeData::Unsigned(1), Type::UnsignedInt(64), self.current_line(), self.current_col());
                         lhs.type_information = rhs.type_information.clone();
@@ -1185,7 +1188,7 @@ impl Parser {
                     }
                     TokenType::DoubleMinus => {
                         self.backward_token();
-                        let mut lhs = self.expect_lhs()?;
+                        let mut lhs = self.expect_expr()?;
                         self.forward_token();
 
                         let rhs = self.new_node(Self::get_id(), AstNodeData::Unsigned(1), Type::UnsignedInt(64), self.current_line(), self.current_col());

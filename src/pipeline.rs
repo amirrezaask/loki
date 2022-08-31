@@ -28,8 +28,8 @@ impl Pipeline {
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
-        let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
-        println!("{:?}", abs_path);
+        // let abs_path = std::path::PathBuf::from_str(path)?.canonicalize()?;
+        // println!("{:?}", abs_path);
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
