@@ -388,11 +388,11 @@ impl Parser {
                                 _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                             }
                         }
-
-                        return Ok(self.new_node(Self::get_id(), 
-                            AstNodeData::InitializeArray(Some(ty.id), fields),
-                            Type::Unknown, self.current_line(), self.current_col()
-                        ));
+                        let node = self.new_node(Self::get_id(), 
+                            AstNodeData::InitializeArray{elements: fields.clone()},
+                            Type::Array(fields.len() as u64, Box::new(Type::Unknown)), self.current_line(), self.current_col()
+                        );
+                        return Ok(node);
                     }
                 }
             },
@@ -569,10 +569,11 @@ impl Parser {
                 self.expect_token(TokenType::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_expr_exact_expr()?;
-                return Ok(self.new_node(Self::get_id(), 
-                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: Type::new(&ty, &self.ast)? },
+                let node = self.new_node(Self::get_id(), 
+                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: Type::Unknown },
                     Type::Unknown, self.current_line(), self.current_col()
-                ));
+                );
+                return Ok(node);
             }
 
             TokenType::Asterix | TokenType::DoubleLeftAngle => {

@@ -1,0 +1,32 @@
+// #load "modules/print.loki"
+#host "string"
+
+Human :: struct {
+    age: s32,
+    name: string,
+}
+
+main :: () int {
+    counter := 0;
+    while (counter <= 10) {
+        printf("counter : %d\n", counter);
+        counter++;
+    }
+    
+    for (i:=0;i<10;i++) {
+        printf("for c syntax: %d\n", i);
+    }
+
+    numbers := [10]uint{1, 2, 3, 4};
+    for (num in numbers) {
+         printf("for each syntax: %d\n", num);
+    }
+    humans := [3]Human {Human { age = 17, name = "comrade" }, Human { age = 17, name = "comrade" }};
+    // for (humans) {
+    //     printf("for each syntax: %d\n", it.age);
+    // }
+    
+    for (numbers) {
+        printf("for each syntax: %d\n", it);
+    }
+}

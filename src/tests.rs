@@ -22,6 +22,7 @@ fn test_suite() -> Result<()> {
             match p.compile_file(file.path().to_str().unwrap(), code_gen::Backend::CPP) {
                 Ok(_) => {
                     success += 1;
+                    std::fs::remove_file(file.path().file_stem().unwrap()).unwrap();
                 },
                 Err(e) => {
                     has_error = true;

@@ -1,0 +1,13 @@
+
+Human :: struct {
+    age: s32,
+}
+
+
+main :: () int {
+    amirreza := Human { age = 12};
+    humans := [3]Human {
+        amirreza,
+        Human { age = 17 }
+    };
+}

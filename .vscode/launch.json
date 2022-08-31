@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["00_variables_constants.loki"],
+            "args": ["testfile.loki"],
             "cwd": "${workspaceFolder}/examples"
         },
         {

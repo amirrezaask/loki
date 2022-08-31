@@ -32,7 +32,7 @@ impl Pipeline {
         let program = std::fs::read_to_string(path)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
-        // self.dump_tokens(path, &tokens)?;
+        self.dump_tokens(path, &tokens)?;
         let parser = Parser::new(path.to_string(), program, tokens)?;
         let ast = parser.get_ast()?;
         Ok(ast)
@@ -46,7 +46,6 @@ impl Pipeline {
     }
 
     pub fn dump_ast_before(&self, ast: &Ast) -> Result<()> {
-        println!("{}", format!("ast_{}_before_analyze_dump.json", ast.filename));
         let mut out_file = std::fs::File::create(format!("ast_{}_before_analyze_dump.json", ast.filename))?;
         out_file.write_all(serde_json::to_string_pretty(ast).unwrap().as_bytes())?;
 

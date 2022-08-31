@@ -294,74 +294,83 @@ impl<'a> CPP<'a> {
             AstNodeData::Def{mutable, name, expr} => {
                 let def_expr = self.ast.get_node(expr.clone())?;
                 match &def_expr.data {
-                
-                AstNodeData::FnDef{ sign: sign_id, ref body} => { 
-                    let sign = self.ast.get_node(sign_id.to_string())?;
-                    let (args, ret) = sign.get_fn_signature()?;
-                    Ok(format!("{} {}({}) {{\n{}\n}}",
-                        self.repr_ast_node(ret.clone())?,
+                    AstNodeData::InitializeArray { elements } => {
+                        let expr = self.ast.get_node(expr.clone())?;
+                        let array_elems = expr.get_array_elems()?;
+                        Ok(format!("{} {}[{}] = {{{}}}", 
+                        self.repr_ast_ty(expr.type_information.get_array_ty_elem_ty()?)?,
                         self.repr_ast_node(name.clone())?,
-                        self.repr_fn_def_args(&args)?,
-                        self.repr_block(body)?
+                        expr.type_information.get_array_ty_size()?,
+                        self.repr_array_elems(&array_elems)?
                     ))
-                },
-                
+                    }
+                    AstNodeData::FnDef{ sign: sign_id, ref body} => { 
+                        let sign = self.ast.get_node(sign_id.to_string())?;
+                        let (args, ret) = sign.get_fn_signature()?;
+                        Ok(format!("{} {}({}) {{\n{}\n}}",
+                            self.repr_ast_node(ret.clone())?,
+                            self.repr_ast_node(name.clone())?,
+                            self.repr_fn_def_args(&args)?,
+                            self.repr_block(body)?
+                        ))
+                    },
+                    
 
-                AstNodeData::StructTy(fields) => Ok(format!(
-                    "struct {} {{\n{}\n}};",
-                    self.repr_ast_node(name.clone())?,
-                    self.repr_struct_fields(fields)?
-                )),
-
-                AstNodeData::EnumTy(variants) => {
-                    Ok(format!(
-                        "enum {} {{\n{}\n}};",
+                    AstNodeData::StructTy(fields) => Ok(format!(
+                        "struct {} {{\n{}\n}};",
                         self.repr_ast_node(name.clone())?,
-                        self.repr_enum_variants(&variants)?
-                    ))
-                }
+                        self.repr_struct_fields(fields)?
+                    )),
 
-                AstNodeData::Initialize{ty: _, fields} => {
-                    let ty = self.get_def_typ(&node)?;
-                    let fields = self.repr_struct_init_fields(ty.clone(), &fields)?;
-                    match mutable {
-                        false => Ok(format!(
-                            "const {} {} = {{\n{}}}",
-                            self.repr_ast_ty(ty)?,
+                    AstNodeData::EnumTy(variants) => {
+                        Ok(format!(
+                            "enum {} {{\n{}\n}};",
                             self.repr_ast_node(name.clone())?,
-                            fields
-                        )),
-                        true => Ok(format!(
-                            "{} {} = {{\n{}}}",
-                            self.repr_ast_ty(ty)?,
-                            self.repr_ast_node(name.clone())?,
-                            fields,
-                        )),
+                            self.repr_enum_variants(&variants)?
+                        ))
+                    }
+
+                    AstNodeData::Initialize{ty: _, fields} => {
+                        let ty = self.get_def_typ(&node)?;
+                        let fields = self.repr_struct_init_fields(ty.clone(), &fields)?;
+                        match mutable {
+                            false => Ok(format!(
+                                "const {} {} = {{\n{}}}",
+                                self.repr_ast_ty(ty)?,
+                                self.repr_ast_node(name.clone())?,
+                                fields
+                            )),
+                            true => Ok(format!(
+                                "{} {} = {{\n{}}}",
+                                self.repr_ast_ty(ty)?,
+                                self.repr_ast_node(name.clone())?,
+                                fields,
+                            )),
+                        }
+                    }
+
+                    // AstNodeData::NamespaceAccess(nsa) => {
+                    //     Ok(self.repr_namespace_access(nsa)?)
+                    // }
+
+                    _ => {
+                        let ty = self.get_def_typ(&node)?;
+                        match mutable {
+                            false => Ok(format!(
+                                "const {} {} = {}",
+                                self.repr_ast_ty(ty)?,
+                                self.repr_ast_node(name.clone())?,
+                                self.repr_ast_node(expr.clone())?
+                            )),
+                            true => Ok(format!(
+                                "{} {} = {}",
+                                self.repr_ast_ty(ty)?,
+                                self.repr_ast_node(name.clone())?,
+                                self.repr_ast_node(expr.clone())?
+                            )),
+                        }
                     }
                 }
-
-                // AstNodeData::NamespaceAccess(nsa) => {
-                //     Ok(self.repr_namespace_access(nsa)?)
-                // }
-
-                _ => {
-                    let ty = self.get_def_typ(&node)?;
-                    match mutable {
-                        false => Ok(format!(
-                            "const {} {} = {}",
-                            self.repr_ast_ty(ty)?,
-                            self.repr_ast_node(name.clone())?,
-                            self.repr_ast_node(expr.clone())?
-                        )),
-                        true => Ok(format!(
-                            "{} {} = {}",
-                            self.repr_ast_ty(ty)?,
-                            self.repr_ast_node(name.clone())?,
-                            self.repr_ast_node(expr.clone())?
-                        )),
-                    }
-                }
-            }
             },
             AstNodeData::Initialize{ty, fields} => {
                 let fields = self.repr_struct_init_fields(node.type_information, &fields)?;
