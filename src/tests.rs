@@ -22,7 +22,12 @@ fn test_suite() -> Result<()> {
             match p.compile_file(file.path().to_str().unwrap(), code_gen::Backend::CPP) {
                 Ok(_) => {
                     success += 1;
-                    std::fs::remove_file(file.path().file_stem().unwrap()).unwrap();
+                    let os = std::env::consts::OS;
+                    if os == "windows" {
+                        std::fs::remove_file(format!("{}.exe", file.path().file_stem().unwrap().to_str().unwrap())).unwrap();
+                    } else {
+                        std::fs::remove_file(file.path().file_stem().unwrap()).unwrap();
+                    }
                 },
                 Err(e) => {
                     has_error = true;
