@@ -4,6 +4,8 @@ use std::default;
 use crate::lexer::{Token, TokenType};
 use anyhow::anyhow;
 use anyhow::Result;
+use rand::distributions::Alphanumeric;
+use rand::distributions::DistString;
 use serde::Serialize;
 pub type NodeID = String;
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -216,7 +218,7 @@ impl Type {
             _ => Err(anyhow!("expected enum type found: {:?}", self)),
         }
     }
-    pub fn is_enum(&self) -> bool {
+    pub fn is_enum_def(&self) -> bool {
         match self {
             Type::Enum { variants: _ } => true,
             _ => return false,
@@ -454,6 +456,7 @@ impl AstNode {
         return false;
     }
 
+   
     pub fn is_unknown(&self) -> bool {
         return self.type_information.is_unknown();
     }
@@ -820,6 +823,25 @@ impl Ast {
 
         return Ok(Type::Unknown);
     }
+    pub fn block_remove_node_by_id(&mut self, block_id: NodeID, node_id: NodeID) -> Result<usize> {
+        let block = self.nodes.get_mut(&block_id.clone()).unwrap();
+        if let AstNodeData::Block { is_file_root, ref mut nodes } = block.data {
+            let node_idx = nodes.iter().position(|id| id == &node_id).unwrap();
+            nodes.remove(node_idx);
+            return Ok(node_idx);
+        }
+        return Err(anyhow!("expected a block node got : {:?}", self));
+    }
+
+    pub fn block_insert_at_index(&mut self, block_id:NodeID, idx: usize, node: AstNode) -> Result<()> {
+        self.nodes.insert(node.id.clone(), node.clone());
+        let block = self.nodes.get_mut(&block_id.clone()).unwrap();
+        if let AstNodeData::Block { is_file_root, ref mut nodes } = block.data {
+            nodes.insert(idx, node.id);
+            return Ok(());
+        }
+        return Err(anyhow!(">expected a block node got : {:?}", self));
+    }
     fn infer_type_expr(
         &mut self,
         expr_id: NodeID,
@@ -946,7 +968,7 @@ impl Ast {
                     ));
                 }
                 self.add_type_inference(&expr_id.clone(), infered_type.clone());
-            } else if ns_ty.is_enum() {
+            } else if ns_ty.is_enum_def() {
                 let mut infered_type = Type::Unknown;
                 for name in ns_ty.get_enum_variants()? {
                     if name == field {
@@ -1057,6 +1079,89 @@ impl Ast {
     }
     pub fn infer_types(&mut self, other_asts: &Vec<Ast>) -> Result<()> {
         self.infer_types_block(self.top_level.to_string(), other_asts)?;
+        Ok(())
+    }
+    fn lower_initialize(&mut self) -> Result<()> {
+
+        Ok(())
+    }
+
+    fn lower_enums(&mut self) -> Result<()> {
+        let node_ids: Vec<NodeID> = self.nodes.keys().map(|id| id.clone()).collect();
+        for node_id in node_ids {
+            let node = self.get_node(node_id.clone())?;
+            if node.is_def() {
+                let (_, def_name_id, expr_id) = node.get_def()?;
+                let expr = self.get_node(expr_id.clone())?;
+                let def_name = self.get_node(def_name_id.clone())?.get_ident()?;
+                if expr.type_information.is_enum_def() {
+                    let idx = self.block_remove_node_by_id(node.parent_block.clone(), node_id.to_string())?;
+                    for (variant_idx, variant) in expr.get_enum_variants()?.iter().enumerate() {
+                        let expr = AstNode {
+                            id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                            data: AstNodeData::Unsigned(variant_idx as u64),
+                            type_information: Type::UnsignedInt(64),
+                            parent_block: node.parent_block.clone(),
+                            tags: vec![],
+                            line: node.line,
+                            col: node.col,
+                            filename: node.filename.clone(),
+                        };
+                        let variant_name_idx = self.get_node(variant.clone())?.get_decl()?;
+                        let variant_name = self.get_node(variant_name_idx)?.get_ident()?;
+                        let name = AstNode {
+                            id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                            data: AstNodeData::Ident(format!("LOKI_ENUM_{}_{}", def_name, variant_name)),
+                            type_information: Type::UnsignedInt(64),
+                            parent_block: node.parent_block.clone(),
+                            tags: vec![],
+                            line: node.line,
+                            col: node.col,
+                            filename: node.filename.clone(),
+                        };
+                        self.nodes.insert(expr.id.clone(), expr.clone());
+                        self.nodes.insert(name.id.clone(), name.clone());
+                        self.block_insert_at_index(node.parent_block.clone(), idx, AstNode {
+                            id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                            data: AstNodeData::Def { mutable: false, name: name.id.clone(), expr: expr.id.clone()},
+                            type_information: Type::NoType,
+                            parent_block: node.parent_block.clone(),
+                            tags: vec![],
+                            line: node.line,
+                            col: node.col,
+                            filename: node.filename.clone(),
+                        })?;
+                    }
+                }
+                if expr.is_namespace_access() {
+                    let ns_id = expr.get_namespace_ns_id()?;
+                    let field_id = expr.get_namespace_field_id()?;
+                    let ns = self.get_node(ns_id.clone())?;
+                    let field = self.get_node(field_id.clone())?;
+                    if ns.type_information.is_enum_def() {
+                        let new_enum_ref = AstNode {
+                            id: expr.id.clone(),
+                            data: AstNodeData::Ident(format!("LOKI_ENUM_{}_{}", ns.get_ident()?, field.get_ident()?)),
+                            type_information: Type::UnsignedInt(64),
+                            parent_block: node.parent_block,
+                            tags: vec![],
+                            line: node.line,
+                            col: node.col,
+                            filename: node.filename,
+                        };
+                        self.nodes.insert(expr.id.clone(), new_enum_ref);
+                    }
+                }    
+            }
+            
+        }
+
+        Ok(())
+    }
+    pub fn lower_features(&mut self) -> Result<()> {
+        self.lower_initialize()?;
+        self.lower_enums()?;
+
         Ok(())
     }
 

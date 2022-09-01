@@ -118,7 +118,10 @@ impl Pipeline {
             self.dump_ast_after(ast)?;
             asts_clone.insert(idx, ast.clone());
         }
-        
+        for (idx, ast) in asts.iter_mut().enumerate() {
+            ast.lower_features()?;
+        }
+
         let ty_infer_elapsed = ty_infer_time_start.elapsed();
 
         let backend_code_gen_time_start = Instant::now();

@@ -1251,7 +1251,7 @@ impl Parser {
                 }
             }
 
-            TokenType::Asterix => {
+            TokenType::Asterix | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let deref = self.expect_expr()?;
                 let deref = self.new_node(self.get_id(), AstNodeData::Deref(deref.id), Type::Unknown, self.current_line(), self.current_col());

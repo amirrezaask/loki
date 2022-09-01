@@ -174,7 +174,7 @@ impl<'a> CPP<'a> {
         for node in fields {
             let name = self.ast.get_node(node.0.clone())?.get_ident()?;
             let idx = ordered_struct_fields.iter().position(|f| f.0 == name).unwrap();
-            output[idx] =  format!("\t{}:{}", self.repr_ast_node(node.0.clone())?, self.repr_ast_node(node.1.clone())?);
+            output[idx] =  format!("\t{}", self.repr_ast_node(node.1.clone())?);
         }
         Ok(output.join(",\n"))
     }
@@ -239,7 +239,7 @@ impl<'a> CPP<'a> {
     fn repr_namespace_access(&self, namespace: &str, field: &str) -> Result<String> {
         let ns_ty = self.ast.get_node(namespace.to_string())?;
         let _ = self.ast.get_node(field.to_string())?;
-        if ns_ty.type_information.is_enum() {
+        if ns_ty.type_information.is_enum_def() {
             return Ok(format!("{}::{}", self.repr_ast_node(namespace.to_string())?, self.repr_ast_node(field.to_string())?));
         }
 

@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["arrays.loki"],
+            "args": ["enums.loki"],
             "cwd": "${workspaceFolder}/examples"
         },
         {
