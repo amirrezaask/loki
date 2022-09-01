@@ -1,6 +1,5 @@
 
 ----- Features -----
-- module path env variable, paths that compiler search for file loads.
 - dynamic array:
   - strings should be our own dynamic array impl. 
   - variadic args
@@ -16,7 +15,6 @@
 ------ refactoring ------
 - finish error-system branch
 - initializers should just generate code to set each field seperately ( now cpp backend handles ordering because of cpp wierd initializers)
-- enums should not depend on host language, they should just be normal constants.
 ------ Future ------
 - load files into a namespace
 - generics

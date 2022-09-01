@@ -5,12 +5,12 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Instant;
 
-// compiler that glue all parts together
 use super::parser::Parser;
 use crate::ast::{Ast};
 use crate::ast::AstNodeData;
 use crate::lexer::Token;
 use anyhow::Result;
+use anyhow::anyhow;
 use serde_json::json;
 use std::io::Write;
 use std::process::Command;
@@ -27,8 +27,35 @@ impl Pipeline {
         Self {total_lines: 0 , total_tokens: 0 }
     }
 
+    fn find_abs_path_to_file(&self, name: &str) -> Result<String> {
+        if Path::new(name).is_file() {
+            return Ok(name.to_string());
+        }
+        let s = std::env::var("LOKI_MODULE_PATH")?;
+        let mut paths: Vec<&str> = s.split(';').collect();
+        paths.insert(0, ".");
+        for path in paths {
+            let files = std::fs::read_dir(path);
+            if files.is_err() {
+                continue;
+            }
+            let files = files.unwrap();
+            for file in files {
+                if file.is_err() {
+                    continue;
+                }
+                let file = file.unwrap();
+                if file.file_name() == name {
+                    return Ok(file.path().to_str().unwrap().to_string());
+                } 
+            }
+        }
+
+        return Err(anyhow!("file {} not found in LOKI_MODULE_PATH", name));
+    }
+
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
-        let program = std::fs::read_to_string(path)?;
+        let program = std::fs::read_to_string(self.find_abs_path_to_file(path)?)?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
         self.dump_tokens(path, &tokens)?;
