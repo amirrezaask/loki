@@ -1169,6 +1169,11 @@ impl Ast {
             if node.is_if() {
                 let cases = node.get_if()?;
                 for case in cases {
+                    self.type_expression(case.0.clone(), index, other_asts)?;
+                    let cond = self.get_node(case.0.clone())?;
+                    if !cond.type_information.is_bool() {
+                        return Err(anyhow!("if condition must be a boolean but {:?}", cond.type_information));
+                    }
                     self.type_block(case.1, other_asts)?;
                 }
                 continue;
@@ -1178,7 +1183,7 @@ impl Ast {
                 self.type_expression(cond_id.clone(), index, other_asts)?;
                 let cond = self.get_node(cond_id.clone())?;
                 if !cond.type_information.is_bool() {
-                    return Err(anyhow!("if condition must be a boolean but {:?}", cond.type_information));
+                    return Err(anyhow!("while condition must be a boolean but {:?}", cond.type_information));
                 }
                 self.type_block(body, other_asts)?;
                 continue;
@@ -1211,6 +1216,7 @@ impl Ast {
                 if iterator.type_information != iterable.type_information.get_array_elem_type()? {
                     return Err(anyhow!("for in iterable and iterator must use same type: {:?} vs {:?}", iterator.type_information, iterable.type_information.get_array_elem_type()?))
                 }
+                // add a decl at the for body scope so type inference can infer iterator type.
                 let ident = AstNode {
                     id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
                     data: AstNodeData::Ident(iterator.get_ident()?),
