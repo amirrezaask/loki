@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::default;
+use std::ops::Deref;
 
 use crate::lexer::{Token, TokenType};
 use anyhow::anyhow;
@@ -12,6 +13,14 @@ pub type NodeID = String;
 pub struct NamespaceAccessType {
     pub namespace: Box<Type>,
     pub field: Box<Type>,
+}
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum BlockType {
+    Unknown,
+    ForC,
+    ForIn,
+    While,
+    Function,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -129,6 +138,18 @@ impl Type {
             _ => Ok(Type::Unknown),
         }
     }
+    pub fn is_iterable(&self) -> bool {
+        match self {
+            Type::Array(_, _) | Type::DynamicArray(_) => true,
+            _ => false,
+        }
+    }
+    pub fn get_array_elem_type(&self) -> Result<Type> {
+        match self {
+            Type::Array(_, ty) | Type::DynamicArray(ty) => Ok(ty.deref().clone()),
+            _ => Err(anyhow!("expected array type or dynamic array type but: {:?}", self)),
+        }
+    }
     pub fn from_struct_fields(decls: Vec<NodeID>, ast: &Ast) -> Result<Type> {
         let mut fields = Vec::<(String, Type)>::new();
         for decl_id in decls {
@@ -150,6 +171,12 @@ impl Type {
         }
 
         Ok(Type::Enum { variants })
+    }
+    pub fn is_bool(&self) -> bool {
+        match self {
+            Type::Bool => true,
+            _ => false,
+        }
     }
     pub fn make_fn_signature(ast: &Ast, args: &Vec<NodeID>, ret: &AstNode) -> Result<Self> {
         let args_ty: Vec<Type> = args
@@ -280,6 +307,7 @@ pub enum AstTag {
     Foreign,
     IsUsedInNamespaceAccess,
     IsUsedInInitialize,
+    NoCodeGen,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -359,6 +387,7 @@ pub enum AstNodeData {
     },
 
     Block {
+        ty: BlockType,
         is_file_root: bool,
         nodes: Vec<NodeID>,
     },
@@ -463,6 +492,7 @@ impl AstNode {
 
     pub fn block_is_file_root(&self) -> Result<bool> {
         if let AstNodeData::Block {
+            ty: _,
             nodes: _,
             is_file_root,
         } = self.data
@@ -489,6 +519,7 @@ impl AstNode {
     pub fn get_block(&self) -> Result<Vec<NodeID>> {
         if let AstNodeData::Block {
             nodes: ref nodes,
+            ty: _,
             is_file_root: _,
         } = self.data
         {
@@ -510,6 +541,54 @@ impl AstNode {
     }
     pub fn is_fn_def(&self) -> bool {
         if let AstNodeData::FnDef { sign: _, body: _ } = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn is_if(&self) -> bool {
+        if let AstNodeData::If {cases: _} = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn get_if(&self) -> Result<Vec<(NodeID, NodeID)>> {
+        if let AstNodeData::If{ref cases} = self.data {
+            return Ok(cases.clone());
+        }
+        return Err(anyhow!("expected a if statement got {:?}", self));
+    }
+    pub fn get_while(&self) -> Result<(NodeID, NodeID)> {
+        if let AstNodeData::While{ref cond, ref body} = self.data {
+            return Ok((cond.clone(), body.clone()));
+        }
+        return Err(anyhow!("expected a while statement got {:?}", self));
+    }
+    pub fn get_for(&self) -> Result<(NodeID, NodeID, NodeID, NodeID)> {
+        if let AstNodeData::For{ref start, ref cond, ref cont, ref body} = self.data {
+            return Ok((start.clone(), cond.clone(), cont.clone(), body.clone()));
+        }
+        return Err(anyhow!("expected a for statement got {:?}", self));
+    }
+    pub fn get_for_in(&self) -> Result<(NodeID, NodeID, NodeID)> {
+        if let AstNodeData::ForIn{ref iterable, ref iterator, ref body} = self.data {
+            return Ok((iterator.clone(), iterable.clone(), body.clone()));
+        }
+        return Err(anyhow!("expected a for in statement got {:?}", self));
+    }
+    pub fn is_for(&self) -> bool {
+        if let AstNodeData::For {cond: _, body:_ , cont: _, start: _} = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn is_while(&self) -> bool {
+        if let AstNodeData::While {cond: _, body:_} = self.data {
+            return true;
+        }
+        return false;
+    }
+    pub fn is_for_in(&self) -> bool {
+        if let AstNodeData::ForIn {iterable: _, iterator:_ , body:_} = self.data {
             return true;
         }
         return false;
@@ -759,6 +838,16 @@ impl Ast {
         Ok(loads)
     }
 
+    pub fn add_block_ty(&mut self, node_id: NodeID, block_ty: BlockType) -> Result<()> {
+        let block = self.nodes.get_mut(&node_id.clone()).unwrap();
+        if let AstNodeData::Block { ref mut ty, is_file_root, nodes: _ } = block.data {
+            *ty = block_ty;
+            return Ok(());
+        }
+
+        Err(anyhow!("expected a block node found: {:?}", block))
+    }
+
     fn find_identifier_type(
         &self,
         start_block: NodeID,
@@ -825,7 +914,7 @@ impl Ast {
     }
     pub fn block_remove_node_by_id(&mut self, block_id: NodeID, node_id: NodeID) -> Result<usize> {
         let block = self.nodes.get_mut(&block_id.clone()).unwrap();
-        if let AstNodeData::Block { is_file_root, ref mut nodes } = block.data {
+        if let AstNodeData::Block { is_file_root, ref mut nodes, ty:_ } = block.data {
             let node_idx = nodes.iter().position(|id| id == &node_id).unwrap();
             nodes.remove(node_idx);
             return Ok(node_idx);
@@ -836,13 +925,13 @@ impl Ast {
     pub fn block_insert_at_index(&mut self, block_id:NodeID, idx: usize, node: AstNode) -> Result<()> {
         self.nodes.insert(node.id.clone(), node.clone());
         let block = self.nodes.get_mut(&block_id.clone()).unwrap();
-        if let AstNodeData::Block { is_file_root, ref mut nodes } = block.data {
+        if let AstNodeData::Block { is_file_root, ref mut nodes, ty:_ } = block.data {
             nodes.insert(idx, node.id);
             return Ok(());
         }
         return Err(anyhow!(">expected a block node got : {:?}", self));
     }
-    fn infer_type_expr(
+    fn type_expression(
         &mut self,
         expr_id: NodeID,
         index_in_block: usize,
@@ -854,7 +943,7 @@ impl Ast {
             let infered_type = self.find_identifier_type(
                 expr.parent_block.clone(),
                 index_in_block as isize,
-                expr_ident,
+                expr_ident.clone(),
                 other_asts,
             )?;
             self.add_type_inference(&expr_id.clone(), infered_type.clone());
@@ -862,7 +951,7 @@ impl Ast {
 
         if expr.is_fn_def() {
             if let AstNodeData::FnDef { sign: _, ref body } = expr.data {
-                self.infer_types_block(body.to_string(), other_asts)?;
+                self.type_block(body.to_string(), other_asts)?;
             } else {
                 unreachable!()
             }
@@ -871,7 +960,7 @@ impl Ast {
         if expr.is_deref() {
             let deref_expr_id = expr.get_deref_expr()?;
             let infered_type =
-                self.infer_type_expr(deref_expr_id.clone(), index_in_block, other_asts)?;
+                self.type_expression(deref_expr_id.clone(), index_in_block, other_asts)?;
             let deref_expr = self.get_node(deref_expr_id)?;
             self.add_type_inference(&expr_id, deref_expr.type_information.get_pointer_pointee()?)
         }
@@ -879,7 +968,7 @@ impl Ast {
         if expr.is_pointer() {
             let pointer_expr_id = expr.get_pointer_expr()?;
             let infered_type =
-                self.infer_type_expr(pointer_expr_id.clone(), index_in_block, other_asts)?;
+                self.type_expression(pointer_expr_id.clone(), index_in_block, other_asts)?;
             let pointer_expr = self.get_node(pointer_expr_id)?;
             self.add_type_inference(
                 &expr_id,
@@ -920,7 +1009,7 @@ impl Ast {
         if expr.is_initialize_array() {
             let arr_elems = expr.get_array_elems()?;
             for elem_id in &arr_elems {
-                self.infer_type_expr(elem_id.clone(), index_in_block, other_asts)?;
+                self.type_expression(elem_id.clone(), index_in_block, other_asts)?;
                 let elem = self.get_node(elem_id.clone())?;
             }
             let elem_id = &arr_elems[0];
@@ -935,7 +1024,7 @@ impl Ast {
             let field_id = expr.get_namespace_field_id()?;
             let field = self.get_node(field_id)?.get_ident()?;
             let ns = self.get_node(ns_id.clone())?;
-            self.infer_type_expr(ns_id.clone(), index_in_block, other_asts)?;
+            self.type_expression(ns_id.clone(), index_in_block, other_asts)?;
             let ns_ty = self.get_node(ns_id.clone())?.type_information;
             if !ns_ty.is_type_def()
                 && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def())
@@ -948,8 +1037,8 @@ impl Ast {
                         .is_type_def())
             {
                 return Err(anyhow!(
-                    ". operator can only be used for structs and enums but you used {:?}",
-                    ns_ty
+                    ". operator can only be used for structs and enums but you used {:?} in expression: {:?}",
+                    ns_ty, ns,
                 ));
             }
 
@@ -1030,7 +1119,7 @@ impl Ast {
         }
         Ok(())
     }
-    fn infer_type_def(
+    fn type_definition(
         &mut self,
         node_id: NodeID,
         index_in_block: usize,
@@ -1039,46 +1128,119 @@ impl Ast {
         let node = self.get_node(node_id.to_string())?;
         let (_, name_id, expr_id) = node.get_def()?;
         let name = self.get_node(name_id.clone())?.get_ident()?;
-        self.infer_type_expr(expr_id.clone(), index_in_block, other_asts)?;
+        self.type_expression(expr_id.clone(), index_in_block, other_asts)?;
         let expr = self.get_node(expr_id)?;
         self.add_type_inference(&name_id.clone(), expr.type_information);
         Ok(())
     }
 
-    fn infer_type_fn_call(
+    fn type_fn_call(
         &mut self,
         node_id: NodeID,
         index_in_block: usize,
         other_asts: &Vec<Ast>,
     ) -> Result<()> {
         let fn_call_node = self.get_node(node_id.clone())?;
-        let (fn_name, args) = fn_call_node.get_fn_call()?;
-        // check fn_name ?
+        let (fn_name_id, args) = fn_call_node.get_fn_call()?;
+        let fn_name = self.get_node(fn_name_id.clone())?;
+        let fn_ty = self.find_identifier_type(fn_call_node.parent_block.clone(), index_in_block as isize, fn_name.get_ident()?, other_asts)?;
+        if fn_ty.is_unknown() {
+            return Err(anyhow!("unknown function call: {}", fn_name.get_ident()?));
+        }
         for arg_id in &args {
-            self.infer_type_expr(arg_id.clone(), index_in_block, other_asts)?;
+            self.type_expression(arg_id.clone(), index_in_block, other_asts)?;
         }
 
         Ok(())
     }
 
-    fn infer_types_block(&mut self, block_id: NodeID, other_asts: &Vec<Ast>) -> Result<()> {
+    fn type_block(&mut self, block_id: NodeID, other_asts: &Vec<Ast>) -> Result<()> {
         let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
             if node.is_def() {
-                self.infer_type_def(node.id.clone(), index, other_asts)?;
+                self.type_definition(node.id.clone(), index, other_asts)?;
                 continue;
             }
             if node.is_fn_call() {
-                self.infer_type_fn_call(node_id.clone(), index, other_asts)?;
+                self.type_fn_call(node_id.clone(), index, other_asts)?;
+                continue;
+            }
+            if node.is_if() {
+                let cases = node.get_if()?;
+                for case in cases {
+                    self.type_block(case.1, other_asts)?;
+                }
+                continue;
+            }
+            if node.is_while() {
+                let (ref cond_id, body) = node.get_while()?;
+                self.type_expression(cond_id.clone(), index, other_asts)?;
+                let cond = self.get_node(cond_id.clone())?;
+                if !cond.type_information.is_bool() {
+                    return Err(anyhow!("if condition must be a boolean but {:?}", cond.type_information));
+                }
+                self.type_block(body, other_asts)?;
+                continue;
+            }
+            if node.is_for() {
+                let (start, ref cond_id, cont, body) = node.get_for()?;
+                self.type_expression(cond_id.clone(), index, other_asts)?;
+                let cond = self.get_node(cond_id.clone())?;
+                if !cond.type_information.is_bool() {
+                    return Err(anyhow!("for loop condition must be a boolean but {:?}", cond.type_information));
+                }
+                self.type_block(body, other_asts)?;
+                continue;
+            }
+            if node.is_for_in() {
+                let (iterator_id, iterable_id, body) = node.get_for_in()?;
+                self.type_expression(iterable_id.clone(), index, other_asts)?;
+                let mut iterator = self.get_node(iterator_id)?;
+                let iterable = self.get_node(iterable_id)?;
+                if iterable.type_information.is_unknown() {
+                    return Err(anyhow!("unknown type for iterable {:?} in for in statement: {:?}", iterable, node))
+                }
+                if !iterable.type_information.is_iterable() {
+                    return Err(anyhow!("for in statement needs iterable to be either an array or dynamic array but: {:?}", iterable))
+                }
+                if iterator.is_unknown() {
+                    iterator.type_information = iterable.type_information.get_array_elem_type()?;
+                    self.nodes.insert(iterator.id.clone(), iterator.clone());
+                }
+                if iterator.type_information != iterable.type_information.get_array_elem_type()? {
+                    return Err(anyhow!("for in iterable and iterator must use same type: {:?} vs {:?}", iterator.type_information, iterable.type_information.get_array_elem_type()?))
+                }
+                let ident = AstNode {
+                    id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                    data: AstNodeData::Ident(iterator.get_ident()?),
+                    type_information: iterator.type_information.clone(),
+                    parent_block: body.clone(),
+                    tags: vec![],
+                    line: iterator.line,
+                    col: iterator.col,
+                    filename: iterator.filename.clone(),
+                };
+                self.nodes.insert(ident.id.clone(), ident.clone());
+                self.block_insert_at_index(body.clone(), 0, AstNode {
+                    id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                    data: AstNodeData::Decl(ident.id.clone()),
+                    type_information: iterator.type_information,
+                    parent_block: body.clone(),
+                    tags: vec![AstTag::NoCodeGen],
+                    line: iterator.line,
+                    col: iterator.col,
+                    filename: iterator.filename,
+                });
+                self.type_block(body, other_asts)?;
                 continue;
             }
         }
 
         Ok(())
     }
-    pub fn infer_types(&mut self, other_asts: &Vec<Ast>) -> Result<()> {
-        self.infer_types_block(self.top_level.to_string(), other_asts)?;
+    pub fn type_ast(&mut self, other_asts: &Vec<Ast>) -> Result<()> {
+        self.type_block(self.top_level.to_string(), other_asts)?;
         Ok(())
     }
     fn lower_initialize(&mut self) -> Result<()> {

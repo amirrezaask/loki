@@ -1,5 +1,5 @@
 #host "string"
-
+#load "print.loki"
 
 Human :: struct {
     age: s32,

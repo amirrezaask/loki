@@ -61,6 +61,7 @@ pub enum TokenType {
     HostDirective,
     CompilerFlagDirective,
     ForeignDirective,
+    NoCodeGenDirective,
     CVarArgsDirective,
     CString,
 
@@ -117,6 +118,7 @@ impl TokenType {
             "#host" => Self::HostDirective,
             "#compiler_flag" => Self::CompilerFlagDirective,
             "#foreign" => Self::ForeignDirective,
+            "#no_codegen" => Self::NoCodeGenDirective,
 
             "#c_varargs" => Self::CVarArgsDirective,
             "#c_string" => Self::CString,

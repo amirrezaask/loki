@@ -273,14 +273,15 @@ impl<'a> CPP<'a> {
                 Ok(format!("{} = {}", self.repr_ast_node(name.clone())?, self.repr_ast_node(val.clone())?))
             }
             AstNodeData::Decl(name) => {
-                if node.tags.contains(&AstTag::Foreign) {
+                if node.tags.contains(&AstTag::Foreign) || node.tags.contains(&AstTag::NoCodeGen) {
                     return Ok("".to_string());
                 }
                 Ok(format!("{} {}", self.repr_ast_ty(node.type_information.clone())?, self.repr_ast_node(name.clone())?))
             }
 
             AstNodeData::ForIn{iterator, iterable, body} => {
-                Ok(format!("for (auto {}: {}) {{\n{}\n}}", self.repr_ast_node(iterator.clone())?, self.repr_ast_node(iterable.clone())?, self.repr_block(body)?))
+                let ty = self.ast.get_node(iterator.clone())?.type_information;
+                Ok(format!("for ({} {}: {}) {{\n{}\n}}", self.repr_ast_ty(ty)?, self.repr_ast_node(iterator.clone())?, self.repr_ast_node(iterable.clone())?, self.repr_block(body)?))
             }
 
             AstNodeData::For{start, cond, cont, body} => {
@@ -323,11 +324,7 @@ impl<'a> CPP<'a> {
                     )),
 
                     AstNodeData::EnumTy(variants) => {
-                        Ok(format!(
-                            "enum {} {{\n{}\n}};",
-                            self.repr_ast_node(name.clone())?,
-                            self.repr_enum_variants(&variants)?
-                        ))
+                        Err(anyhow!("compiler error: enums should be lowerd into constants by this point but we got: {:?}", node))
                     }
 
                     AstNodeData::Initialize{ty: _, fields} => {

@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{
-    Ast, Type, AstNode, AstNodeData, NodeID, AstOperation, AstTag,
+    Ast, Type, AstNode, AstNodeData, NodeID, AstOperation, AstTag, BlockType,
 };
 use crate::lexer::Token;
 use crate::lexer::TokenType;
@@ -257,6 +257,7 @@ impl Parser {
             return Ok(node);
         }
         let body = self.expect_block()?;
+        self.ast.add_block_ty(body.clone(), BlockType::Function);
         let proto_ty = Type::make_fn_signature(&self.ast, &args, &ret_ty)?;
         let sign = self.new_node(self.get_id(), AstNodeData::FnType { args, ret: ret_ty.id }, proto_ty.clone(),self.current_line(), self.current_col()); //@Bug: line & col are wrong
         let fn_def = self.new_node(self.get_id(), AstNodeData::FnDef{ sign: sign.id, body: body }, proto_ty, self.current_line(), self.current_col());
@@ -983,7 +984,7 @@ impl Parser {
 
         self.block_stack.pop();
         
-        let block_node = self.new_node(block_id, AstNodeData::Block{nodes: stmts, is_file_root}, Type::NoType, self.current_line(), self.current_col()); 
+        let block_node = self.new_node(block_id, AstNodeData::Block{nodes: stmts, is_file_root, ty: BlockType::Unknown}, Type::NoType, self.current_line(), self.current_col()); 
         self.forward_token();
         Ok(block_node.id)
     }
@@ -1003,6 +1004,7 @@ impl Parser {
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
         let body = self.expect_block()?;
+        self.ast.add_block_ty(body.clone(), BlockType::ForC);
         let for_node = self.new_node(self.get_id(), 
             AstNodeData::For{start: start.id, cond: cond.id, cont: cont.id, body: body},
             Type::Unknown, self.current_line(), self.current_col()
@@ -1018,6 +1020,7 @@ impl Parser {
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block()?;
+        self.ast.add_block_ty(body.clone(), BlockType::ForIn);
         let node = self.new_node(self.get_id(), 
             AstNodeData::ForIn{iterator: iterator.id, iterable: iterable.id, body},
             Type::Unknown, self.current_line(), self.current_col()
@@ -1032,6 +1035,7 @@ impl Parser {
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block()?;
         let iterator = self.new_node(self.get_id(), AstNodeData::Ident("it".to_string()), Type::Unknown, self.current_line(), self.current_col());
+        self.ast.add_block_ty(body.clone(), BlockType::ForIn);
         let node = self.new_node(self.get_id(), 
             AstNodeData::ForIn{iterator: iterator.id, iterable: iterable.id, body},
             Type::Unknown, self.current_line(), self.current_col()
@@ -1045,7 +1049,7 @@ impl Parser {
         self.forward_token();
         let cond = self.expect_expr()?;
         if !cond.type_information.is_unknown() && cond.type_information != Type::Bool {
-             return Err(self.wrap_err(format!("if condition should be boolean but given condition is {:?}", cond.type_information)));
+            return Err(self.wrap_err(format!("if condition should be boolean but given condition is {:?}", cond.type_information)));
         }
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();

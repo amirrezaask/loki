@@ -141,7 +141,7 @@ impl Pipeline {
         let mut asts_clone = asts.clone();
         for (idx, ast) in asts.iter_mut().enumerate() {
             self.dump_ast_before(ast)?;
-            ast.infer_types(&asts_clone)?;
+            ast.type_ast(&asts_clone)?;
             self.dump_ast_after(ast)?;
             asts_clone.insert(idx, ast.clone());
         }
