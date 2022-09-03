@@ -615,6 +615,11 @@ impl Parser {
                 self.forward_token();
                 Ok(self.new_node(self.get_id(), AstNodeData::StringTy, Type::String, self.current_line(), self.current_col()))
             }
+            TokenType::Asterix | TokenType::DoubleLeftAngle => {
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                return Ok(self.new_node(self.get_id(), AstNodeData::PointerTo(expr.id), expr.type_information, self.current_line(), self.current_col()));
+            }
             TokenType::OpenParen => {
                 let before_check_fn_def_cur = self.cur;
                 if self.is_fn_def() {

@@ -155,7 +155,20 @@ impl<'a> CPP<'a> {
             let node = self.ast.get_node(node_id.clone())?;
             match &node.data {
                 AstNodeData::Decl(name_id) => {
-                    output.push(format!("\t{} {};", self.repr_ast_ty(node.type_information.clone())?, self.repr_ast_node(name_id.clone())?));
+                    match node.type_information {
+                        Type::Array(size, ty) => {
+                            if ty.is_pointer() {
+                                output.push(format!("\t{} *{}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
+                            }
+                            output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
+                        }
+                        Type::Pointer(ty) => {
+                            output.push(format!("\t{} *{};", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?));
+                        }
+                        _ => {
+                            output.push(format!("\t{} {};", self.repr_ast_ty(node.type_information.clone())?, self.repr_ast_node(name_id.clone())?));
+                        }
+                    }
                 }
                 _ => {
                     unreachable!();

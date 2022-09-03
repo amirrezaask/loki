@@ -1,0 +1,3 @@
+DynamicArray :: struct {
+    elements: [10] *void, 
+}

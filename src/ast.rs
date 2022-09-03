@@ -144,6 +144,12 @@ impl Type {
             _ => false,
         }
     }
+    pub fn is_array(&self) -> bool {
+        match self {
+            Type::Array(_, _) | Type::DynamicArray(_) => true,
+            _ => false,
+        }
+    }
     pub fn get_array_elem_type(&self) -> Result<Type> {
         match self {
             Type::Array(_, ty) | Type::DynamicArray(ty) => Ok(ty.deref().clone()),
@@ -1250,7 +1256,6 @@ impl Ast {
         Ok(())
     }
     fn lower_initialize(&mut self) -> Result<()> {
-
         Ok(())
     }
 

@@ -1,7 +1,3 @@
-when in for in or for we should check the for header for identitifers in type checker.
-
-
-
 ----- Features -----
 - dynamic array:
   - strings should be our own dynamic array impl. 
