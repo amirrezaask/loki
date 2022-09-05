@@ -294,6 +294,12 @@ impl Type {
             _ => unreachable!(),
         }
     }
+    pub fn get_fn_args(&self) -> Vec<Type> {
+        match self {
+            Type::FnType(ref args, sign) => args.clone(),
+            _ => unreachable!(),
+        }
+    }
     pub fn is_type_def_enum(&self) -> bool {
         match self {
             Type::Enum { variants: _ } => true,
@@ -1156,6 +1162,14 @@ impl Ast {
         for arg_id in &args {
             self.type_expression(arg_id.clone(), index_in_block, other_asts)?;
         }
+        let args_ty = fn_ty.get_fn_args();
+
+        // for (idx, arg_id) in args.iter().enumerate() {
+        //     let arg = self.get_node(arg_id.clone())?;
+        //     if (args_ty[idx] != arg.type_information) || (args_ty[idx] == Type::Pointer(Box::new(Type::Char)) && arg.type_information == Type::String) {
+        //         return Err(anyhow!("in file {} at {}:{} argument {} of function {} type mismatch, expected {:?} found {:?}", fn_call_node.filename, fn_call_node.line, fn_call_node.col , idx+1, fn_name.get_ident()?, args_ty[idx], arg.type_information));
+        //     }
+        // }
 
         Ok(())
     }
