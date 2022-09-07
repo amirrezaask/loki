@@ -1,7 +1,3 @@
------- refactoring ------
-- initializers should just generate code to set each field seperately ( now cpp backend handles ordering because of cpp wierd initializers)
-
-
 ----- Features -----
 - type casting using `as` keyword
 - defer
@@ -17,5 +13,3 @@
   - converting a dynamic array into c variadic array.
 - load files into a namespace
 - memory stuff
-
-
