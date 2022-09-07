@@ -960,6 +960,14 @@ impl Ast {
         }
         return Err(anyhow!("expected a block node got : {:?}", self));
     }
+    pub fn block_get_node_idx(&self, block_id: NodeID, node_id: NodeID) -> Result<usize> {
+        let block = self.nodes.get(&block_id.clone()).unwrap();
+        if let AstNodeData::Block { is_file_root, ref nodes, ty:_ } = block.data {
+            let node_idx = nodes.iter().position(|id| id == &node_id).unwrap();
+            return Ok(node_idx);
+        }
+        return Err(anyhow!("expected a block node got : {:?}", self));
+    }
     fn type_expression(
         &mut self,
         expr_id: NodeID,
@@ -1147,13 +1155,12 @@ impl Ast {
         }
         Ok(())
     }
-    fn type_decl(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
-        let decl = self.get_node(node_id)?;
-        let ident = self.get_node(decl.get_decl()?)?;
-        // println!("decl ident: {:?}", ident);
+    // fn type_decl(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
+    //     let decl = self.get_node(node_id)?;
+    //     let ident = self.get_node(decl.get_decl()?)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
     
     fn type_definition(
         &mut self,
@@ -1202,10 +1209,7 @@ impl Ast {
         let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
-            if node.is_decl() {
-                self.type_decl(node_id.clone(), index, other_asts)?;
-                continue;
-            }
+            
             if node.is_def() {
                 self.type_definition(node.id.clone(), index, other_asts)?;
                 continue;
@@ -1300,13 +1304,93 @@ impl Ast {
     }
     fn lower_initialize(&mut self) -> Result<()> {
         let node_ids: Vec<NodeID> = self.nodes.keys().map(|id| id.clone()).collect();
-        for node_id in node_ids {
-            // let node = self.get_node(node_id.clone())?;
+        for node_id in &node_ids {
+            let node = self.get_node(node_id.clone())?;
+            if !node.is_def() {
+                continue;
+            }
+            let (_, ident_id, expr_id) = node.get_def()?;
+            let expr = self.get_node(expr_id.clone())?;
+            let ident = self.get_node(ident_id.clone())?;
+            if expr.is_initialize() {
+                let mut idx = self.block_remove_node_by_id(node.parent_block.clone(), node.id.clone())?;
+                self.block_insert_at_index(node.parent_block.clone(), idx, AstNode { 
+                    id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                    data: AstNodeData::Decl {
+                        name: ident_id,
+                        ty: "".to_string(),
+                    },
+                    type_information: expr.type_information.clone(),
+                    parent_block: node.parent_block.clone(),
+                    tags: vec![],
+                    line: node.line,
+                    col: node.col, 
+                    filename: node.filename.clone() 
+                })?;
+                let field_values = expr.get_initialize_fields()?;
+                idx += 1;
+                for fv in field_values {
+                    let lhs_ns = AstNode {
+                        id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                        data: AstNodeData::Ident(ident.get_ident()?),
+                        type_information: ident.type_information.clone(),
+                        parent_block: node.parent_block.clone(),
+                        tags: vec![],
+                        line: node.line,
+                        col: node.col,
+                        filename: node.filename.clone(),
+                    };
+                    self.nodes.insert(lhs_ns.id.clone(), lhs_ns.clone());
+                    let field = self.get_node(fv.0)?;
+                    let value = self.get_node(fv.1)?;
 
-            // if node.is_initialize() {
+                    let lhs_field = AstNode {
+                        id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                        data: AstNodeData::Ident(field.get_ident()?),
+                        type_information: value.type_information.clone(),
+                        parent_block: node.parent_block.clone(),
+                        tags: vec![],
+                        line: node.line,
+                        col: node.col,
+                        filename: node.filename.clone(),
+                    };
+                    self.nodes.insert(lhs_field.id.clone(), lhs_field.clone());
 
-            // }
+                    let lhs = AstNode {
+                        id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                        data: AstNodeData::NamespaceAccess { namespace: lhs_ns.id.clone(), field: lhs_field.id.clone() },
+                        type_information: value.type_information.clone(),
+                        parent_block: node.parent_block.clone(),
+                        tags: vec![],
+                        line: node.line,
+                        col: node.col,
+                        filename: node.filename.clone(),
+                    };
+                    self.nodes.insert(lhs.id.clone(), lhs.clone());
+
+                    self.block_insert_at_index(node.parent_block.clone(), idx, AstNode { 
+                        id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
+                        data: AstNodeData::Assign { lhs: lhs.id.clone(), rhs: value.id.clone() },
+                        type_information: expr.type_information.clone(),
+                        parent_block: node.parent_block.clone(),
+                        tags: vec![],
+                        line: node.line,
+                        col: node.col, 
+                        filename: node.filename.clone()
+                    })?;
+                    idx += 1;
+                } 
+            }
         }
+
+
+        // for node_id in &node_ids {
+        //     let node = self.get_node(node_id.clone())?;
+        //     if !node.is_initialize() {
+        //         continue;
+        //     }
+
+        // }
 
         Ok(())
     }

@@ -1,14 +1,21 @@
-// #load "print"
+#load "print"
+#host "string"
 
 Human :: struct {
 	age: s32,
+	name: string
 }
 
 main :: () int {
-	human: Human;
-	human.age = 12;
-
-	// human := Human {
-	// 	age = 12,
-	// };
+	/*
+		random_name: Human;
+		randon_name.age = 12;
+		random_name.name = "amirreza"
+		printf("age : %d\n", random_name.age);
+	*/
+	printf("age : %d\n", Human {
+		age = 12,
+		name = "amirreza"
+	}.age);
+	
 }
