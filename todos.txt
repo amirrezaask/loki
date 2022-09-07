@@ -1,15 +1,14 @@
 ------ refactoring ------
-- ast type checker errors should be stacked as possible.
 - initializers should just generate code to set each field seperately ( now cpp backend handles ordering because of cpp wierd initializers)
-
 
 
 ----- Features -----
 - type casting using `as` keyword
 - defer
   *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
-- LLVM
 - unions
+- ast type checker errors should be stacked as possible.
+- LLVM
 - generics: take a look into generics.loki.notyet
 - dynamic array:
   - strings should be our own dynamic array impl. 

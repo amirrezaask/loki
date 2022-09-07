@@ -154,7 +154,7 @@ impl<'a> CPP<'a> {
         for node_id in node_tys {
             let node = self.ast.get_node(node_id.clone())?;
             match &node.data {
-                AstNodeData::Decl(name_id) => {
+                AstNodeData::Decl{name: name_id, ty: _} => {
                     match node.type_information {
                         Type::Array(size, ty) => {
                             if ty.is_pointer() {
@@ -285,7 +285,7 @@ impl<'a> CPP<'a> {
             AstNodeData::Assign{lhs: name, rhs: val} => {
                 Ok(format!("{} = {}", self.repr_ast_node(name.clone())?, self.repr_ast_node(val.clone())?))
             }
-            AstNodeData::Decl(name) => {
+            AstNodeData::Decl{name, ty: _} => {
                 if node.tags.contains(&AstTag::Foreign) || node.tags.contains(&AstTag::NoCodeGen) {
                     return Ok("".to_string());
                 }

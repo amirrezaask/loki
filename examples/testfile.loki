@@ -1,0 +1,14 @@
+// #load "print"
+
+Human :: struct {
+	age: s32,
+}
+
+main :: () int {
+	human: Human;
+	human.age = 12;
+
+	// human := Human {
+	// 	age = 12,
+	// };
+}

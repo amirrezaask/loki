@@ -34,7 +34,7 @@ impl Pipeline {
         let s = std::env::var("LOKI_MODULE_PATH")?;
         let mut paths: Vec<&str> = s.split(';').collect();
         paths.insert(0, ".");
-        for path in paths {
+        for path in &paths {
             let files = std::fs::read_dir(path);
             if files.is_err() {
                 continue;
@@ -45,13 +45,13 @@ impl Pipeline {
                     continue;
                 }
                 let file = file.unwrap();
-                if file.file_name() == name {
+                if file.file_name() == name || file.file_name() == format!("{}.{}", name, "loki").as_str() {
                     return Ok(file.path().to_str().unwrap().to_string());
                 } 
             }
         }
 
-        return Err(anyhow!("file {} not found in LOKI_MODULE_PATH", name));
+        return Err(anyhow!("file {} not found in LOKI_MODULE_PATH: {:?}", name, paths));
     }
 
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {

@@ -241,6 +241,9 @@ impl Type {
     pub fn get_struct_fields(&self) -> Result<Vec<(String, Type)>> {
         match self {
             Type::Struct { ref fields } => Ok(fields.clone()),
+            Type::TypeRef { name: _, actual_ty } => {
+                return actual_ty.get_struct_fields();
+            }
             _ => Err(anyhow!("expected struct type found: {:?}", self)),
         }
     }
@@ -371,7 +374,10 @@ pub enum AstNodeData {
         name: NodeID,
         expr: NodeID,
     },
-    Decl(NodeID),
+    Decl {
+        name: NodeID,
+        ty: NodeID,
+    },
     Assign {
         lhs: NodeID,
         rhs: NodeID,
@@ -492,6 +498,13 @@ impl AstNode {
     }
     pub fn is_ident(&self) -> bool {
         if let AstNodeData::Ident(_) = self.data {
+            return true;
+        }
+        return false;
+    }
+
+    pub fn is_struct_def(&self) -> bool {
+        if let AstNodeData::StructTy(_) = self.data {
             return true;
         }
         return false;
@@ -716,7 +729,7 @@ impl AstNode {
         return false;
     }
     pub fn is_decl(&self) -> bool {
-        if let AstNodeData::Decl(_) = self.data {
+        if let AstNodeData::Decl{name: _, ty: _} = self.data {
             return true;
         }
         return false;
@@ -739,7 +752,7 @@ impl AstNode {
         Err(anyhow!("expected AstNodeData::Def got: {:?}", self))
     }
     pub fn get_decl(&self) -> Result<NodeID> {
-        if let AstNodeData::Decl(ref ident_node_id) = self.data {
+        if let AstNodeData::Decl{name: ref ident_node_id, ty: _} = self.data {
             return Ok(ident_node_id.clone());
         }
         Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
@@ -760,7 +773,7 @@ impl AstNode {
                 return Some(name.clone());
             }
 
-            AstNodeData::Decl(ident_id) => {
+            AstNodeData::Decl{name: ident_id, ty: _ } => {
                 return Some(ident_id.clone());
             }
             _ => None,
@@ -883,6 +896,10 @@ impl Ast {
                 let name = self.get_node(name_id)?.get_ident()?;
                 if name == ident {
                     let expr = self.get_node(expr_id)?;
+                    println!("expr {:?}", expr);
+                    if expr.is_struct_def() {
+                        return Ok(Type::TypeRef { name: name.clone(), actual_ty: Box::new(expr.type_information.clone()) });
+                    }
                     return Ok(expr.type_information);
                 }
             }
@@ -941,7 +958,7 @@ impl Ast {
             nodes.insert(idx, node.id);
             return Ok(());
         }
-        return Err(anyhow!(">expected a block node got : {:?}", self));
+        return Err(anyhow!("expected a block node got : {:?}", self));
     }
     fn type_expression(
         &mut self,
@@ -1011,10 +1028,7 @@ impl Ast {
             )?;
             self.add_type_inference(
                 &expr_id,
-                Type::TypeRef {
-                    name: type_name.clone(),
-                    actual_ty: Box::new(infered_type.clone()),
-                },
+                infered_type.clone(),
             );
         }
 
@@ -1038,6 +1052,7 @@ impl Ast {
             let ns = self.get_node(ns_id.clone())?;
             self.type_expression(ns_id.clone(), index_in_block, other_asts)?;
             let ns_ty = self.get_node(ns_id.clone())?.type_information;
+            println!("ns_ty: {:?}", ns_ty);
             if !ns_ty.is_type_def()
                 && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def())
                 && !(ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def())
@@ -1056,6 +1071,7 @@ impl Ast {
 
             if ns_ty.is_struct() {
                 let mut infered_type = Type::Unknown;
+                println!("inja");
                 for (name, ty) in ns_ty.get_struct_fields()? {
                     if name == field {
                         infered_type = ty;
@@ -1131,6 +1147,14 @@ impl Ast {
         }
         Ok(())
     }
+    fn type_decl(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
+        let decl = self.get_node(node_id)?;
+        let ident = self.get_node(decl.get_decl()?)?;
+        // println!("decl ident: {:?}", ident);
+
+        Ok(())
+    }
+    
     fn type_definition(
         &mut self,
         node_id: NodeID,
@@ -1178,6 +1202,10 @@ impl Ast {
         let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
+            if node.is_decl() {
+                self.type_decl(node_id.clone(), index, other_asts)?;
+                continue;
+            }
             if node.is_def() {
                 self.type_definition(node.id.clone(), index, other_asts)?;
                 continue;
@@ -1248,9 +1276,10 @@ impl Ast {
                     filename: iterator.filename.clone(),
                 };
                 self.nodes.insert(ident.id.clone(), ident.clone());
+                println!("iterator ty: {:?}", iterable.type_information.get_array_elem_type()?);
                 self.block_insert_at_index(body.clone(), 0, AstNode {
                     id: Alphanumeric.sample_string(&mut rand::thread_rng(), 10),
-                    data: AstNodeData::Decl(ident.id.clone()),
+                    data: AstNodeData::Decl{name: ident.id.clone(), ty: "".to_string()},
                     type_information: iterator.type_information,
                     parent_block: body.clone(),
                     tags: vec![AstTag::NoCodeGen],
@@ -1270,6 +1299,15 @@ impl Ast {
         Ok(())
     }
     fn lower_initialize(&mut self) -> Result<()> {
+        let node_ids: Vec<NodeID> = self.nodes.keys().map(|id| id.clone()).collect();
+        for node_id in node_ids {
+            // let node = self.get_node(node_id.clone())?;
+
+            // if node.is_initialize() {
+
+            // }
+        }
+
         Ok(())
     }
     fn report_error(&self, msg: String, related_node: AstNode) -> anyhow::Error {
