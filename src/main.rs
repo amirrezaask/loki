@@ -5,6 +5,7 @@ mod parser;
 mod stack;
 mod lexer;
 mod pipeline;
+mod utils;
 mod ast;
 mod tests;
 // mod symbol_table;

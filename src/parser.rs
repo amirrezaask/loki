@@ -8,6 +8,7 @@ use crate::lexer::Token;
 use crate::lexer::TokenType;
 use crate::lexer::Tokenizer;
 use crate::stack::Stack;
+use crate::utils;
 use anyhow::{anyhow, Result};
 use rand::distributions::{Alphanumeric, DistString};
 const ID_LENGTH: usize = 24;
@@ -21,6 +22,7 @@ pub struct Parser {
     node_counter: i64,
     pub ast: Ast,
     block_stack: Stack<NodeID>,
+    block_index_stack: Stack<usize>,
 }
 
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
@@ -39,7 +41,7 @@ impl Parser {
         return anyhow::format_err!("In file: {}, {}, at line: {}, column: {}", self.filename, msg, self.current_token().line, self.current_token().col);
     }
     fn get_id(&self) -> String {
-        return Alphanumeric.sample_string(&mut rand::thread_rng(), 10);
+        return utils::generate_node_id();
     }
     fn new_node(&mut self, id: String, data: AstNodeData, type_annotation: Type, start_line: usize, start_col: usize) -> AstNode {
         self.node_counter += 1;
@@ -50,7 +52,8 @@ impl Parser {
             tags: vec![],
             line: start_line, col: start_col,
             parent_block: self.block_stack.top().clone(),
-            filename: self.filename.clone()
+            filename: self.filename.clone(),
+            index_in_block: self.block_index_stack.top(),
         };
         self.ast.add_node(node.clone()).unwrap();
         return node;
@@ -87,6 +90,7 @@ impl Parser {
             node_counter: 0,
             ast,
             block_stack: Stack::new(),
+            block_index_stack: Stack::new(),
         })
     }
     fn expect_ident(&mut self) -> Result<AstNode> {
@@ -981,6 +985,7 @@ impl Parser {
         let is_file_root = self.block_stack.len() == 0;
         let block_node = self.new_node(block_id.clone(), AstNodeData::Block{nodes: vec![], is_file_root, ty: BlockType::Unknown}, Type::NoType, self.current_line(), self.current_col()); 
         self.block_stack.push(block_id.clone());
+        self.block_index_stack.push(0);
         loop {
             if self.current_token().ty == TokenType::CloseBrace || self.cur >= self.tokens.len() {
                 break;
@@ -990,12 +995,15 @@ impl Parser {
             let mut block_mut = self.ast.nodes.get_mut(&block_id.clone()).unwrap();
             if let AstNodeData::Block { ref ty, ref is_file_root, ref mut nodes } = block_mut.data {
                 nodes.push(stmt.id);
-            } 
+            }
+            let idx = self.block_index_stack.pop();
+            self.block_index_stack.push(idx+1);
         }
 
         self.block_stack.pop();
         
         self.forward_token();
+        self.block_index_stack.pop();
         Ok(block_node.id)
     }
 
