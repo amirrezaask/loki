@@ -1,6 +1,5 @@
 ------ refactoring ------
 - ast type checker errors should be stacked as possible.
-- finish error-system branch
 - initializers should just generate code to set each field seperately ( now cpp backend handles ordering because of cpp wierd initializers)
 
 

@@ -1157,7 +1157,7 @@ impl Ast {
         let fn_name = self.get_node(fn_name_id.clone())?;
         let fn_ty = self.find_identifier_type(fn_call_node.parent_block.clone(), index_in_block as isize, fn_name.get_ident()?, other_asts)?;
         if fn_ty.is_unknown() {
-            return Err(anyhow!("unknown function call: {}", fn_name.get_ident()?));
+            return Err(self.report_error(format!("unknown function call: {}", fn_name.get_ident()?), fn_call_node));
         }
         for arg_id in &args {
             self.type_expression(arg_id.clone(), index_in_block, other_asts)?;
@@ -1192,7 +1192,7 @@ impl Ast {
                     self.type_expression(case.0.clone(), index, other_asts)?;
                     let cond = self.get_node(case.0.clone())?;
                     if !cond.type_information.is_bool() {
-                        return Err(anyhow!("if condition must be a boolean but {:?}", cond.type_information));
+                        return Err(self.report_error(format!("if condition must be a boolean but {:?}", cond.type_information), node));
                     }
                     self.type_block(case.1, other_asts)?;
                 }
@@ -1203,7 +1203,7 @@ impl Ast {
                 self.type_expression(cond_id.clone(), index, other_asts)?;
                 let cond = self.get_node(cond_id.clone())?;
                 if !cond.type_information.is_bool() {
-                    return Err(anyhow!("while condition must be a boolean but {:?}", cond.type_information));
+                    return Err(self.report_error(format!("while condition must be a boolean but {:?}", cond.type_information), node));
                 }
                 self.type_block(body, other_asts)?;
                 continue;
@@ -1213,7 +1213,7 @@ impl Ast {
                 self.type_expression(cond_id.clone(), index, other_asts)?;
                 let cond = self.get_node(cond_id.clone())?;
                 if !cond.type_information.is_bool() {
-                    return Err(anyhow!("for loop condition must be a boolean but {:?}", cond.type_information));
+                    return Err(self.report_error(format!("for loop condition must be a boolean but {:?}", cond.type_information), node));
                 }
                 self.type_block(body, other_asts)?;
                 continue;
@@ -1224,17 +1224,17 @@ impl Ast {
                 let mut iterator = self.get_node(iterator_id)?;
                 let iterable = self.get_node(iterable_id)?;
                 if iterable.type_information.is_unknown() {
-                    return Err(anyhow!("unknown type for iterable {:?} in for in statement: {:?}", iterable, node))
+                    return Err(self.report_error(format!("unknown type for iterable {:?} in for in statement: {:?}", iterable, node), node))
                 }
                 if !iterable.type_information.is_iterable() {
-                    return Err(anyhow!("for in statement needs iterable to be either an array or dynamic array but: {:?}", iterable))
+                    return Err(self.report_error(format!("for in statement needs iterable to be either an array or dynamic array but found: {:?}", iterable.type_information), node))
                 }
                 if iterator.is_unknown() {
                     iterator.type_information = iterable.type_information.get_array_elem_type()?;
                     self.nodes.insert(iterator.id.clone(), iterator.clone());
                 }
                 if iterator.type_information != iterable.type_information.get_array_elem_type()? {
-                    return Err(anyhow!("for in iterable and iterator must use same type: {:?} vs {:?}", iterator.type_information, iterable.type_information.get_array_elem_type()?))
+                    return Err(self.report_error(format!("for in iterable element type and iterator must use same type: {:?} vs {:?}", iterator.type_information, iterable.type_information.get_array_elem_type()?), node))
                 }
                 // add a decl at the for body scope so type inference can infer iterator type.
                 let ident = AstNode {
@@ -1271,6 +1271,9 @@ impl Ast {
     }
     fn lower_initialize(&mut self) -> Result<()> {
         Ok(())
+    }
+    fn report_error(&self, msg: String, related_node: AstNode) -> anyhow::Error {
+        return anyhow::format_err!("In file: {}, {}, at line: {}, column: {}", related_node.filename, msg, related_node.line, related_node.col);
     }
 
     fn lower_enums(&mut self) -> Result<()> {
