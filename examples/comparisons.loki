@@ -5,4 +5,7 @@ main :: () int {
     less_equal := 2 <= 2;
     greater_equal := 2 >= 2;
     not_equal := 2 != 3;
+
+
+    false_value := !true;
 }

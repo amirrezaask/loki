@@ -3,6 +3,11 @@
 DynamicArray :: struct {
     elements: [10] >>void,
 }
+
+array_add :: (array: DynamicArray, element: >>void) void {
+
+}
+
 main :: () int {
 	
 }

@@ -28,6 +28,7 @@ impl<'a> CPP<'a> {
             AstOperation::NotEqual =>  Ok("!=".to_string()),
             AstOperation::BinaryOr =>  Ok("||".to_string()),
             AstOperation::BinaryAnd =>  Ok("&&".to_string()),
+            AstOperation::Not => Ok("!".to_string()),
         }
     }
     fn repr_ast_ty(&self, ty: Type) -> Result<String> {
@@ -449,6 +450,10 @@ impl<'a> CPP<'a> {
             AstNodeData::Return(expr) => Ok(format!("return {}", self.repr_ast_node(expr.clone())?)),
             AstNodeData::Break => Ok(format!("break")),
             AstNodeData::CompilerFlags(_) => { Ok ("".to_string()) },
+            AstNodeData::Not(expr_id) => {
+                Ok(format!("!({})", self.repr_ast_node(expr_id.clone())?))
+            } 
+
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);
                 unreachable!()

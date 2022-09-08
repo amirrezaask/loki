@@ -518,7 +518,7 @@ impl Tokenizer {
                 }
                 State::SawPipe => {
                     match self.current_char() {
-                        '&' => {
+                        '|' => {
                             self.state = State::Start;
                             self.forward_char();
                             return Ok(Token::new(TokenType::DoublePipe, (self.cur - 2, self.cur - 1), self.line, self.col));
@@ -743,7 +743,7 @@ impl Tokenizer {
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(TokenType::Asterix, (self.cur - 1, self.cur - 1), self.line, self.col);
+                        let tok = Token::new(TokenType::Percent, (self.cur - 1, self.cur - 1), self.line, self.col);
                         self.state = State::Start;
                         return Ok(tok);
                     }

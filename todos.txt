@@ -1,3 +1,7 @@
+BUGS:
+- for c syntax needs type check for start part of for header.
+
+------
 - make dynamic array work through void pointers
 - make array initialize into decl + array pushes.
 - type casting using `as` keyword

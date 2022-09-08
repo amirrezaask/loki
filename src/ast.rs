@@ -345,6 +345,7 @@ pub enum AstOperation {
     NotEqual,
     BinaryAnd,
     BinaryOr,
+    Not,
 }
 pub type BitSize = usize;
 
@@ -427,6 +428,8 @@ pub enum AstNodeData {
     Bool(bool),
     Char(char),
     Ident(String),
+
+    Not(NodeID),
 
     ArrayIndex {
         arr: NodeID,
@@ -1019,15 +1022,7 @@ impl Ast {
         }
 
         if expr.is_fn_call() {
-            let fn_name_id = expr.get_fn_call_fn_name()?;
-            let fn_name = self.get_node(fn_name_id.to_string())?.get_ident()?;
-            let infered_type = self.find_identifier_type(
-                expr.parent_block.clone(),
-                index_in_block as isize,
-                fn_name,
-                other_asts,
-            )?;
-            self.add_type_inference(&expr_id.clone(), infered_type.clone());
+            self.type_fn_call(expr_id.clone(), index_in_block, other_asts)?;
         }
 
         if expr.is_initialize() {
@@ -1197,7 +1192,8 @@ impl Ast {
             self.type_expression(arg_id.clone(), index_in_block, other_asts)?;
         }
         let args_ty = fn_ty.get_fn_args();
-
+        let ret_ty = fn_ty.get_fn_ret_ty();
+        self.add_type_inference(&node_id.clone(), ret_ty);
         // for (idx, arg_id) in args.iter().enumerate() {
         //     let arg = self.get_node(arg_id.clone())?;
         //     if (args_ty[idx] != arg.type_information) || (args_ty[idx] == Type::Pointer(Box::new(Type::Char)) && arg.type_information == Type::String) {
@@ -1245,6 +1241,7 @@ impl Ast {
             }
             if node.is_for() {
                 let (start, ref cond_id, cont, body) = node.get_for()?;
+                self.type_definition(start.clone(), index, other_asts)?;
                 self.type_expression(cond_id.clone(), index, other_asts)?;
                 let cond = self.get_node(cond_id.clone())?;
                 if !cond.type_information.is_bool() {

@@ -246,7 +246,7 @@ impl Parser {
         }
         let mut ret_ty: Option<AstNode> = None;
         if self.current_token().ty != TokenType::OpenBrace {
-            ret_ty = Some(self.expect_expr()?);
+            ret_ty = Some(self.expect_type_expression()?);
         } else {
             ret_ty = Some(self.new_node(self.get_id(), AstNodeData::VoidTy, Type::Void, self.current_line(), self.current_col()));
         }
@@ -758,6 +758,12 @@ impl Parser {
                     }
                 }
             }
+
+            TokenType::Bang => {
+                self.forward_token();
+                let to_be_not_value = self.expect_expr()?;
+                return Ok(self.new_node(self.get_id(), AstNodeData::Not(to_be_not_value.id.clone()), Type::Bool, self.current_line(), self.current_col()));
+            }
             _ => {
                 return Err(self.wrap_err(format!("unknown expr: {:?}", self.current_token())));
             }
@@ -767,6 +773,7 @@ impl Parser {
     fn ast_op_from_token_type(&mut self, op: TokenType) -> Result<AstOperation> {
         match op {
             TokenType::GreaterEqual => Ok(AstOperation::GreaterEqual),
+            TokenType::Bang => Ok(AstOperation::Not),
             TokenType::LessEqual => Ok(AstOperation::LessEqual),
             TokenType::LeftAngle => Ok(AstOperation::Less),
             TokenType::RightAngle => Ok(AstOperation::Greater),
@@ -782,7 +789,6 @@ impl Parser {
 
     fn expect_expr_binary_operations(&mut self) -> Result<AstNode> {
         let lhs = self.expect_expr_namespace_access_or_array_index()?;
-
         match self.current_token().ty {
             TokenType::LeftAngle
             | TokenType::RightAngle
@@ -791,6 +797,7 @@ impl Parser {
             | TokenType::DoubleEqual
             | TokenType::DoubleAmpersand
             | TokenType::DoublePipe
+            | TokenType::Bang
             | TokenType::NotEqual => {
                 let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                 self.forward_token();
