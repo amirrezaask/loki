@@ -1,13 +1,21 @@
 // #load "print"
+#host "stdlib.h"
 
 DynamicArray :: struct {
-    elements: [10] >>void,
+    elements: *void,
+    count: int,
+    element_size: uint,
 }
 
-array_add :: (array: DynamicArray, element: >>void) void {
+dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
 
 }
+
+dynamic_array_new :: () *DynamicArray {
+
+} 
 
 main :: () int {
-	
+	// array := dynamic_array_new();
+	// dyanmic_array_add(array, 1);
 }

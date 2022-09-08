@@ -86,7 +86,7 @@ impl Type {
                 let mut fields = Vec::<(String, Type)>::new();
                 for decl_id in decls {
                     let decl = ast.get_node(decl_id.clone())?;
-                    let field_id = decl.get_decl()?;
+                    let (field_id, _) = decl.get_decl()?;
                     let field = ast.get_node(field_id)?;
                     fields.push((field.get_ident()?.clone(), decl.type_information));
                 }
@@ -98,7 +98,7 @@ impl Type {
                 let mut variants = Vec::<String>::new();
                 for decl_id in vs {
                     let decl = ast.get_node(decl_id.clone())?;
-                    let variant_id = decl.get_decl()?;
+                    let (variant_id, _) = decl.get_decl()?;
                     let variant = ast.get_node(variant_id)?;
                     variants.push(variant.get_ident()?.clone());
                 }
@@ -165,7 +165,7 @@ impl Type {
         let mut fields = Vec::<(String, Type)>::new();
         for decl_id in decls {
             let decl = ast.get_node(decl_id.clone())?;
-            let field_id = decl.get_decl()?;
+            let (field_id, _) = decl.get_decl()?;
             let field = ast.get_node(field_id)?;
             fields.push((field.get_ident()?.clone(), decl.type_information));
         }
@@ -176,7 +176,7 @@ impl Type {
         let mut variants = Vec::<String>::new();
         for decl_id in vs {
             let decl = ast.get_node(decl_id.clone())?;
-            let variant_id = decl.get_decl()?;
+            let (variant_id, _) = decl.get_decl()?;
             let variant = ast.get_node(variant_id)?;
             variants.push(variant.get_ident()?.clone());
         }
@@ -760,9 +760,9 @@ impl AstNode {
         }
         Err(anyhow!("expected AstNodeData::Def got: {:?}", self))
     }
-    pub fn get_decl(&self) -> Result<NodeID> {
-        if let AstNodeData::Decl{name: ref ident_node_id, ty: _} = self.data {
-            return Ok(ident_node_id.clone());
+    pub fn get_decl(&self) -> Result<(NodeID, NodeID)> {
+        if let AstNodeData::Decl{name: ref ident_node_id, ref ty} = self.data {
+            return Ok((ident_node_id.clone(), ty.clone()));
         }
         Err(anyhow!("expected AstNodeData::Decl got: {:?}", self))
     }
@@ -913,7 +913,7 @@ impl Ast {
             }
 
             if node.is_decl() {
-                let name_id = node.get_decl()?;
+                let (name_id, _) = node.get_decl()?;
                 let name_node = self.get_node(name_id)?;
                 let name = name_node.get_ident()?;
 
@@ -995,7 +995,14 @@ impl Ast {
         }
 
         if expr.is_fn_def() {
-            if let AstNodeData::FnDef { sign: _, ref body } = expr.data {
+            if let AstNodeData::FnDef { sign: ref sign_id, ref body } = expr.data {
+                let sign = self.get_node(sign_id.clone())?;
+                let (args, ret) = sign.get_fn_signature()?;
+                for arg in args {
+                    self.type_decl(arg, index_in_block, other_asts)?;
+                }
+                self.type_expression(ret.clone(), index_in_block, other_asts)?;
+                let ret = self.get_node(ret.clone())?;
                 self.type_block(body.to_string(), other_asts)?;
             } else {
                 unreachable!()
@@ -1153,12 +1160,19 @@ impl Ast {
         }
         Ok(())
     }
-    // fn type_decl(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
-    //     let decl = self.get_node(node_id)?;
-    //     let ident = self.get_node(decl.get_decl()?)?;
-
-    //     Ok(())
-    // }
+    fn type_decl(&mut self, node_id: NodeID, index_in_block: usize, other_asts: &Vec<Ast>) -> Result<()> {
+        let decl = self.get_node(node_id)?;
+        let (ident_id, ty_id) = decl.get_decl()?;
+        let ident = self.get_node(ident_id.clone())?.get_ident()?;
+        let ty = self.get_node(ty_id.clone())?;
+        if ty.type_information.is_unknown() {
+            self.type_expression(ty_id.clone(), index_in_block, other_asts)?;
+            let ty = self.get_node(ty_id.clone())?;
+            self.add_type_inference(&ident_id.clone(), ty.type_information.clone());
+            self.add_type_inference(&decl.id.clone(), ty.type_information);
+        }
+        Ok(())
+    }
     
     fn type_definition(
         &mut self,
@@ -1509,7 +1523,7 @@ impl Ast {
                             filename: node.filename.clone(),
                             index_in_block: idx,
                         };
-                        let variant_name_idx = self.get_node(variant.clone())?.get_decl()?;
+                        let (variant_name_idx, _) = self.get_node(variant.clone())?.get_decl()?;
                         let variant_name = self.get_node(variant_name_idx)?.get_ident()?;
                         let name = AstNode {
                             id: utils::generate_node_id(),

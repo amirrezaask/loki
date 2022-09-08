@@ -133,7 +133,7 @@ impl<'a> CPP<'a> {
         let mut output = Vec::<String>::new();
         for node_id in node_tys {
             let node = self.ast.get_node(node_id.clone())?;
-            let ident_node_id = node.get_decl()?;
+            let (ident_node_id, _) = node.get_decl()?;
             let ident_node = self.ast.get_node(ident_node_id)?;
             let name = ident_node.get_ident()?;
             output.push(format!("{} {}", self.repr_ast_ty(node.type_information.clone())?, name));
@@ -322,9 +322,10 @@ impl<'a> CPP<'a> {
                     }
                     AstNodeData::FnDef{ sign: sign_id, ref body} => { 
                         let sign = self.ast.get_node(sign_id.to_string())?;
-                        let (args, ret) = sign.get_fn_signature()?;
+                        let (args, ret_id) = sign.get_fn_signature()?;
+                        let ret = self.ast.get_node(ret_id.clone())?;
                         Ok(format!("{} {}({}) {{\n{}\n}}",
-                            self.repr_ast_node(ret.clone())?,
+                            self.repr_ast_ty(ret.type_information)?,
                             self.repr_ast_node(name.clone())?,
                             self.repr_fn_def_args(&args)?,
                             self.repr_block(body)?

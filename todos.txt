@@ -1,9 +1,9 @@
-BUGS:
-- for c syntax needs type check for start part of for header.
 
 ------
 - make dynamic array work through void pointers
-- make array initialize into decl + array pushes.
+- transform array initialize into decl + array pushes.
+- trasnform ForIn => while
+- transform For => while
 - type casting using `as` keyword
 - defer
   *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.

@@ -239,7 +239,7 @@ impl Parser {
             let name = self.expect_ident()?;
             self.expect_token(TokenType::Colon)?;
             self.forward_token();
-            let ty = self.expect_expr()?;
+            let ty = self.expect_type_expression()?;
 
             let arg = self.new_node(self.get_id(), AstNodeData::Decl{name: name.id.clone(), ty: ty.id.clone()}, Type::new(&ty, &self.ast)?, name.line, name.col);
             args.push(arg.id);
@@ -251,7 +251,6 @@ impl Parser {
             ret_ty = Some(self.new_node(self.get_id(), AstNodeData::VoidTy, Type::Void, self.current_line(), self.current_col()));
         }
         let ret_ty = ret_ty.unwrap();
-        
         if self.current_token().ty != TokenType::OpenBrace {
             // fn type only
             let proto_ty = Type::make_fn_signature(&self.ast, &args, &ret_ty)?;
@@ -623,8 +622,7 @@ impl Parser {
             }
             TokenType::Asterix | TokenType::DoubleRightAngle => {
                 self.forward_token();
-                let expr = self.expect_expr()?;
-                println!("{:?}", expr.type_information);
+                let expr = self.expect_type_expression()?;
                 return Ok(self.new_node(self.get_id(), AstNodeData::PointerTo(expr.id), Type::Pointer(Box::new(expr.type_information)), self.current_line(), self.current_col()));
             }
             TokenType::OpenParen => {
@@ -636,10 +634,18 @@ impl Parser {
 
                 self.cur = before_check_fn_def_cur;
                 self.forward_token();
-                let expr = self.expect_expr()?;
+                let expr = self.expect_type_expression()?;
                 self.expect_token(TokenType::CloseParen)?;
                 self.forward_token();
                 Ok(expr)
+            }
+            TokenType::CVarArgsDirective => {
+                self.forward_token();
+                Ok(self.new_node(self.get_id(), AstNodeData::CVarArgs, Type::CVarArgs, self.current_line(), self.current_col()))
+            }
+            TokenType::CString => {
+                self.forward_token();
+                Ok(self.new_node(self.get_id(), AstNodeData::CString, Type::CString, self.current_line(), self.current_col()))
             }
             _ => {
                 return Err(self.wrap_err(format!("expected a type expression found: {:?}", self.current_token())));
@@ -672,14 +678,7 @@ impl Parser {
                     Type::String, self.current_line(), self.current_col()
                 ))
             }
-            TokenType::CVarArgsDirective => {
-                self.forward_token();
-                Ok(self.new_node(self.get_id(), AstNodeData::CVarArgs, Type::CVarArgs, self.current_line(), self.current_col()))
-            }
-            TokenType::CString => {
-                self.forward_token();
-                Ok(self.new_node(self.get_id(), AstNodeData::CString, Type::CString, self.current_line(), self.current_col()))
-            }
+            
             TokenType::KeywordTrue => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
