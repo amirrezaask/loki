@@ -1,11 +1,13 @@
------ Features -----
+- make dynamic array work through void pointers
+- make array initialize into decl + array pushes.
 - type casting using `as` keyword
 - defer
   *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - unions
+- generics: take a look into generics.loki.notyet
+- using a block will put all it's decls into current block scope.
 - ast type checker errors should be stacked as possible.
 - LLVM
-- generics: take a look into generics.loki.notyet
 - dynamic array:
   - strings should be our own dynamic array impl. 
   - variadic args

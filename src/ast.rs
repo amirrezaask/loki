@@ -118,6 +118,10 @@ impl Type {
                 let pointee = ast.get_node(obj.clone())?;
                 return Ok(Type::Pointer(Box::new(pointee.type_information)));
             }
+            AstNodeData::PointerTo(ref obj) => {
+                let pointee = ast.get_node(obj.clone())?;
+                return Ok(Type::Pointer(Box::new(pointee.type_information)));
+            }
             AstNodeData::FnType {
                 args: ref fn_args,
                 ret: ref ret,

@@ -158,9 +158,10 @@ impl<'a> CPP<'a> {
                     match node.type_information {
                         Type::Array(size, ty) => {
                             if ty.is_pointer() {
-                                output.push(format!("\t{} *{}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
+                                output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
+                            } else {
+                                output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
                             }
-                            output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
                         }
                         Type::Pointer(ty) => {
                             output.push(format!("\t{} *{};", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?));

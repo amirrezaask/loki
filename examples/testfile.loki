@@ -1,22 +1,8 @@
 // #load "print"
 
-Human :: struct {
-	age: s32,
+DynamicArray :: struct {
+    elements: [10] >>void,
 }
-
 main :: () int {
-	/*
-		random_name: Human;
-		randon_name.age = 12;
-		random_name.name = "amirreza"
-		printf("age : %d\n", random_name.age);
-	*/
-	amirreza := Human {
-        age = 24,
-    };
-	// printf("age : %d\n", Human {
-	// 	age = 12,
-	// 	name = "amirreza"
-	// }.age);
 	
 }

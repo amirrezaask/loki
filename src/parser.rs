@@ -459,7 +459,7 @@ impl Parser {
 
                     self.expect_token(TokenType::Colon)?;
                     self.forward_token();
-                    let ty = self.expect_expr()?;
+                    let ty = self.expect_type_expression()?;
                     self.ast.add_type_inference(&name.id, Type::new(&ty, &self.ast)?);
                     let field = self.new_node(self.get_id(), AstNodeData::Decl{name: name.id, ty: ty.id.clone()}, Type::new(&ty, &self.ast)?, self.current_line(), self.current_col());
                     fields.push(field.id);
@@ -528,8 +528,8 @@ impl Parser {
                 self.forward_token();
                 let ty = self.expect_type_expression()?;
                 let node = self.new_node(self.get_id(), 
-                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: Type::Unknown },
-                    Type::Unknown, self.current_line(), self.current_col()
+                    AstNodeData::ArrayTy{length: len.extract_uint(), elem_ty: Type::new(&ty, &self.ast)? },
+                    Type::Array(10, Box::new(Type::new(&ty, &self.ast)?)), self.current_line(), self.current_col()
                 );
                 return Ok(node);
             }
@@ -621,10 +621,11 @@ impl Parser {
                 self.forward_token();
                 Ok(self.new_node(self.get_id(), AstNodeData::StringTy, Type::String, self.current_line(), self.current_col()))
             }
-            TokenType::Asterix | TokenType::DoubleLeftAngle => {
+            TokenType::Asterix | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(self.get_id(), AstNodeData::PointerTo(expr.id), expr.type_information, self.current_line(), self.current_col()));
+                println!("{:?}", expr.type_information);
+                return Ok(self.new_node(self.get_id(), AstNodeData::PointerTo(expr.id), Type::Pointer(Box::new(expr.type_information)), self.current_line(), self.current_col()));
             }
             TokenType::OpenParen => {
                 let before_check_fn_def_cur = self.cur;
