@@ -328,6 +328,7 @@ pub enum AstTag {
     IsUsedInNamespaceAccess,
     IsUsedInInitialize,
     NoCodeGen,
+    CompilerFunctionCall,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -994,19 +995,17 @@ impl Ast {
             self.add_type_inference(&expr_id.clone(), infered_type.clone());
         }
 
-        if expr.is_fn_def() {
-            if let AstNodeData::FnDef { sign: ref sign_id, ref body } = expr.data {
-                let sign = self.get_node(sign_id.clone())?;
-                let (args, ret) = sign.get_fn_signature()?;
-                for arg in args {
-                    self.type_decl(arg, index_in_block, other_asts)?;
-                }
-                self.type_expression(ret.clone(), index_in_block, other_asts)?;
-                let ret = self.get_node(ret.clone())?;
-                self.type_block(body.to_string(), other_asts)?;
-            } else {
-                unreachable!()
+        if let AstNodeData::FnDef { sign: ref sign_id, ref body } = expr.data {
+            let sign = self.get_node(sign_id.clone())?;
+            let (args, ret) = sign.get_fn_signature()?;
+            for arg in &args {
+                self.type_decl(arg.clone(), index_in_block, other_asts)?;
             }
+            self.type_expression(ret.clone(), index_in_block, other_asts)?;
+            self.type_block(body.to_string(), other_asts)?;
+            let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect(); 
+            let ret_ty = self.get_node(ret.clone())?.type_information;
+            self.add_type_inference(&expr.id.clone(), Type::FnType(arg_types, Box::new(ret_ty)));
         }
 
         if expr.is_deref() {
@@ -1197,24 +1196,44 @@ impl Ast {
     ) -> Result<()> {
         let fn_call_node = self.get_node(node_id.clone())?;
         let (fn_name_id, args) = fn_call_node.get_fn_call()?;
-        let fn_name = self.get_node(fn_name_id.clone())?;
-        let fn_ty = self.find_identifier_type(fn_call_node.parent_block.clone(), index_in_block as isize, fn_name.get_ident()?, other_asts)?;
-        if fn_ty.is_unknown() {
-            return Err(self.report_error(format!("unknown function call: {}", fn_name.get_ident()?), fn_call_node));
-        }
         for arg_id in &args {
             self.type_expression(arg_id.clone(), index_in_block, other_asts)?;
         }
+        let mut fn_ty: Option<Type> = None;
+        let mut fn_name: Option<String> = None;
+        // type compiler functions based on arguments.
+        if fn_call_node.tags.contains(&AstTag::CompilerFunctionCall) {
+            let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect(); 
+            if fn_name_id == "#cast" {
+                fn_ty = Some(Type::FnType(arg_types.clone(), Box::new(arg_types[1].clone())));
+            }
+            if fn_name_id == "#size" {
+                fn_ty = Some(Type::FnType(arg_types.clone(), Box::new(Type::UnsignedInt(64))))
+            }
+            fn_name = Some(fn_name_id);
+        } else {
+            fn_name = Some(self.get_node(fn_name_id.to_string())?.get_ident()?);
+            fn_ty = Some(self.find_identifier_type(fn_call_node.parent_block.clone(), index_in_block as isize, fn_name.as_ref().unwrap().clone(), other_asts)?);
+        }
+
+        let fn_ty = fn_ty.unwrap();
+        let fn_name = fn_name.unwrap();
+
+        if fn_ty.is_unknown() && !fn_call_node.tags.contains(&AstTag::CompilerFunctionCall) {
+            return Err(self.report_error(format!("unknown function call: {}", fn_name), fn_call_node));
+        }
         let args_ty = fn_ty.get_fn_args();
         let ret_ty = fn_ty.get_fn_ret_ty();
+        
         self.add_type_inference(&node_id.clone(), ret_ty);
         // for (idx, arg_id) in args.iter().enumerate() {
         //     let arg = self.get_node(arg_id.clone())?;
         //     if (args_ty[idx] != arg.type_information) || (args_ty[idx] == Type::Pointer(Box::new(Type::Char)) && arg.type_information == Type::String) {
-        //         return Err(anyhow!("in file {} at {}:{} argument {} of function {} type mismatch, expected {:?} found {:?}", fn_call_node.filename, fn_call_node.line, fn_call_node.col , idx+1, fn_name.get_ident()?, args_ty[idx], arg.type_information));
+        //         return Err(anyhow!("in file {} at {}:{} argument {} of function {} type mismatch, expected {:?} found {:?}", fn_call_node.filename, fn_call_node.line, fn_call_node.col , idx+1, fn_name, args_ty[idx], arg.type_information));
         //     }
         // }
 
+    
         Ok(())
     }
 
@@ -1231,6 +1250,9 @@ impl Ast {
                 self.type_fn_call(node_id.clone(), index, other_asts)?;
                 continue;
             }
+            // if node.is_return() {
+
+            // }
             if node.is_if() {
                 let cases = node.get_if()?;
                 for case in cases {

@@ -158,11 +158,7 @@ impl<'a> CPP<'a> {
                 AstNodeData::Decl{name: name_id, ty: _} => {
                     match node.type_information {
                         Type::Array(size, ty) => {
-                            if ty.is_pointer() {
-                                output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
-                            } else {
-                                output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
-                            }
+                            output.push(format!("\t{} {}[{}];", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?, size));
                         }
                         Type::Pointer(ty) => {
                             output.push(format!("\t{} *{};", self.repr_ast_ty(ty.deref().clone())?, self.repr_ast_node(name_id.clone())?));
@@ -400,7 +396,6 @@ impl<'a> CPP<'a> {
             AstNodeData::Bool(b) => Ok(format!("{}", b)),
             AstNodeData::Char(c) => Ok(format!("'{}'", c)),
             AstNodeData::Ident(s) => Ok(s.clone()),
-
             AstNodeData::Deref(ptr) => {
                 Ok(format!("(*{})", self.repr_ast_node(ptr.clone())?))
             }
@@ -435,11 +430,32 @@ impl<'a> CPP<'a> {
                 unreachable!();
             }
 
-            AstNodeData::FnCall{fn_name: name, args} => Ok(format!(
-                "{}({})",
-                self.repr_ast_node(name.clone())?,
-                self.repr_vec_node(&args, ",")?
-            )),
+            AstNodeData::FnCall{fn_name: ref name, args} => {
+                if node.tags.contains(&AstTag::CompilerFunctionCall) {
+                        if name == "#size" {
+                            Ok(format!(
+                                "sizeof({})",
+                                self.repr_vec_node(&args, ",")?
+                            ))
+                        } else if name == "#cast" {
+                            Ok(format!(
+                                "({}) ({})",
+                                self.repr_ast_ty(node.type_information)?,
+                                self.repr_ast_node(args[0].clone())?
+                            ))
+                        } else  {
+                            Err(anyhow!("unknown compile time function {}", name))
+                        }
+                    
+                    
+                } else {
+                    Ok(format!(
+                        "{}({})",
+                        self.repr_ast_node(name.clone())?,
+                        self.repr_vec_node(&args, ",")?
+                    ))    
+                }
+            },
             AstNodeData::If { ref cases } => {
                 let mut _cases = Vec::<String>::new();
                 _cases.push(format!("if ({} == true) {{\n{}\n}}", self.repr_ast_node(cases[0].0.clone())?, self.repr_block(&cases[0].1)?));

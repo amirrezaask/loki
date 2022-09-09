@@ -64,6 +64,8 @@ pub enum TokenType {
     NoCodeGenDirective,
     CVarArgsDirective,
     CString,
+    SizeDirective,
+    CastDirective,
 
     KeywordConst,
     KeywordVar,
@@ -119,6 +121,8 @@ impl TokenType {
             "#compiler_flag" => Self::CompilerFlagDirective,
             "#foreign" => Self::ForeignDirective,
             "#no_codegen" => Self::NoCodeGenDirective,
+            "#size" => Self::SizeDirective,
+            "#cast" => Self::CastDirective,
 
             "#c_varargs" => Self::CVarArgsDirective,
             "#c_string" => Self::CString,

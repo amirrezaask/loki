@@ -655,6 +655,35 @@ impl Parser {
 
     fn expect_expr_exact_expr(&mut self) -> Result<AstNode> {
         match self.current_token().ty {
+            TokenType::SizeDirective => {
+                self.forward_token();
+                self.expect_token(TokenType::OpenParen)?;
+                self.forward_token();
+                let ty = self.expect_type_expression()?;
+                
+                self.expect_token(TokenType::CloseParen)?;
+                self.forward_token();
+                let node = self.new_node(self.get_id(), AstNodeData::FnCall {fn_name: "#size".to_string(), args: vec![ty.id.clone()] }, Type::UnsignedInt(64),  self.current_line(), self.current_col());
+                let node_mut = self.ast.nodes.get_mut(&node.id.clone()).unwrap();
+                node_mut.tags.push(AstTag::CompilerFunctionCall);
+                Ok(node)
+            },
+            TokenType::CastDirective => {
+                self.forward_token();
+                self.expect_token(TokenType::OpenParen)?;
+                self.forward_token();
+
+                let expr = self.expect_expr()?;
+                self.expect_token(TokenType::Comma)?;
+                self.forward_token();
+                let ty = self.expect_type_expression()?;
+                self.expect_token(TokenType::CloseParen)?;
+                let node = self.new_node(self.get_id(), AstNodeData::FnCall{ fn_name: "#cast".to_string(), args: vec![expr.id.clone(), ty.id.clone()] }, Type::new(&ty, &self.ast)?,  self.current_line(), self.current_col());
+                let node_mut = self.ast.nodes.get_mut(&node.id.clone()).unwrap();
+                node_mut.tags.push(AstTag::CompilerFunctionCall);
+                self.forward_token();
+                Ok(node)
+            }
             TokenType::UnsignedInt => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
