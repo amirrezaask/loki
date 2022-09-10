@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.loki": "jai",
+        "cstdio": "cpp",
+        "cstdlib": "c"
+    }
+}

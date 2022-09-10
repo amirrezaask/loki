@@ -1,26 +1,44 @@
-#host "stdlib.h"
 #load "print"
+#load "c_allocator"
 
-malloc: (size: uint) *void #foreign;
+
+DEFAULT_DYNAMIC_ARRAY_SIZE :: 2;
 
 DynamicArray :: struct {
     elements: *void,
     count: int,
+    cap: s64,
     element_size: uint,
 }
 
-dynamic_array_new :: () *DynamicArray {
-	ptr := malloc(#size(DynamicArray));
-	return #cast(ptr, *DynamicArray);
+dynamic_array_new :: (element_size: uint) *DynamicArray {
+    ptr := malloc(#size(DynamicArray));
+    array := #cast(ptr, *DynamicArray)
+
+	array.cap = DEFAULT_DYNAMIC_ARRAY_SIZE;
+    array.elements = malloc(element_size*array.cap);
+    array.count = 0;
+    array.element_size = element_size;
+    return array;
 }
 
 dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
-	array.count += 1;
-    int_ptr := #cast(array.elements, int);
-    int_ptr += (array.element_size * array.count);
+    if (array.count == array.cap) {
+        array.cap *= 2;
+        array.elements = realloc(array.elements, array.cap * array.element_size);
+    }
+    a.count++;
+    array.elements[a.count] = element;
+}
+
+dynamic_array_free :: (a: *DyanmicArray) {
+    free(a.elements);
+    a.elements = NULL;
+    a.count = 0;
+    a.cap = 0;
 }
 
 main :: () int {
-	array := dynamic_array_new();
+	array := dynamic_array_new(#size(int));
 	// dyanmic_array_add(array, 1);
 }

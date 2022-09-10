@@ -1,0 +1,5 @@
+#host "stdlib.h"
+
+malloc: (size: uint) *void #foreign;
+realloc: (mem_block: *void, size: uint) *void #foreign;
+free: (mem_block: *void) void #foreign;
