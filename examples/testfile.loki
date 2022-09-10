@@ -1,26 +1,23 @@
 #host "stdlib.h"
+#load "print"
 
-// malloc: (size: uint) *void #foreign;
+malloc: (size: uint) *void #foreign;
 
+DynamicArray :: struct {
+    elements: *void,
+    count: int,
+    element_size: uint,
+}
 
+dynamic_array_new :: () *DynamicArray {
+	ptr := malloc(#size(DynamicArray));
+	return #cast(ptr, *DynamicArray);
+}
 
-// // #load "print"
+dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
+	// array.count += 1;
 
-// DynamicArray :: struct {
-//     elements: *void,
-//     count: int,
-//     element_size: uint,
-// }
-
-// dynamic_array_new :: () *DynamicArray {
-// 	ptr := malloc(#size(DynamicArray));
-// 	return #cast(ptr, *DynamicArray);
-// }
-
-// dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
-// 	array.count += 1;
-
-// }
+}
 
 
 

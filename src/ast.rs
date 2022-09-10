@@ -1357,11 +1357,17 @@ impl Ast {
         let mut symbols = HashMap::<String, Type>::new();
         for (index, node_id) in block.get_block()?.iter().enumerate() {
             let node = self.get_node(node_id.clone())?;
-            if let AstNodeData::Def { mutable, name, expr: expr_id } = node.data {
-                let name = self.get_node(name)?;
+            if let AstNodeData::Def { mutable, ref name, expr: ref expr_id } = node.data {
+                let name = self.get_node(name.clone())?;
                 self.type_definition(node.id.clone(), index, other_asts)?;
-                let expr = self.get_node(expr_id)?;
+                let expr = self.get_node(expr_id.clone())?;
                 symbols.insert(name.get_ident()?, expr.type_information);
+            }
+
+            if let AstNodeData::Decl { ref name, ref ty } = &node.data {
+                self.type_decl(node.id.clone(), index, other_asts)?;
+                let name = self.get_node(name.clone())?;
+                symbols.insert(name.get_ident()?, name.type_information);
             }
         }
         let mut block = self.nodes.get_mut(&self.top_level.clone()).unwrap();
