@@ -1,4 +1,4 @@
 DynamicArray :: struct<T> {
     count: u64,
-    data_ptr: T
+    data_ptr: *T
 }
