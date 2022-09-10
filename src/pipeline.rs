@@ -1,5 +1,6 @@
 use crate::code_gen::Backend;
 use crate::code_gen::cpp::CPP;
+use crate::utils;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::str::FromStr;
@@ -27,39 +28,13 @@ impl Pipeline {
         Self {total_lines: 0 , total_tokens: 0 }
     }
 
-    fn find_abs_path_to_file(&self, name: &str) -> Result<String> {
-        if Path::new(name).is_file() {
-            return Ok(name.to_string());
-        }
-        let s = std::env::var("LOKI_MODULE_PATH")?;
-        let mut paths: Vec<&str> = s.split(';').collect();
-        paths.insert(0, ".");
-        for path in &paths {
-            let files = std::fs::read_dir(path);
-            if files.is_err() {
-                continue;
-            }
-            let files = files.unwrap();
-            for file in files {
-                if file.is_err() {
-                    continue;
-                }
-                let file = file.unwrap();
-                if file.file_name() == name || file.file_name() == format!("{}.{}", name, "loki").as_str() {
-                    return Ok(file.path().to_str().unwrap().to_string());
-                } 
-            }
-        }
-
-        return Err(anyhow!("file {} not found in LOKI_MODULE_PATH: {:?}", name, paths));
-    }
-
     pub fn parse_file(&mut self, path: &str) -> Result<Ast> {
-        let program = std::fs::read_to_string(self.find_abs_path_to_file(path)?)?;
+        let abs_path = utils::find_abs_path_to_file(path)?;
+        let program = std::fs::read_to_string(abs_path.clone())?;
         let mut tokenizer = crate::lexer::Tokenizer::new(program.as_str());
         let tokens = tokenizer.all()?;
         self.dump_tokens(path, &tokens)?;
-        let parser = Parser::new(path.to_string(), program, tokens)?;
+        let parser = Parser::new(abs_path.to_string(), program, tokens)?;
         let ast = parser.get_ast()?;
         Ok(ast)
     }

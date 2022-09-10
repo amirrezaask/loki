@@ -416,6 +416,7 @@ pub enum AstNodeData {
         ty: BlockType,
         is_file_root: bool,
         nodes: Vec<NodeID>,
+        symbols: HashMap<String, Type>
     },
 
     StructTy(Vec<NodeID>),
@@ -529,6 +530,7 @@ impl AstNode {
         if let AstNodeData::Block {
             ty: _,
             nodes: _,
+            symbols: _,
             is_file_root,
         } = self.data
         {
@@ -555,6 +557,7 @@ impl AstNode {
         if let AstNodeData::Block {
             nodes: ref nodes,
             ty: _,
+            symbols: _,
             is_file_root: _,
         } = self.data
         {
@@ -875,7 +878,7 @@ impl Ast {
 
     pub fn add_block_ty(&mut self, node_id: NodeID, block_ty: BlockType) -> Result<()> {
         let block = self.nodes.get_mut(&node_id.clone()).unwrap();
-        if let AstNodeData::Block { ref mut ty, is_file_root, nodes: _ } = block.data {
+        if let AstNodeData::Block { symbols:_, ref mut ty, is_file_root, nodes: _ } = block.data {
             *ty = block_ty;
             return Ok(());
         }
@@ -891,39 +894,18 @@ impl Ast {
         other_asts: &Vec<Ast>,
     ) -> Result<Type> {
         let block = self.get_node(start_block.clone())?;
-        let block_nodes = block.get_block()?;
-        for (index, node_id) in block_nodes.iter().enumerate() {
-            if index_in_block > 0
-                && index > index_in_block as usize
-                && !block.block_is_file_root()?
-            {
-                break;
-            }
-
-            let node = self.get_node(node_id.clone())?;
-            if node.is_def() {
-                let (_, name_id, expr_id) = node.get_def()?;
-                let name = self.get_node(name_id)?.get_ident()?;
-                if name == ident {
-                    let expr = self.get_node(expr_id)?;
-                    if expr.is_struct_def() {
-                        return Ok(Type::TypeRef { name: name.clone(), actual_ty: Box::new(expr.type_information.clone()) });
+        if let AstNodeData::Block { ty: _, is_file_root, nodes, symbols } = block.data {
+            match symbols.get(&ident) {
+                Some(ty) => {
+                    if ty.is_struct() {
+                        return Ok(Type::TypeRef { name: ident, actual_ty: Box::new(ty.clone()) })
                     }
-                    return Ok(expr.type_information);
-                }
-            }
-
-            if node.is_decl() {
-                let (name_id, _) = node.get_decl()?;
-                let name_node = self.get_node(name_id)?;
-                let name = name_node.get_ident()?;
-
-                if name == ident {
-                    return Ok(name_node.type_information);
-                }
-            }
+                    return Ok(ty.clone());
+                },
+                None => {},
+            };
         }
-
+        
         // if we reach here we didn't find type of that identifier in the block
         if block.parent_block != "" {
             return self.find_identifier_type(block.parent_block, -1, ident, other_asts);
@@ -936,7 +918,7 @@ impl Ast {
                 let load_node = self.get_node(node_id.clone())?;
                 let path = load_node.get_load()?;
                 for ast in other_asts {
-                    if ast.filename == path {
+                    if ast.filename == utils::find_abs_path_to_file(&path)? || ast.filename == utils::find_abs_path_to_file(&format!("{}.loki", path).to_string())?  {
                         return ast.find_identifier_type(
                             ast.top_level.clone(),
                             -1,
@@ -952,7 +934,7 @@ impl Ast {
     }
     pub fn block_remove_node_by_id(&mut self, block_id: NodeID, node_id: NodeID) -> Result<usize> {
         let block = self.nodes.get_mut(&block_id.clone()).unwrap();
-        if let AstNodeData::Block { is_file_root, ref mut nodes, ty:_ } = block.data {
+        if let AstNodeData::Block { symbols:_, is_file_root, ref mut nodes, ty:_ } = block.data {
             let node_idx = nodes.iter().position(|id| id == &node_id).unwrap();
             nodes.remove(node_idx);
             return Ok(node_idx);
@@ -963,7 +945,7 @@ impl Ast {
     pub fn block_insert_at_index(&mut self, block_id:NodeID, idx: usize, node: AstNode) -> Result<()> {
         self.nodes.insert(node.id.clone(), node.clone());
         let block = self.nodes.get_mut(&block_id.clone()).unwrap();
-        if let AstNodeData::Block { is_file_root, ref mut nodes, ty:_ } = block.data {
+        if let AstNodeData::Block { symbols: _, is_file_root, ref mut nodes, ty:_ } = block.data {
             nodes.insert(idx, node.id);
             return Ok(());
         }
@@ -971,7 +953,7 @@ impl Ast {
     }
     pub fn block_get_node_idx(&self, block_id: NodeID, node_id: NodeID) -> Result<usize> {
         let block = self.nodes.get(&block_id.clone()).unwrap();
-        if let AstNodeData::Block { is_file_root, ref nodes, ty:_ } = block.data {
+        if let AstNodeData::Block { symbols:_, is_file_root, ref nodes, ty:_ } = block.data {
             let node_idx = nodes.iter().position(|id| id == &node_id).unwrap();
             return Ok(node_idx);
         }
@@ -1002,8 +984,18 @@ impl Ast {
                 self.type_decl(arg.clone(), index_in_block, other_asts)?;
             }
             self.type_expression(ret.clone(), index_in_block, other_asts)?;
+            let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect();
+            for (idx, arg) in args.iter().enumerate() {
+                let arg = self.get_node(arg.clone())?;
+                let (name, _) = arg.get_decl()?;
+                let ident = self.get_node(name)?.get_ident()?;
+                let block = self.nodes.get_mut(body).unwrap();
+                if let AstNodeData::Block { ty: _ , is_file_root, nodes, symbols } = &mut block.data {
+                    symbols.insert(ident, arg_types[idx].clone());
+                }
+            }
             self.type_block(body.to_string(), other_asts)?;
-            let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect(); 
+
             let ret_ty = self.get_node(ret.clone())?.type_information;
             self.add_type_inference(&expr.id.clone(), Type::FnType(arg_types, Box::new(ret_ty)));
         }
@@ -1168,7 +1160,11 @@ impl Ast {
             self.type_expression(ty_id.clone(), index_in_block, other_asts)?;
             let ty = self.get_node(ty_id.clone())?;
             self.add_type_inference(&ident_id.clone(), ty.type_information.clone());
-            self.add_type_inference(&decl.id.clone(), ty.type_information);
+            self.add_type_inference(&decl.id.clone(), ty.type_information.clone());
+        }
+        let block = self.nodes.get_mut(&decl.parent_block).unwrap();
+        if let AstNodeData::Block { ty: _, is_file_root, nodes, symbols } = &mut block.data {
+            symbols.insert(ident, ty.type_information);
         }
         Ok(())
     }
@@ -1184,7 +1180,11 @@ impl Ast {
         let name = self.get_node(name_id.clone())?.get_ident()?;
         self.type_expression(expr_id.clone(), index_in_block, other_asts)?;
         let expr = self.get_node(expr_id)?;
-        self.add_type_inference(&name_id.clone(), expr.type_information);
+        self.add_type_inference(&name_id.clone(), expr.type_information.clone());
+        let block = self.nodes.get_mut(&node.parent_block).unwrap();
+        if let AstNodeData::Block { ty, is_file_root, nodes, symbols } = &mut block.data {
+            symbols.insert(name, expr.type_information);
+        }
         Ok(())
     }
 
@@ -1241,101 +1241,145 @@ impl Ast {
         let mut block = self.get_node(block_id.to_string())?.get_block()?;
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
-            
-            if node.is_def() {
-                self.type_definition(node.id.clone(), index, other_asts)?;
-                continue;
-            }
-            if node.is_fn_call() {
-                self.type_fn_call(node_id.clone(), index, other_asts)?;
-                continue;
-            }
-            // if node.is_return() {
+            match node.data {
+                AstNodeData::Decl { name, ty } => {
+                    self.type_decl(node_id.clone(), index, other_asts)?;
+                },
 
-            // }
-            if node.is_if() {
-                let cases = node.get_if()?;
-                for case in cases {
-                    self.type_expression(case.0.clone(), index, other_asts)?;
-                    let cond = self.get_node(case.0.clone())?;
-                    if !cond.type_information.is_bool() {
-                        return Err(self.report_error(format!("if condition must be a boolean but {:?}", cond.type_information), node));
+                AstNodeData::FnCall { fn_name, args } => {
+                    self.type_fn_call(node_id.clone(), index, other_asts)?;
+                },
+                AstNodeData::Assign { lhs, rhs } => {
+                    self.type_expression(lhs.clone(), index, other_asts)?;
+                    self.type_expression(rhs.clone(), index, other_asts)?;
+                },
+                AstNodeData::Def { mutable, name, expr } => {
+                    self.type_definition(node.id.clone(), index, other_asts)?;
+                },
+                AstNodeData::If { ref cases } => {
+                    for case in cases {
+                        self.type_expression(case.0.clone(), index, other_asts)?;
+                        let cond = self.get_node(case.0.clone())?;
+                        if !cond.type_information.is_bool() {
+                            return Err(self.report_error(format!("if condition must be a boolean but {:?}", cond.type_information), node));
+                        }
+                        self.type_block(case.1.clone(), other_asts)?;
                     }
-                    self.type_block(case.1, other_asts)?;
-                }
-                continue;
-            }
-            if node.is_while() {
-                let (ref cond_id, body) = node.get_while()?;
-                self.type_expression(cond_id.clone(), index, other_asts)?;
-                let cond = self.get_node(cond_id.clone())?;
-                if !cond.type_information.is_bool() {
-                    return Err(self.report_error(format!("while condition must be a boolean but {:?}", cond.type_information), node));
-                }
-                self.type_block(body, other_asts)?;
-                continue;
-            }
-            if node.is_for() {
-                let (start, ref cond_id, cont, body) = node.get_for()?;
-                self.type_definition(start.clone(), index, other_asts)?;
-                self.type_expression(cond_id.clone(), index, other_asts)?;
-                let cond = self.get_node(cond_id.clone())?;
-                if !cond.type_information.is_bool() {
-                    return Err(self.report_error(format!("for loop condition must be a boolean but {:?}", cond.type_information), node));
-                }
-                self.type_block(body, other_asts)?;
-                continue;
-            }
-            if node.is_for_in() {
-                let (iterator_id, iterable_id, body) = node.get_for_in()?;
-                self.type_expression(iterable_id.clone(), index, other_asts)?;
-                let mut iterator = self.get_node(iterator_id)?;
-                let iterable = self.get_node(iterable_id)?;
-                if iterable.type_information.is_unknown() {
-                    return Err(self.report_error(format!("unknown type for iterable {:?} in for in statement: {:?}", iterable, node), node))
-                }
-                if !iterable.type_information.is_iterable() {
-                    return Err(self.report_error(format!("for in statement needs iterable to be either an array or dynamic array but found: {:?}", iterable.type_information), node))
-                }
-                if iterator.is_unknown() {
-                    iterator.type_information = iterable.type_information.get_array_elem_type()?;
-                    self.nodes.insert(iterator.id.clone(), iterator.clone());
-                }
-                if iterator.type_information != iterable.type_information.get_array_elem_type()? {
-                    return Err(self.report_error(format!("for in iterable element type and iterator must use same type: {:?} vs {:?}", iterator.type_information, iterable.type_information.get_array_elem_type()?), node))
-                }
-                // add a decl at the for body scope so type inference can infer iterator type.
-                let ident = AstNode {
-                    id: utils::generate_node_id(),
-                    data: AstNodeData::Ident(iterator.get_ident()?),
-                    type_information: iterator.type_information.clone(),
-                    parent_block: body.clone(),
-                    tags: vec![],
-                    line: iterator.line,
-                    col: iterator.col,
-                    filename: iterator.filename.clone(),
-                    index_in_block: index,
-                };
-                self.nodes.insert(ident.id.clone(), ident.clone());
-                self.block_insert_at_index(body.clone(), 0, AstNode {
-                    id: utils::generate_node_id(),
-                    data: AstNodeData::Decl{name: ident.id.clone(), ty: "".to_string()},
-                    type_information: iterator.type_information,
-                    parent_block: body.clone(),
-                    tags: vec![AstTag::NoCodeGen],
-                    line: iterator.line,
-                    col: iterator.col,
-                    filename: iterator.filename,
-                    index_in_block: 0,
-                });
-                self.type_block(body, other_asts)?;
-                continue;
+                },
+                AstNodeData::For { start: ref start_id, cond: ref cond_id, cont: ref cont_id, ref body } => {
+                    self.type_definition(start_id.clone(), index, other_asts)?;
+                    self.type_expression(cond_id.clone(), index, other_asts)?;
+                    let cond = self.get_node(cond_id.clone())?;
+                    if !cond.type_information.is_bool() {
+                        return Err(self.report_error(format!("for loop condition must be a boolean but {:?}", cond.type_information), node));
+                    }
+                    self.type_block(body.clone(), other_asts)?;
+                },
+                AstNodeData::ForIn { iterator: ref iterator_id, iterable: ref iterable_id, ref body } => {
+                    self.type_expression(iterable_id.clone(), index, other_asts)?;
+                    let mut iterator = self.get_node(iterator_id.clone())?;
+                    let iterable = self.get_node(iterable_id.clone())?;
+                    if iterable.type_information.is_unknown() {
+                        return Err(self.report_error(format!("unknown type for iterable {:?} in for in statement: {:?}", iterable, node), node))
+                    }
+                    if !iterable.type_information.is_iterable() {
+                        return Err(self.report_error(format!("for in statement needs iterable to be either an array or dynamic array but found: {:?}", iterable.type_information), node))
+                    }
+                    if iterator.is_unknown() {
+                        iterator.type_information = iterable.type_information.get_array_elem_type()?;
+                        self.nodes.insert(iterator.id.clone(), iterator.clone());
+                    }
+                    if iterator.type_information != iterable.type_information.get_array_elem_type()? {
+                        return Err(self.report_error(format!("for in iterable element type and iterator must use same type: {:?} vs {:?}", iterator.type_information, iterable.type_information.get_array_elem_type()?), node))
+                    }
+                    let block = self.nodes.get_mut(&body.clone()).unwrap();
+                    if let AstNodeData::Block { ty: _ , is_file_root, nodes, symbols } = &mut block.data {
+                        symbols.insert(iterator.get_ident()?, iterator.type_information.clone());
+                    }
+                    self.type_block(body.clone(), other_asts)?;
+                },
+                AstNodeData::While { cond: ref cond_id, ref body } => {
+                    self.type_expression(cond_id.clone(), index, other_asts)?;
+                    let cond = self.get_node(cond_id.clone())?;
+                    if !cond.type_information.is_bool() {
+                        return Err(self.report_error(format!("while condition must be a boolean but {:?}", cond.type_information), node));
+                    }
+                    self.type_block(body.clone(), other_asts)?;
+                },
+
+                AstNodeData::Return(ref expr_id) => {
+                    self.type_expression(expr_id.clone(), index, other_asts)?;
+                },
+
+
+
+
+                AstNodeData::CompilerFlags(_) => {},
+                AstNodeData::Load(_) => {},
+                AstNodeData::Host(_) => {},
+                
+                
+                AstNodeData::CVarArgs => {},
+                AstNodeData::CString => {},
+                AstNodeData::IntTy(_) => {},
+                AstNodeData::UintTy(_) => {},
+                AstNodeData::FloatTy(_) => {},
+                AstNodeData::BoolTy => {},
+                AstNodeData::StringTy => {},
+                AstNodeData::CharTy => {},
+                AstNodeData::VoidTy => {},
+                AstNodeData::ArrayTy { length, elem_ty } => {},
+                AstNodeData::FnType { args, ret } => {},
+                AstNodeData::Block { ty, is_file_root, nodes, symbols } => {},
+                AstNodeData::StructTy(_) => {},
+                AstNodeData::EnumTy(_) => {},
+                AstNodeData::Unsigned(_) => {},
+                AstNodeData::Signed(_) => {},
+                AstNodeData::StringLiteral(_) => {},
+                AstNodeData::Float(_) => {},
+                AstNodeData::Bool(_) => {},
+                AstNodeData::Char(_) => {},
+                AstNodeData::Ident(_) => {},
+                AstNodeData::Not(_) => {},
+                AstNodeData::ArrayIndex { arr, idx } => {},
+                AstNodeData::BinaryOperation { operation, left, right } => {},
+                AstNodeData::NamespaceAccess { namespace, field } => {},
+                AstNodeData::Initialize { ty, fields } => {},
+                AstNodeData::InitializeArray { elements } => {},
+                AstNodeData::FnDef { sign, body } => {},
+                
+                AstNodeData::PointerTo(_) => {},
+                AstNodeData::Deref(_) => {},
+                AstNodeData::Break => {},
+                AstNodeData::Continue => {},
+                
             }
         }
 
         Ok(())
     }
+    pub fn fill_root_symbols(&mut self, other_asts: &Vec<Ast>) -> Result<()> {
+        let mut block = self.get_node(self.top_level.clone())?;
+        let mut symbols = HashMap::<String, Type>::new();
+        for (index, node_id) in block.get_block()?.iter().enumerate() {
+            let node = self.get_node(node_id.clone())?;
+            if let AstNodeData::Def { mutable, name, expr: expr_id } = node.data {
+                let name = self.get_node(name)?;
+                self.type_definition(node.id.clone(), index, other_asts)?;
+                let expr = self.get_node(expr_id)?;
+                symbols.insert(name.get_ident()?, expr.type_information);
+            }
+        }
+        let mut block = self.nodes.get_mut(&self.top_level.clone()).unwrap();
+        if let AstNodeData::Block { ref ty, is_file_root, ref nodes, symbols: ref mut block_symbols } = &mut block.data {
+            for (key, value) in symbols {
+                block_symbols.insert(key, value);
+            }
+        }
+        Ok(())
+    }
     pub fn type_ast(&mut self, other_asts: &Vec<Ast>) -> Result<()> {
+        self.fill_root_symbols(other_asts)?;
         self.type_block(self.top_level.to_string(), other_asts)?;
         Ok(())
     }
@@ -1348,10 +1392,11 @@ impl Ast {
                 let expr = self.get_node(expr_id.clone())?;
                 let ident = self.get_node(ident_id.clone())?;
                 if expr.is_initialize() {
+                    println!("ident: {:?}", ident);
                     self.nodes.remove(&node.id.clone());
                     let mut idx = self.block_remove_node_by_id(node.parent_block.clone(), node.id.clone())?;
                     self.block_insert_at_index(node.parent_block.clone(), idx, AstNode { 
-                        id: utils::generate_node_id(),
+                        id: node.id.clone(),
                         data: AstNodeData::Decl {
                             name: ident_id,
                             ty: "".to_string(),
@@ -1420,6 +1465,8 @@ impl Ast {
                             index_in_block: idx,
                         })?;
                         idx += 1;
+                        // BUG: 
+                        // self.nodes.remove(&expr.id.clone());
                     } 
                 }
             }

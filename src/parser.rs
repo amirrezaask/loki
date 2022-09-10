@@ -1019,7 +1019,7 @@ impl Parser {
         let mut stmts = Vec::<NodeID>::new();
         let block_id = self.get_id();
         let is_file_root = self.block_stack.len() == 0;
-        let block_node = self.new_node(block_id.clone(), AstNodeData::Block{nodes: vec![], is_file_root, ty: BlockType::Unknown}, Type::NoType, self.current_line(), self.current_col()); 
+        let block_node = self.new_node(block_id.clone(), AstNodeData::Block{symbols: HashMap::new(), nodes: vec![], is_file_root, ty: BlockType::Unknown}, Type::NoType, self.current_line(), self.current_col()); 
         self.block_stack.push(block_id.clone());
         self.block_index_stack.push(0);
         loop {
@@ -1029,7 +1029,7 @@ impl Parser {
             let stmt = self.expect_stmt()?;
             self.if_semicolon_forward();
             let mut block_mut = self.ast.nodes.get_mut(&block_id.clone()).unwrap();
-            if let AstNodeData::Block { ref ty, ref is_file_root, ref mut nodes } = block_mut.data {
+            if let AstNodeData::Block { ref ty, ref is_file_root, ref mut nodes, symbols: _ } = block_mut.data {
                 nodes.push(stmt.id);
             }
             let idx = self.block_index_stack.pop();
