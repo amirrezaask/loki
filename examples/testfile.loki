@@ -15,13 +15,13 @@ dynamic_array_new :: () *DynamicArray {
 }
 
 dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
-	// array.count += 1;
+	array.count += 1;
 
 }
 
 
 
 main :: () int {
-// 	array := dynamic_array_new();
+	array := dynamic_array_new();
 // 	// dyanmic_array_add(array, 1);
 }

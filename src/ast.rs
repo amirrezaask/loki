@@ -613,36 +613,7 @@ impl AstNode {
         }
         return Err(anyhow!("expected a for in statement got {:?}", self));
     }
-    pub fn is_for(&self) -> bool {
-        if let AstNodeData::For {cond: _, body:_ , cont: _, start: _} = self.data {
-            return true;
-        }
-        return false;
-    }
-    pub fn is_while(&self) -> bool {
-        if let AstNodeData::While {cond: _, body:_} = self.data {
-            return true;
-        }
-        return false;
-    }
-    pub fn is_for_in(&self) -> bool {
-        if let AstNodeData::ForIn {iterable: _, iterator:_ , body:_} = self.data {
-            return true;
-        }
-        return false;
-    }
-    pub fn is_deref(&self) -> bool {
-        if let AstNodeData::Deref(_) = self.data {
-            return true;
-        }
-        return false;
-    }
-    pub fn get_deref_expr(&self) -> Result<NodeID> {
-        if let AstNodeData::Deref(ref expr_id) = self.data {
-            return Ok(expr_id.clone());
-        }
-        return Err(anyhow!("expected a deref expression got {:?}", self));
-    }
+    
     pub fn get_pointer_expr(&self) -> Result<NodeID> {
         if let AstNodeData::PointerTo(ref expr_id) = self.data {
             return Ok(expr_id.clone());

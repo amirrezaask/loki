@@ -142,6 +142,86 @@ impl Parser {
                 let node = self.new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: rhs.id}, Type::NoType, self.current_token().line, self.current_token().col);
                 Ok(node)
             }
+            TokenType::PlusEqual => {
+                self.forward_token();
+                let rhs = self.expect_expr()?;
+                dest.type_information = rhs.type_information.clone();
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: dest.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
+            TokenType::MinusEqual => {
+                self.forward_token();
+                let rhs = self.expect_expr()?;
+                dest.type_information = rhs.type_information.clone();
+
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Subtract, left: dest.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
+            TokenType::ModEqual => {
+                self.forward_token();
+
+                let rhs = self.expect_expr()?;
+                dest.type_information = rhs.type_information.clone();
+
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Modulu, left: dest.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
+            TokenType::MulEqual => {
+                self.forward_token();
+
+                let rhs = self.expect_expr()?;
+                dest.type_information = rhs.type_information.clone();
+
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Multiply, left: dest.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
+            TokenType::DivEqual => {
+                self.forward_token();
+                let rhs = self.expect_expr()?;
+                dest.type_information = rhs.type_information.clone();
+
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Divide, left: dest.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
+
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
+            TokenType::DoublePlus => {
+                self.forward_token();
+                let rhs = self.new_node(self.get_id(), AstNodeData::Unsigned(1), Type::UnsignedInt(64), self.current_line(), self.current_col());
+                dest.type_information = rhs.type_information.clone();
+
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: dest.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
+            TokenType::DoubleMinus => {
+                self.forward_token();
+
+                let rhs = self.new_node(self.get_id(), AstNodeData::Unsigned(1), Type::UnsignedInt(64), self.current_line(), self.current_col());
+                dest.type_information = rhs.type_information.clone();
+
+                let infered_ty = rhs.type_information;
+                let inner = self
+                    .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: dest.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
+                return Ok(self
+                    .new_node(self.get_id(), AstNodeData::Assign{lhs: dest.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
+            }
             TokenType::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
@@ -1196,112 +1276,23 @@ impl Parser {
                     | TokenType::Equal
                     | TokenType::ColonEqual
                     | TokenType::OpenBracket
-                    | TokenType::Dot => {
+                    | TokenType::Dot
+                    | TokenType::PlusEqual
+                    | TokenType::MinusEqual
+                    | TokenType::ModEqual
+                    | TokenType::MulEqual
+                    | TokenType::DivEqual
+                    | TokenType::DoublePlus
+                    | TokenType::DoubleMinus
+                    => {
                         self.backward_token();
                         let def = self.expect_def()?;
                         return Ok(def);
+
                     }
                     TokenType::OpenParen => {
                         self.backward_token();
                         self.expect_fn_call()
-                    }
-                    TokenType::PlusEqual => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-
-                        self.forward_token();
-                        let rhs = self.expect_expr()?;
-                        lhs.type_information = rhs.type_information.clone();
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
-
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
-                    }
-                    TokenType::MinusEqual => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-                        self.forward_token();
-
-                        let rhs = self.expect_expr()?;
-                        lhs.type_information = rhs.type_information.clone();
-
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Subtract, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
-                    }
-                    TokenType::ModEqual => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-                        self.forward_token();
-
-                        let rhs = self.expect_expr()?;
-                        lhs.type_information = rhs.type_information.clone();
-
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Modulu, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
-                    }
-                    TokenType::MulEqual => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-                        self.forward_token();
-
-                        let rhs = self.expect_expr()?;
-                        lhs.type_information = rhs.type_information.clone();
-
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Multiply, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
-                    }
-                    TokenType::DivEqual => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-                        self.forward_token();
-
-                        let rhs = self.expect_expr()?;
-                        lhs.type_information = rhs.type_information.clone();
-
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Divide, left: lhs.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
-
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
-                    }
-                    TokenType::DoublePlus => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-                        self.forward_token();
-                        let rhs = self.new_node(self.get_id(), AstNodeData::Unsigned(1), Type::UnsignedInt(64), self.current_line(), self.current_col());
-                        lhs.type_information = rhs.type_information.clone();
-
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: lhs.id.clone(), right:rhs.id }, infered_ty, self.current_line(), self.current_col());
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
-                    }
-                    TokenType::DoubleMinus => {
-                        self.backward_token();
-                        let mut lhs = self.expect_expr()?;
-                        self.forward_token();
-
-                        let rhs = self.new_node(self.get_id(), AstNodeData::Unsigned(1), Type::UnsignedInt(64), self.current_line(), self.current_col());
-                        lhs.type_information = rhs.type_information.clone();
-
-                        let infered_ty = rhs.type_information;
-                        let inner = self
-                            .new_node(self.get_id(), AstNodeData::BinaryOperation {operation: AstOperation::Sum, left: lhs.id.clone(), right: rhs.id }, infered_ty, self.current_line(), self.current_col());
-                        return Ok(self
-                            .new_node(self.get_id(), AstNodeData::Assign{lhs: lhs.id, rhs: inner.id}, Type::NoType, self.current_line(), self.current_col()));
                     }
                     _ => {
                         return Err(self.wrap_err(format!("expecting ident statement found: {:?}", self.current_token())));
