@@ -16,12 +16,11 @@ dynamic_array_new :: () *DynamicArray {
 
 dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
 	array.count += 1;
-
+    int_ptr := #cast(array.elements, int);
+    int_ptr += (array.element_size * array.count);
 }
-
-
 
 main :: () int {
 	array := dynamic_array_new();
-// 	// dyanmic_array_add(array, 1);
+	// dyanmic_array_add(array, 1);
 }

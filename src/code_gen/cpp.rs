@@ -415,6 +415,8 @@ impl<'a> CPP<'a> {
             AstNodeData::CharTy => Ok(format!("char")),
             AstNodeData::VoidTy => Ok(format!("void")),
 
+            AstNodeData::Paren(ref expr_id) => Ok(format!("({})", self.repr_ast_node(expr_id.clone())?)),
+
             //Expressions
             AstNodeData::BinaryOperation {operation, left, right } => {
                 Ok(format!("{} {} {}", self.repr_ast_node(left.clone())?, self.repr_ast_op(&operation)?, self.repr_ast_node(right.clone())?))

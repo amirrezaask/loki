@@ -132,7 +132,7 @@ impl Parser {
 
         Ok(())
     }
-    fn expect_def(&mut self) -> Result<AstNode> {
+    fn expect_def_decl_assignment(&mut self) -> Result<AstNode> {
         let mut dest = self.expect_expr()?;
         match self.current_token().ty {
             TokenType::Equal => {
@@ -383,7 +383,7 @@ impl Parser {
         match self.current_token().ty {
             TokenType::Dot => {
                 self.forward_token();
-                let field = self.expect_expr()?;
+                let field = self.expect_ident()?;
                 let f = self.ast.nodes.get_mut(&field.id).unwrap();
                 f.tags.push(AstTag::IsUsedInNamespaceAccess);
                 return Ok(self.new_node(self.get_id(), AstNodeData::NamespaceAccess{ namespace: container.id, field: field.id }, Type::Unknown, self.current_line(), self.current_col()));
@@ -834,7 +834,7 @@ impl Parser {
                 let expr = self.expect_expr()?;
                 self.expect_token(TokenType::CloseParen)?;
                 self.forward_token();
-                Ok(expr)
+                Ok(self.new_node(self.get_id(), AstNodeData::Paren(expr.id.clone()), expr.type_information.clone(), expr.line, expr.col))
             }
 
             TokenType::Asterix | TokenType::DoubleLeftAngle => {
@@ -1130,7 +1130,7 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<AstNode> {
-        let start = self.expect_def()?;
+        let start = self.expect_def_decl_assignment()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
         self.expect_semicolon_and_forward()?;
@@ -1286,7 +1286,7 @@ impl Parser {
                     | TokenType::DoubleMinus
                     => {
                         self.backward_token();
-                        let def = self.expect_def()?;
+                        let def = self.expect_def_decl_assignment()?;
                         return Ok(def);
 
                     }
@@ -1339,7 +1339,7 @@ impl Parser {
 
                 let starting_inside_paren = self.cur;
 
-                if self.expect_def().is_ok() {
+                if self.expect_def_decl_assignment().is_ok() {
                     self.cur = starting_inside_paren;
                     return self.expect_for_c();
                 } else {

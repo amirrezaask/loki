@@ -430,6 +430,7 @@ pub enum AstNodeData {
     Bool(bool),
     Char(char),
     Ident(String),
+    Paren(NodeID),
 
     Not(NodeID),
 
@@ -937,165 +938,129 @@ impl Ast {
         other_asts: &Vec<Ast>,
     ) -> Result<()> {
         let expr = self.get_node(expr_id.clone())?;
-        if expr.is_ident() {
-            let expr_ident = expr.get_ident()?;
-            let infered_type = self.find_identifier_type(
-                expr.parent_block.clone(),
-                index_in_block as isize,
-                expr_ident.clone(),
-                other_asts,
-            )?;
-            self.add_type_inference(&expr_id.clone(), infered_type.clone());
-        }
+        match expr.data {
+            AstNodeData::CompilerFlags(_) => {},
+            AstNodeData::Host(_) => {},
+            AstNodeData::Def { mutable, name, expr } => {},
+            AstNodeData::Decl { name, ty } => {},
+            AstNodeData::Assign { lhs, rhs } => {},
+            AstNodeData::If { cases } => {},
+            AstNodeData::For { start, cond, cont, body } => {},
+            AstNodeData::ForIn { iterator, iterable, body } => {},
+            AstNodeData::While { cond, body } => {},
+            AstNodeData::Break => {},
+            AstNodeData::Continue => {},
+            AstNodeData::Return(_) => {},
 
-        if let AstNodeData::FnDef { sign: ref sign_id, ref body } = expr.data {
-            let sign = self.get_node(sign_id.clone())?;
-            let (args, ret) = sign.get_fn_signature()?;
-            for arg in &args {
-                self.type_decl(arg.clone(), index_in_block, other_asts)?;
-            }
-            self.type_expression(ret.clone(), index_in_block, other_asts)?;
-            let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect();
-            for (idx, arg) in args.iter().enumerate() {
-                let arg = self.get_node(arg.clone())?;
-                let (name, _) = arg.get_decl()?;
-                let ident = self.get_node(name)?.get_ident()?;
-                let block = self.nodes.get_mut(body).unwrap();
-                if let AstNodeData::Block { ty: _ , is_file_root, nodes, symbols } = &mut block.data {
-                    symbols.insert(ident, arg_types[idx].clone());
-                }
-            }
-            self.type_block(body.to_string(), other_asts)?;
-
-            let ret_ty = self.get_node(ret.clone())?.type_information;
-            self.add_type_inference(&expr.id.clone(), Type::FnType(arg_types, Box::new(ret_ty)));
-        }
-
-        if let AstNodeData::Deref(ref deref_expr_id) = expr.data {
-            let infered_type =
-                self.type_expression(deref_expr_id.clone(), index_in_block, other_asts)?;
-            let deref_expr = self.get_node(deref_expr_id.clone())?;
-            self.add_type_inference(&expr_id, deref_expr.type_information.get_pointer_pointee()?)
-        }
-
-        if let AstNodeData::PointerTo(ref pointee_expr_id) = expr.data {
-            let pointer_expr_id = expr.get_pointer_expr()?;
-            let infered_type =
-                self.type_expression(pointer_expr_id.clone(), index_in_block, other_asts)?;
-            let pointer_expr = self.get_node(pointer_expr_id)?;
-            self.add_type_inference(
-                &expr_id,
-                Type::Pointer(Box::new(pointer_expr.type_information)),
-            )
-        }
-
-        if let AstNodeData::FnCall {ref fn_name, ref args } = expr.data {
-            self.type_fn_call(expr_id.clone(), index_in_block, other_asts)?;
-        }
-
-        if let AstNodeData::Initialize { ty: ref type_name_id, ref fields } = expr.data {
-            let type_name = self.get_node(type_name_id.clone())?.get_ident()?;
-            let infered_type = self.find_identifier_type(
-                expr.parent_block.clone(),
-                index_in_block as isize,
-                type_name.clone(),
-                other_asts,
-            )?;
-            self.add_type_inference(
-                &expr_id,
-                infered_type.clone(),
-            );
-        }
-
-        if let AstNodeData::InitializeArray { elements: ref arr_elems } = expr.data {
-            for elem_id in arr_elems {
-                self.type_expression(elem_id.clone(), index_in_block, other_asts)?;
-                let elem = self.get_node(elem_id.clone())?;
-            }
-            let elem_id = &arr_elems[0];
-            let elem = self.get_node(elem_id.clone())?;
+            AstNodeData::Load(_) => {},
             
-            self.add_type_inference(&expr.id, Type::Array(arr_elems.len() as u64, Box::new(elem.type_information)));
-        }
+            AstNodeData::CVarArgs => {},
+            AstNodeData::CString => {},
+            AstNodeData::IntTy(_) => {},
+            AstNodeData::UintTy(_) => {},
+            AstNodeData::FloatTy(_) => {},
+            AstNodeData::BoolTy => {},
+            AstNodeData::StringTy => {},
+            AstNodeData::CharTy => {},
+            AstNodeData::VoidTy => {},
+            AstNodeData::ArrayTy { length, elem_ty } => {},
+            AstNodeData::FnType { args, ret } => {},
+            AstNodeData::Block { ty, is_file_root, nodes, symbols } => {},
+            AstNodeData::StructTy(_) => {},
+            AstNodeData::EnumTy(_) => {},
 
-        if let AstNodeData::NamespaceAccess { namespace: ref ns_id, field: ref field_id} = expr.data {
-            // expresion is a namespace access, namespace part can be any expression but field is always an identifier.
-            let field = self.get_node(field_id.clone())?.get_ident()?;
-            let ns = self.get_node(ns_id.clone())?;
-            self.type_expression(ns_id.clone(), index_in_block, other_asts)?;
-            let ns_ty = self.get_node(ns_id.clone())?.type_information;
-            if !ns_ty.is_type_def()
-                && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def())
-                && !(ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def())
-                && !(ns_ty.is_pointer()
-                    && ns_ty.get_pointer_pointee()?.is_type_ref()
-                    && ns_ty
-                        .get_pointer_pointee()?
-                        .get_actual_ty_type_ref()?
-                        .is_type_def())
-            {
-                return Err(anyhow!(
-                    ". operator can only be used for structs and enums but you used {:?} in expression: {:?}",
-                    ns_ty, ns,
-                ));
-            }
-
-            if let Type::Struct { ref fields } = ns_ty {
-                let mut infered_type = Type::Unknown;
-                for (name, ty) in fields.iter() {
-                    if name == &field {
-                        infered_type = ty.clone();
-                    }
-                }
-                if infered_type.is_unknown() {
-                    return Err(anyhow!(
-                        "struct {:?} has no field named {}",
-                        ns_ty.clone(),
-                        field
-                    ));
-                }
+            AstNodeData::Unsigned(_) => {},
+            AstNodeData::Signed(_) => {},
+            AstNodeData::StringLiteral(_) => {},
+            AstNodeData::Float(_) => {},
+            AstNodeData::Bool(_) => {},
+            AstNodeData::Char(_) => {},
+            AstNodeData::Ident(ref ident) => {
+                let infered_type = self.find_identifier_type(
+                    expr.parent_block.clone(),
+                    index_in_block as isize,
+                    ident.clone(),
+                    other_asts,
+                )?;
                 self.add_type_inference(&expr_id.clone(), infered_type.clone());
-            } else if let Type::Enum { ref variants } = ns_ty {
-                let mut infered_type = Type::Unknown;
-                for name in variants.iter() {
-                    if name == &field {
-                        infered_type = Type::UnsignedInt(64);
-                    }
+            },
+            AstNodeData::Paren(ref expr_id) => {
+                self.type_expression(expr_id.clone(), index_in_block, other_asts)?;
+            }
+            AstNodeData::Not(ref expr_id) => {
+                self.type_expression(expr_id.clone(), index_in_block, other_asts)?;
+                let expr = self.get_node(expr_id.clone())?;
+                if !expr.type_information.is_bool() {
+                    return Err(self.report_error(format!("not needs a boolean typed expression but got {:?}", expr), expr));
                 }
-                if infered_type.is_unknown() {
+
+                self.add_type_inference(expr_id, Type::Bool);
+            },
+            AstNodeData::ArrayIndex { arr, idx } => {},
+            AstNodeData::BinaryOperation { operation, left: ref left_id, right: ref right_id } => {
+                let left = self.get_node(left_id.clone())?;
+                self.type_expression(left_id.clone(), index_in_block, other_asts)?;
+                let right = self.get_node(right_id.clone())?;
+                self.type_expression(right_id.clone(), index_in_block, other_asts)?;
+            },
+            AstNodeData::NamespaceAccess { namespace: ref ns_id, field: ref field_id } => {
+                // expresion is a namespace access, namespace part can be any expression but field is always an identifier.
+                let field = self.get_node(field_id.clone())?.get_ident()?;
+                let ns = self.get_node(ns_id.clone())?;
+                self.type_expression(ns_id.clone(), index_in_block, other_asts)?;
+                let ns_ty = self.get_node(ns_id.clone())?.type_information;
+                if !ns_ty.is_type_def()
+                    && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def())
+                    && !(ns_ty.is_pointer() && ns_ty.get_pointer_pointee()?.is_type_def())
+                    && !(ns_ty.is_pointer()
+                        && ns_ty.get_pointer_pointee()?.is_type_ref()
+                        && ns_ty
+                            .get_pointer_pointee()?
+                            .get_actual_ty_type_ref()?
+                            .is_type_def())
+                {
                     return Err(anyhow!(
-                        "enum {:?} has no variant named {}",
-                        ns_ty.clone(),
-                        field
+                        ". operator can only be used for structs and enums but you used {:?} in expression: {:?}",
+                        ns_ty, ns,
                     ));
                 }
-                self.add_type_inference(&expr_id.clone(), Type::UnsignedInt(64));
-                self.add_type_inference(&ns_id, ns_ty);
-            } else if let Type::Pointer(ref pointee_ty) = ns_ty {
-                self.add_type_inference(&ns_id, Type::Pointer(pointee_ty.clone()));
-                if let Type::Struct{ref fields} = pointee_ty.deref() {
+
+                if let Type::Struct { ref fields } = ns_ty {
                     let mut infered_type = Type::Unknown;
-                    for (name, ty) in pointee_ty.get_struct_fields()? {
-                        if name == field {
-                            infered_type = ty;
+                    for (name, ty) in fields.iter() {
+                        if name == &field {
+                            infered_type = ty.clone();
                         }
                     }
                     if infered_type.is_unknown() {
                         return Err(anyhow!(
                             "struct {:?} has no field named {}",
-                            pointee_ty.clone(),
+                            ns_ty.clone(),
                             field
                         ));
                     }
                     self.add_type_inference(&expr_id.clone(), infered_type.clone());
-                }
-
-                if let Type::TypeRef { ref name, ref actual_ty } = pointee_ty.deref() {
-                    if pointee_ty.get_actual_ty_type_ref()?.is_struct() {
+                } else if let Type::Enum { ref variants } = ns_ty {
+                    let mut infered_type = Type::Unknown;
+                    for name in variants.iter() {
+                        if name == &field {
+                            infered_type = Type::UnsignedInt(64);
+                        }
+                    }
+                    if infered_type.is_unknown() {
+                        return Err(anyhow!(
+                            "enum {:?} has no variant named {}",
+                            ns_ty.clone(),
+                            field
+                        ));
+                    }
+                    self.add_type_inference(&expr_id.clone(), Type::UnsignedInt(64));
+                    self.add_type_inference(&ns_id, ns_ty);
+                } else if let Type::Pointer(ref pointee_ty) = ns_ty {
+                    self.add_type_inference(&ns_id, Type::Pointer(pointee_ty.clone()));
+                    if let Type::Struct{ref fields} = pointee_ty.deref() {
                         let mut infered_type = Type::Unknown;
-                        for (name, ty) in
-                            pointee_ty.get_actual_ty_type_ref()?.get_struct_fields()?
-                        {
+                        for (name, ty) in pointee_ty.get_struct_fields()? {
                             if name == field {
                                 infered_type = ty;
                             }
@@ -1108,11 +1073,97 @@ impl Ast {
                             ));
                         }
                         self.add_type_inference(&expr_id.clone(), infered_type.clone());
-                    } else {
-                        return Err(anyhow!("you can only use a pointer to struct type as a namespace but you used {:?}", pointee_ty.clone()));
+                    }
+
+                    if let Type::TypeRef { ref name, ref actual_ty } = pointee_ty.deref() {
+                        if pointee_ty.get_actual_ty_type_ref()?.is_struct() {
+                            let mut infered_type = Type::Unknown;
+                            for (name, ty) in
+                                pointee_ty.get_actual_ty_type_ref()?.get_struct_fields()?
+                            {
+                                if name == field {
+                                    infered_type = ty;
+                                }
+                            }
+                            if infered_type.is_unknown() {
+                                return Err(anyhow!(
+                                    "struct {:?} has no field named {}",
+                                    pointee_ty.clone(),
+                                    field
+                                ));
+                            }
+                            self.add_type_inference(&expr_id.clone(), infered_type.clone());
+                        } else {
+                            return Err(anyhow!("you can only use a pointer to struct type as a namespace but you used {:?}", pointee_ty.clone()));
+                        }
+                    }
+                }   
+            },
+            AstNodeData::Initialize { ty: ref type_name_id, ref fields } => {
+                let type_name = self.get_node(type_name_id.clone())?.get_ident()?;
+                let infered_type = self.find_identifier_type(
+                    expr.parent_block.clone(),
+                    index_in_block as isize,
+                    type_name.clone(),
+                    other_asts,
+                )?;
+                self.add_type_inference(
+                    &expr_id,
+                    infered_type.clone(),
+                );
+            },
+            AstNodeData::InitializeArray { elements: ref arr_elems } => {
+                for elem_id in arr_elems {
+                    self.type_expression(elem_id.clone(), index_in_block, other_asts)?;
+                    let elem = self.get_node(elem_id.clone())?;
+                }
+                let elem_id = &arr_elems[0];
+                let elem = self.get_node(elem_id.clone())?;
+                
+                self.add_type_inference(&expr.id, Type::Array(arr_elems.len() as u64, Box::new(elem.type_information)));
+            },
+            AstNodeData::FnDef { sign: ref sign_id, body: ref body_id } => {
+                let sign = self.get_node(sign_id.clone())?;
+                let (args, ret) = sign.get_fn_signature()?;
+                for arg in &args {
+                    self.type_decl(arg.clone(), index_in_block, other_asts)?;
+                }
+                self.type_expression(ret.clone(), index_in_block, other_asts)?;
+                let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect();
+                for (idx, arg) in args.iter().enumerate() {
+                    let arg = self.get_node(arg.clone())?;
+                    let (name, _) = arg.get_decl()?;
+                    let ident = self.get_node(name)?.get_ident()?;
+                    let block = self.nodes.get_mut(body_id).unwrap();
+                    if let AstNodeData::Block { ty: _ , is_file_root, nodes, symbols } = &mut block.data {
+                        symbols.insert(ident, arg_types[idx].clone());
                     }
                 }
-            }
+                self.type_block(body_id.clone(), other_asts)?;
+
+                let ret_ty = self.get_node(ret.clone())?.type_information;
+                self.add_type_inference(&expr.id.clone(), Type::FnType(arg_types, Box::new(ret_ty)));
+            },
+            AstNodeData::FnCall { fn_name: _, args: _ } => {
+                self.type_fn_call(expr_id.clone(), index_in_block, other_asts)?;
+            },
+            AstNodeData::PointerTo(ref pointee_expr_id) => {
+                let pointer_expr_id = expr.get_pointer_expr()?;
+                let infered_type =
+                    self.type_expression(pointer_expr_id.clone(), index_in_block, other_asts)?;
+                let pointer_expr = self.get_node(pointer_expr_id)?;
+                self.add_type_inference(
+                    &expr_id,
+                    Type::Pointer(Box::new(pointer_expr.type_information)),
+                )
+            },
+            AstNodeData::Deref(ref deref_expr_id) => {
+                let infered_type =
+                    self.type_expression(deref_expr_id.clone(), index_in_block, other_asts)?;
+                let deref_expr = self.get_node(deref_expr_id.clone())?;
+                self.add_type_inference(&expr_id, deref_expr.type_information.get_pointer_pointee()?)
+            },
+            
         }
         Ok(())
     }
@@ -1207,6 +1258,7 @@ impl Ast {
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
             match node.data {
+                AstNodeData::Paren(_) => {}
                 AstNodeData::Decl { name, ty } => {
                     self.type_decl(node_id.clone(), index, other_asts)?;
                 },
