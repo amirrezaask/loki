@@ -277,7 +277,7 @@ impl Parser {
     fn current_col(&self) -> usize {
         return self.current_token().col;
     }
-    fn expect_fn_def(&mut self) -> Result<Node> {
+    fn expect_function_definition(&mut self) -> Result<Node> {
         self.expect_token(TokenType::OpenParen)?;
         let mut args: Vec<Index> = vec![];
         self.forward_token();
@@ -668,7 +668,7 @@ impl Parser {
                 let before_check_fn_def_cur = self.cur;
                 if self.is_fn_def() {
                     self.cur = before_check_fn_def_cur;
-                    return Ok(self.expect_fn_def()?);
+                    return Ok(self.expect_function_definition()?);
                 }
 
                 self.cur = before_check_fn_def_cur;
@@ -785,7 +785,7 @@ impl Parser {
                 let before_check_fn_def_cur = self.cur;
                 if self.is_fn_def() {
                     self.cur = before_check_fn_def_cur;
-                    return Ok(self.expect_fn_def()?);
+                    return Ok(self.expect_function_definition()?);
                 }
 
                 self.cur = before_check_fn_def_cur;
