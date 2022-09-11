@@ -31,7 +31,6 @@ dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
     dst = #cast(array.elements, int) + #cast((array.count * array.element_size), int);
     memcpy(#cast(dst, *void), element, array.element_size);
     array.count++;
-    
 }
 
 dynamic_array_free :: (a: *DynamicArray) {
