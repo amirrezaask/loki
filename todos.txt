@@ -1,4 +1,11 @@
 
+- scope/body is just another statement, parser should handle this so we can have nice things like:
+  ```
+  if true something;
+  if false somthing else somethingelse;
+  ```
+
+
 ------
 - make dynamic array work through void pointers
 - transform array initialize into decl + array pushes.

@@ -3,6 +3,7 @@ use std::default;
 use std::ops::Deref;
 
 use crate::ir::lexer::{Token, TokenType};
+use super::typer::Type;
 use crate::utils;
 use anyhow::anyhow;
 use anyhow::Result;
@@ -32,6 +33,7 @@ pub enum AstTag {
 pub struct Node {
     pub id: Index,
     pub data: NodeData,
+    pub type_information: Option<Type>,
     pub parent_block: Option<Index>,
     pub tags: Vec<AstTag>,
 
@@ -84,7 +86,7 @@ pub enum Expression {
     Float(f64),
     Bool(bool),
     Char(char),
-    Ident(String),
+    Identifier(String),
     
     Paren(Index),
 
@@ -209,14 +211,14 @@ pub enum Statement {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct HIR {
+pub struct IR {
     pub filename: String,
     pub tokens: Vec<Token>,
     pub root: Index,
     pub nodes: HashMap<Index, Node>,
 }
 
-impl HIR {
+impl IR {
     pub fn get_node(&self, index: Index) -> Result<Node> {
         return Ok(self.nodes.get(&index).unwrap().clone());
     }

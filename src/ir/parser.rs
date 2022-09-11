@@ -1,8 +1,8 @@
 #![allow(clippy::needless_return)]
 use std::collections::HashMap;
 
-use crate::ir::hir::{
-    HIR, Node, NodeData, Index, BinaryOperation, AstTag,
+use crate::ir::ir::{
+    IR, Node, NodeData, Index, BinaryOperation, AstTag,
 };
 use crate::ir::lexer::Token;
 use crate::ir::lexer::TokenType;
@@ -13,7 +13,7 @@ use anyhow::{anyhow, Result};
 use rand::Rng;
 use rand::distributions::{Alphanumeric, DistString};
 
-use super::hir::{self, Expression, Statement, TypeDefinition, UnaryOperation};
+use super::ir::{self, Expression, Statement, TypeDefinition, UnaryOperation};
 const ID_LENGTH: usize = 24;
 
 #[derive(Debug)]
@@ -23,7 +23,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     cur: usize,
     node_counter: i64,
-    hir: HIR,
+    hir: IR,
     owner_stack: Stack<Index>, 
     block_stack: Stack<Index>,
 }
@@ -57,6 +57,7 @@ impl Parser {
             line: start_line, col: start_col,
             parent_block: Some(self.block_stack.top().clone()),
             filename: self.filename.clone(),
+            type_information: None,
         };
         self.hir.nodes.insert(id, node.clone());
         return node;
@@ -78,7 +79,7 @@ impl Parser {
         src: String,
         tokens: Vec<Token>,
     ) -> Result<Self> {
-        let mut hir = HIR {
+        let mut hir = IR {
             filename: filename.clone(),
             tokens: tokens.clone(),
             root: 0,
@@ -100,7 +101,7 @@ impl Parser {
             TokenType::Ident => {
                 let name =
                     self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
-                let node = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Ident(name)), self.current_token().line, self.current_token().col);
+                let node = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Identifier(name)), self.current_token().line, self.current_token().col);
                 self.forward_token();
                 return Ok(node);
             }
@@ -828,7 +829,7 @@ impl Parser {
             TokenType::Bang => {
                 self.forward_token();
                 let to_be_not_value = self.expect_expr()?;
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::UnaryOperation{operator: hir::UnaryOperation::Not, expr: to_be_not_value.id.clone()}), self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::UnaryOperation{operator: ir::UnaryOperation::Not, expr: to_be_not_value.id.clone()}), self.current_line(), self.current_col()));
             }
             _ => {
                 return Err(self.wrap_err(format!("unknown expr: {:?}", self.current_token())));
@@ -1047,7 +1048,7 @@ impl Parser {
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block()?;
-        let iterator = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Ident("it".to_string())),  self.current_line(), self.current_col());
+        let iterator = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Identifier("it".to_string())),  self.current_line(), self.current_col());
         let node = self.new_node(self.new_entity_idx(), 
             NodeData::Statement(Statement::ForIn{iterator: iterator.id, iterable: iterable.id, body}),
              self.current_line(), self.current_col()
@@ -1258,7 +1259,7 @@ impl Parser {
         }
     }
 
-    pub fn get_ast(mut self) -> Result<HIR> {
+    pub fn get_ast(mut self) -> Result<IR> {
         let block_id = self.expect_block()?;      
         self.hir.root = block_id;
         Ok(self.hir)
