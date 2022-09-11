@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use serde::Serialize;
 use anyhow::{Result, anyhow};
@@ -127,6 +128,7 @@ impl TypedIR {
                         let expr_type = self.type_expression(*expr)?;
                         match operator {
                             UnaryOperation::Not => {
+                                self.add_type(expression_index, Type::Bool);
                                 return Ok(Type::Bool);
                             },
                         }
@@ -149,6 +151,7 @@ impl TypedIR {
                             BinaryOperation::Multiply 
                             => {
                                 if left_type == right_type {
+                                    self.add_type(expression_index, left_type.clone());
                                     return Ok(left_type);
                                 } else {
                                     unimplemented!();
@@ -163,6 +166,7 @@ impl TypedIR {
                             BinaryOperation::BinaryAnd |
                             BinaryOperation::BinaryOr => {
                                 if left_type == Type::Bool && right_type == Type::Bool {
+                                    self.add_type(expression_index, Type::Bool);
                                     return Ok(left_type);
                                 } else {
                                     unimplemented!();
@@ -177,6 +181,7 @@ impl TypedIR {
                     },
                     Expression::Initialize { ty, fields } => {
                         let initialize_type = self.resolve_type_definition(*ty)?;
+                        self.add_type(expression_index, initialize_type.clone());
                         // check if fields are valid in context of it's type.
                         return Ok(initialize_type);
                     },
@@ -184,10 +189,31 @@ impl TypedIR {
                         // do we need the type ?
                         unimplemented!()
                     },
-                    Expression::Function { args, ret_ty, body } => todo!(),
-                    Expression::FunctionCall { fn_name, args } => todo!(),
-                    Expression::PointerOf(_) => todo!(),
-                    Expression::Deref(_) => todo!(),
+                    Expression::Function { args, ret_ty, body } => {
+                        unimplemented!()
+                    },
+                    Expression::FunctionCall { fn_name, args } => {
+                        unimplemented!()
+                    },
+                    Expression::PointerOf(ref pointee) => {
+                        let pointee_type = self.type_expression(*pointee)?;
+                        self.add_type(expression_index, Type::Pointer(Box::new(pointee_type.clone())));
+                        return Ok(Type::Pointer(Box::new(pointee_type.clone())));
+                    },
+                    Expression::Deref(ref pointer) => {
+                        let pointer_type = self.type_expression(*pointer)?;
+                        match pointer_type {
+                            Type::Pointer(ref inner) => {
+                                self.add_type(expression_index, inner.deref().clone());
+                                return Ok(inner.deref().clone());
+                            },
+                            _ => {
+                                unimplemented!()
+                            }
+
+                        }
+                        
+                    },
                 }
             },
             NodeData::Statement(_) => panic!("unexpected when typing an expression {:?}", node),
