@@ -66,6 +66,8 @@ pub enum TokenType {
     CString,
     SizeDirective,
     CastDirective,
+    IntPtrDirective,
+    UintPtrDirective,
 
     KeywordConst,
     KeywordVar,
@@ -123,6 +125,8 @@ impl TokenType {
             "#no_codegen" => Self::NoCodeGenDirective,
             "#size" => Self::SizeDirective,
             "#cast" => Self::CastDirective,
+            "#intptr" => Self::IntPtrDirective,
+            "#uintptr" => Self::UintPtrDirective,
 
             "#c_varargs" => Self::CVarArgsDirective,
             "#c_string" => Self::CString,

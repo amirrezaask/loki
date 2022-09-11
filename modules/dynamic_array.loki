@@ -1,4 +1,3 @@
-#load "print"
 #load "c_allocator"
 
 DEFAULT_DYNAMIC_ARRAY_SIZE :: 2;
@@ -23,7 +22,6 @@ dynamic_array_new :: (element_size: uint) *DynamicArray {
 
 dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
     if (array.count == array.cap) {
-        // copy elements to a bigger array 
         array.cap *= 2;
         new_ptr := realloc(array.elements, array.cap * #size(*void))
         array.elements = #cast(new_ptr, **void);
@@ -43,19 +41,6 @@ dynamic_array_free :: (a: *DynamicArray) {
     a.cap = 0;
 }
 
-Human :: struct {
-    age: int
-}
-
-main :: () int {
-	array := dynamic_array_new(#size(int));
-    // amirreza := Human {
-    //     age = 10
-    // }
-    a : int = 1;
-	dyanmic_array_add(array, &a);
-    printf("array cap: %d\n", array.cap);
-    printf("array size: %d\n", array.count);
-    a_ptr := #cast(array.elements[1], *int);
-    printf("int : %d\n", *a_ptr);
+dynamic_array_get :: (a: *DynamicArray, idx: uint) *void {
+    return a.elements + (a.element_size * 0);
 }

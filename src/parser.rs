@@ -689,6 +689,14 @@ impl Parser {
                 self.forward_token();
                 Ok(self.new_node(self.get_id(), AstNodeData::BoolTy, Type::Bool, self.current_line(), self.current_col()))
             }
+            TokenType::UintPtrDirective => {
+                self.forward_token();
+                Ok(self.new_node(self.get_id(), AstNodeData::IntPtrTy, Type::UintPtr, self.current_line(), self.current_col()))
+            }
+            TokenType::IntPtrDirective => {
+                self.forward_token();
+                Ok(self.new_node(self.get_id(), AstNodeData::UintPtrTy, Type::IntPtr, self.current_line(), self.current_col()))
+            }
 
             TokenType::KeywordString => {
                 self.forward_token();

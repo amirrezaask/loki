@@ -33,6 +33,8 @@ impl<'a> CPP<'a> {
     }
     fn repr_ast_ty(&self, ty: Type) -> Result<String> {
         match ty {
+            Type::UintPtr => Ok(format!("uintptr_t")),
+            Type::IntPtr => Ok(format!("intptr_t")),
             Type::LoadedFile => {
                 Ok("".to_string())
             }

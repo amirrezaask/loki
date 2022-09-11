@@ -47,6 +47,9 @@ pub enum Type {
 
     Bool,
 
+    IntPtr,
+    UintPtr,
+
     Char,
     String,
 
@@ -417,6 +420,8 @@ pub enum AstNodeData {
 
     FloatTy(BitSize),
     BoolTy,
+    IntPtrTy,
+    UintPtrTy,
     StringTy,
     CharTy,
     VoidTy,
@@ -960,7 +965,8 @@ impl Ast {
     ) -> Result<()> {
         let expr = self.get_node(expr_id.clone())?;
         match expr.data {
-            
+            AstNodeData::IntPtrTy => {}
+            AstNodeData::UintPtrTy => {}
             AstNodeData::Size(_) => {},
             AstNodeData::Cast(_, _) => {},
             AstNodeData::CompilerFlags(_) => {},
@@ -1301,6 +1307,8 @@ impl Ast {
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
             match node.data {
+                AstNodeData::UintPtrTy => {},
+                AstNodeData::IntPtrTy => {},
                 AstNodeData::Size(_) => todo!(),
                 AstNodeData::Cast(_, _) => todo!(),
                 AstNodeData::Paren(_) => {}

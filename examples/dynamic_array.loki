@@ -1,0 +1,18 @@
+#load "print"
+#load "dynamic_array"
+
+Human :: struct {
+    age: int
+}
+
+main :: () int {
+	array := dynamic_array_new(#size(Human));
+    amirreza := Human {
+        age = 25
+    }
+	dyanmic_array_add(array, &amirreza);
+    printf("array cap: %d\n", array.cap);
+    printf("array size: %d\n", array.count);
+    first_idx := #cast(dynamic_array_get(array, 0), *Human);
+    printf("amirreza age : %d\n", *first_idx);
+}
