@@ -10,6 +10,17 @@ use rand::distributions::Alphanumeric;
 use rand::distributions::DistString;
 use serde::Serialize;
 pub type NodeID = String;
+
+pub enum EntityValue {
+    Node(AstNode),
+    Type(Type),
+}
+
+pub struct Entity {
+    idx: NodeID,
+    value: EntityValue
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct NamespaceAccessType {
     pub namespace: Box<Type>,
@@ -118,7 +129,7 @@ impl Type {
                 let pointee = ast.get_node(obj.clone())?;
                 return Ok(Type::Pointer(Box::new(pointee.type_information)));
             }
-            AstNodeData::PointerTo(ref obj) => {
+            AstNodeData::PointerOf(ref obj) => {
                 let pointee = ast.get_node(obj.clone())?;
                 return Ok(Type::Pointer(Box::new(pointee.type_information)));
             }
@@ -136,6 +147,10 @@ impl Type {
                 return Ok(Type::FnType(args, Box::new(ret)));
             }
             AstNodeData::VoidTy => Ok(Type::Void),
+            AstNodeData::PointerTy(ref node) => {
+                let n = ast.get_node(node.clone())?;
+                Ok(Type::Pointer(Box::new(n.type_information)))
+            }
             AstNodeData::ArrayTy {
                 length,
                 ref elem_ty,
@@ -377,6 +392,8 @@ pub enum AstNodeData {
     CompilerFlags(String),
     Load(String),
     Host(String),
+    Size(NodeID),
+    Cast(NodeID, Type),
     Def {
         mutable: bool,
         name: NodeID,
@@ -403,6 +420,7 @@ pub enum AstNodeData {
     StringTy,
     CharTy,
     VoidTy,
+    PointerTy(NodeID),
     ArrayTy {
         length: u64,
         elem_ty: Type,
@@ -468,7 +486,7 @@ pub enum AstNodeData {
         args: Vec<NodeID>,
     },
 
-    PointerTo(NodeID),
+    PointerOf(NodeID),
     Deref(NodeID),
 
     If {
@@ -616,7 +634,7 @@ impl AstNode {
     }
     
     pub fn get_pointer_expr(&self) -> Result<NodeID> {
-        if let AstNodeData::PointerTo(ref expr_id) = self.data {
+        if let AstNodeData::PointerOf(ref expr_id) = self.data {
             return Ok(expr_id.clone());
         }
         return Err(anyhow!("expected a pointer to expression got {:?}", self));
@@ -697,7 +715,7 @@ impl AstNode {
         Err(anyhow!("expected AstNodeData::FnCall got: {:?}", self))
     }
     pub fn is_pointer(&self) -> bool {
-        if let AstNodeData::PointerTo(_) = self.data {
+        if let AstNodeData::PointerOf(_) = self.data {
             return true;
         }
         return false;
@@ -891,12 +909,15 @@ impl Ast {
                 let path = load_node.get_load()?;
                 for ast in other_asts {
                     if ast.filename == utils::find_abs_path_to_file(&path)? || ast.filename == utils::find_abs_path_to_file(&format!("{}.loki", path).to_string())?  {
-                        return ast.find_identifier_type(
+                        let ty = ast.find_identifier_type(
                             ast.top_level.clone(),
                             -1,
                             ident.clone(),
                             other_asts,
-                        );
+                        )?;
+                        if !ty.is_unknown() {
+                            return Ok(ty);
+                        }
                     }
                 }
             }
@@ -939,6 +960,9 @@ impl Ast {
     ) -> Result<()> {
         let expr = self.get_node(expr_id.clone())?;
         match expr.data {
+            
+            AstNodeData::Size(_) => {},
+            AstNodeData::Cast(_, _) => {},
             AstNodeData::CompilerFlags(_) => {},
             AstNodeData::Host(_) => {},
             AstNodeData::Def { mutable, name, expr } => {},
@@ -963,8 +987,26 @@ impl Ast {
             AstNodeData::StringTy => {},
             AstNodeData::CharTy => {},
             AstNodeData::VoidTy => {},
-            AstNodeData::ArrayTy { length, elem_ty } => {},
-            AstNodeData::FnType { args, ret } => {},
+            AstNodeData::ArrayTy { length, elem_ty } => {
+            },
+            AstNodeData::PointerTy(ref pointee_id) => {
+                self.type_expression(pointee_id.clone(), index_in_block, other_asts)?;
+                let pointee = self.get_node(pointee_id.clone())?;
+                self.add_type_inference(&expr_id.clone(), Type::Pointer(Box::new(pointee.type_information)));
+            },
+            AstNodeData::FnType { ref args, ref ret } => {
+                for arg in args {
+                    self.type_decl(arg.clone(), index_in_block, other_asts)?;
+                }
+                self.type_expression(ret.clone(), index_in_block, other_asts)?;
+                let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect();
+                for (idx, arg) in args.iter().enumerate() {
+                    let arg = self.get_node(arg.clone())?;
+                    let (name, _) = arg.get_decl()?;
+                    let ident = self.get_node(name)?.get_ident()?;
+                }
+                self.add_type_inference(&expr.id.clone(), Type::FnType(arg_types, Box::new(self.get_node(ret.clone())?.type_information)));
+            },
             AstNodeData::Block { ty, is_file_root, nodes, symbols } => {},
             AstNodeData::StructTy(_) => {},
             AstNodeData::EnumTy(_) => {},
@@ -996,7 +1038,10 @@ impl Ast {
 
                 self.add_type_inference(expr_id, Type::Bool);
             },
-            AstNodeData::ArrayIndex { arr, idx } => {},
+            AstNodeData::ArrayIndex { arr, idx } => {
+                self.type_expression(arr, index_in_block, other_asts)?;
+                self.type_expression(idx, index_in_block, other_asts)?;
+            },
             AstNodeData::BinaryOperation { operation, left: ref left_id, right: ref right_id } => {
                 let left = self.get_node(left_id.clone())?;
                 self.type_expression(left_id.clone(), index_in_block, other_asts)?;
@@ -1006,8 +1051,8 @@ impl Ast {
             AstNodeData::NamespaceAccess { namespace: ref ns_id, field: ref field_id } => {
                 // expresion is a namespace access, namespace part can be any expression but field is always an identifier.
                 let field = self.get_node(field_id.clone())?.get_ident()?;
-                let ns = self.get_node(ns_id.clone())?;
                 self.type_expression(ns_id.clone(), index_in_block, other_asts)?;
+                let ns = self.get_node(ns_id.clone())?;
                 let ns_ty = self.get_node(ns_id.clone())?.type_information;
                 if !ns_ty.is_type_def()
                     && !(ns_ty.is_type_ref() && ns_ty.get_actual_ty_type_ref()?.is_type_def())
@@ -1147,7 +1192,7 @@ impl Ast {
             AstNodeData::FnCall { fn_name: _, args: _ } => {
                 self.type_fn_call(expr_id.clone(), index_in_block, other_asts)?;
             },
-            AstNodeData::PointerTo(ref pointee_expr_id) => {
+            AstNodeData::PointerOf(ref pointee_expr_id) => {
                 let pointer_expr_id = expr.get_pointer_expr()?;
                 let infered_type =
                     self.type_expression(pointer_expr_id.clone(), index_in_block, other_asts)?;
@@ -1163,6 +1208,7 @@ impl Ast {
                 let deref_expr = self.get_node(deref_expr_id.clone())?;
                 self.add_type_inference(&expr_id, deref_expr.type_information.get_pointer_pointee()?)
             },
+
             
         }
         Ok(())
@@ -1172,12 +1218,10 @@ impl Ast {
         let (ident_id, ty_id) = decl.get_decl()?;
         let ident = self.get_node(ident_id.clone())?.get_ident()?;
         let ty = self.get_node(ty_id.clone())?;
-        if ty.type_information.is_unknown() {
-            self.type_expression(ty_id.clone(), index_in_block, other_asts)?;
-            let ty = self.get_node(ty_id.clone())?;
-            self.add_type_inference(&ident_id.clone(), ty.type_information.clone());
-            self.add_type_inference(&decl.id.clone(), ty.type_information.clone());
-        }
+        self.type_expression(ty_id.clone(), index_in_block, other_asts)?;
+        let ty = self.get_node(ty_id.clone())?;
+        self.add_type_inference(&ident_id.clone(), ty.type_information.clone());
+        self.add_type_inference(&decl.id.clone(), ty.type_information.clone());
         let block = self.nodes.get_mut(&decl.parent_block).unwrap();
         if let AstNodeData::Block { ty: _, is_file_root, nodes, symbols } = &mut block.data {
             symbols.insert(ident, ty.type_information);
@@ -1212,7 +1256,7 @@ impl Ast {
     ) -> Result<()> {
         let fn_call_node = self.get_node(node_id.clone())?;
         let (fn_name_id, args) = fn_call_node.get_fn_call()?;
-        for arg_id in &args {
+        for (idx, arg_id) in args.iter().enumerate() {
             self.type_expression(arg_id.clone(), index_in_block, other_asts)?;
         }
         let mut fn_ty: Option<Type> = None;
@@ -1222,8 +1266,7 @@ impl Ast {
             let arg_types: Vec<Type> = args.iter().map(|arg_id| self.get_node(arg_id.clone()).unwrap()).map(|arg| arg.type_information).collect(); 
             if fn_name_id == "#cast" {
                 fn_ty = Some(Type::FnType(arg_types.clone(), Box::new(arg_types[1].clone())));
-            }
-            if fn_name_id == "#size" {
+            } else if fn_name_id == "#size" {
                 fn_ty = Some(Type::FnType(arg_types.clone(), Box::new(Type::UnsignedInt(64))))
             }
             fn_name = Some(fn_name_id);
@@ -1258,6 +1301,8 @@ impl Ast {
         for (index, node_id) in block.iter().enumerate() {
             let node = self.get_node(node_id.to_string())?;
             match node.data {
+                AstNodeData::Size(_) => todo!(),
+                AstNodeData::Cast(_, _) => todo!(),
                 AstNodeData::Paren(_) => {}
                 AstNodeData::Decl { name, ty } => {
                     self.type_decl(node_id.clone(), index, other_asts)?;
@@ -1365,11 +1410,12 @@ impl Ast {
                 AstNodeData::InitializeArray { elements } => {},
                 AstNodeData::FnDef { sign, body } => {},
                 
-                AstNodeData::PointerTo(_) => {},
+                AstNodeData::PointerOf(_) => {},
                 AstNodeData::Deref(_) => {},
                 AstNodeData::Break => {},
                 AstNodeData::Continue => {},
-                
+                AstNodeData::PointerTy(_) => {},
+
             }
         }
 

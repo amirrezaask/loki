@@ -132,7 +132,7 @@ impl Parser {
 
         Ok(())
     }
-    fn expect_def_decl_assignment(&mut self) -> Result<AstNode> {
+    fn expect_definition_declaration_assignment(&mut self) -> Result<AstNode> {
         let mut dest = self.expect_expr()?;
         match self.current_token().ty {
             TokenType::Equal => {
@@ -378,7 +378,7 @@ impl Parser {
         }
         Ok(self.new_node(self.get_id(), AstNodeData::FnCall{fn_name: name.id, args}, Type::Unknown,self.current_line(), self.current_col()))
     }
-    fn expect_expr_namespace_access_or_array_index(&mut self) -> Result<AstNode> {
+    fn expect_namespace_access_or_array_index(&mut self) -> Result<AstNode> {
         let container = self.expect_expr_initialize()?;
         match self.current_token().ty {
             TokenType::Dot => {
@@ -388,13 +388,7 @@ impl Parser {
                 f.tags.push(AstTag::IsUsedInNamespaceAccess);
                 return Ok(self.new_node(self.get_id(), AstNodeData::NamespaceAccess{ namespace: container.id, field: field.id }, Type::Unknown, self.current_line(), self.current_col()));
             }
-            TokenType::OpenBracket => {
-                self.forward_token();
-                let index = self.expect_expr()?;
-                self.expect_token(TokenType::CloseBracket)?;
-                self.forward_token();
-                return Ok(self.new_node(self.get_id(), AstNodeData::ArrayIndex{ arr: container.id, idx: index.id }, Type::Unknown, self.current_line(), self.current_col()));
-            }
+            
             _ => {
                 return Ok(container);
             }
@@ -703,7 +697,7 @@ impl Parser {
             TokenType::Asterix | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let expr = self.expect_type_expression()?;
-                return Ok(self.new_node(self.get_id(), AstNodeData::PointerTo(expr.id), Type::Pointer(Box::new(expr.type_information)), self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.get_id(), AstNodeData::PointerTy(expr.id.clone()), Type::Pointer(Box::new(Type::new(&expr, &self.ast)?)), self.current_line(), self.current_col()));
             }
             TokenType::OpenParen => {
                 let before_check_fn_def_cur = self.cur;
@@ -846,7 +840,7 @@ impl Parser {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 return Ok(self.new_node(self.get_id(), 
-                    AstNodeData::PointerTo(expr.id),
+                    AstNodeData::PointerOf(expr.id),
                     Type::Pointer(Box::new(expr.type_information)),
                     self.current_line(), self.current_col()
                 ));
@@ -896,7 +890,7 @@ impl Parser {
     }
 
     fn expect_expr_binary_operations(&mut self) -> Result<AstNode> {
-        let lhs = self.expect_expr_namespace_access_or_array_index()?;
+        let lhs = self.expect_namespace_access_or_array_index()?;
         match self.current_token().ty {
             TokenType::LeftAngle
             | TokenType::RightAngle
@@ -909,11 +903,19 @@ impl Parser {
             | TokenType::NotEqual => {
                 let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                 self.forward_token();
-                let rhs = self.expect_expr_namespace_access_or_array_index()?;
+                let rhs = self.expect_namespace_access_or_array_index()?;
                 Ok(self.new_node(self.get_id(), 
                     AstNodeData::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id },
                     Type::Bool, self.current_line(), self.current_col()
                 ))
+            }
+
+            TokenType::OpenBracket => {
+                self.forward_token();
+                let index = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                return Ok(self.new_node(self.get_id(), AstNodeData::ArrayIndex{ arr: lhs.id, idx: index.id }, Type::Unknown, self.current_line(), self.current_col()));
             }
 
             _ => Ok(lhs),
@@ -1130,7 +1132,7 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<AstNode> {
-        let start = self.expect_def_decl_assignment()?;
+        let start = self.expect_definition_declaration_assignment()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
         self.expect_semicolon_and_forward()?;
@@ -1286,7 +1288,7 @@ impl Parser {
                     | TokenType::DoubleMinus
                     => {
                         self.backward_token();
-                        let def = self.expect_def_decl_assignment()?;
+                        let def = self.expect_definition_declaration_assignment()?;
                         return Ok(def);
 
                     }
@@ -1339,7 +1341,7 @@ impl Parser {
 
                 let starting_inside_paren = self.cur;
 
-                if self.expect_def_decl_assignment().is_ok() {
+                if self.expect_definition_declaration_assignment().is_ok() {
                     self.cur = starting_inside_paren;
                     return self.expect_for_c();
                 } else {

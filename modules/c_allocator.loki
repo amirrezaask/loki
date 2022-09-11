@@ -1,5 +1,7 @@
 #host "stdlib.h"
+#host "string.h"
 
 malloc: (size: uint) *void #foreign;
 realloc: (mem_block: *void, size: uint) *void #foreign;
 free: (mem_block: *void) void #foreign;
+memcpy: (dst: *void, src: *void, number_of_bytes: uint) void #foreign;

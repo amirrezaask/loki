@@ -400,7 +400,7 @@ impl<'a> CPP<'a> {
                 Ok(format!("(*{})", self.repr_ast_node(ptr.clone())?))
             }
 
-            AstNodeData::PointerTo(obj) => {
+            AstNodeData::PointerOf(obj) => {
                 Ok(format!("&{}", self.repr_ast_node(obj.clone())?))
             }
 
@@ -471,7 +471,10 @@ impl<'a> CPP<'a> {
             AstNodeData::CompilerFlags(_) => { Ok ("".to_string()) },
             AstNodeData::Not(expr_id) => {
                 Ok(format!("!({})", self.repr_ast_node(expr_id.clone())?))
-            } 
+            }
+            AstNodeData::PointerTy(ref pointee) => {
+                Ok(format!("{}*", self.repr_ast_node(pointee.clone())?))
+            }
 
             _ => {
                 println!("unhandled in cpp codegen {:?}", node);

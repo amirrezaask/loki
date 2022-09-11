@@ -1,14 +1,13 @@
 #load "print"
 #load "c_allocator"
 
-
 DEFAULT_DYNAMIC_ARRAY_SIZE :: 2;
 
 DynamicArray :: struct {
-    elements: *void,
-    count: int,
+    elements: **void,
+    count: s64,
     cap: s64,
-    element_size: uint,
+    element_size: s64,
 }
 
 dynamic_array_new :: (element_size: uint) *DynamicArray {
@@ -16,7 +15,7 @@ dynamic_array_new :: (element_size: uint) *DynamicArray {
     array := #cast(ptr, *DynamicArray)
 
 	array.cap = DEFAULT_DYNAMIC_ARRAY_SIZE;
-    array.elements = malloc(element_size*array.cap);
+    *array.elements = malloc(#size(*void)*array.cap);
     array.count = 0;
     array.element_size = element_size;
     return array;
@@ -24,21 +23,39 @@ dynamic_array_new :: (element_size: uint) *DynamicArray {
 
 dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
     if (array.count == array.cap) {
+        // copy elements to a bigger array 
         array.cap *= 2;
-        array.elements = realloc(array.elements, array.cap * array.element_size);
+        new_ptr := realloc(array.elements, array.cap * #size(*void))
+        array.elements = #cast(new_ptr, **void);
     }
-    a.count++;
-    array.elements[a.count] = element;
+    // BUG: type inference somehow thinks of the sum as boolean ?
+    dst: int;
+    dst = #cast(array.elements, int) + #cast((array.count * array.element_size), int);
+    memcpy(#cast(dst, *void), element, array.element_size);
+    array.count++;
+    
 }
 
-dynamic_array_free :: (a: *DyanmicArray) {
+dynamic_array_free :: (a: *DynamicArray) {
     free(a.elements);
-    a.elements = NULL;
+    a.elements = 0;
     a.count = 0;
     a.cap = 0;
 }
 
+Human :: struct {
+    age: int
+}
+
 main :: () int {
 	array := dynamic_array_new(#size(int));
-	// dyanmic_array_add(array, 1);
+    // amirreza := Human {
+    //     age = 10
+    // }
+    a : int = 1;
+	dyanmic_array_add(array, &a);
+    printf("array cap: %d\n", array.cap);
+    printf("array size: %d\n", array.count);
+    a_ptr := #cast(array.elements[1], *int);
+    printf("int : %d\n", *a_ptr);
 }

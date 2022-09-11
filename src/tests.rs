@@ -39,11 +39,11 @@ fn test_suite() -> Result<()> {
     }
 
     println!("=========================Results=============================");
+    println!("{} test files\n{} success\n{} failed.", counter, success, failed);
 
 
     if has_error {
         return Err(anyhow::format_err!("FAILED"));
     }
-    println!("{} test files\n{} success\n{} failed.", counter, success, failed);
     Ok(())
 }
