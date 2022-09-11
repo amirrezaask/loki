@@ -11,16 +11,6 @@ use rand::distributions::DistString;
 use serde::Serialize;
 pub type NodeID = String;
 
-pub enum EntityValue {
-    Node(AstNode),
-    Type(Type),
-}
-
-pub struct Entity {
-    idx: NodeID,
-    value: EntityValue
-}
-
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct NamespaceAccessType {
     pub namespace: Box<Type>,
@@ -382,11 +372,6 @@ pub struct AstNode {
     pub line: usize,
     pub col: usize,
     pub filename: String,
-}
-
-pub enum AstBlockType {
-    File,
-    NotImportant,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]

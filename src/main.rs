@@ -4,6 +4,7 @@ mod code_gen;
 mod parser;
 mod stack;
 mod lexer;
+mod ir;
 mod pipeline;
 mod utils;
 mod ast;
