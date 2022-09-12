@@ -50,6 +50,9 @@ impl Compilation {
         let file_ast = self.IRs.get(&file).unwrap();
         let loads = file_ast.get_loads();
         for load in &loads {
+            if self.IRs.contains_key(load) {
+                continue;
+            }
             let loaded_file_ir = self.parse_file(load)?;
             self.resolve_loads(loaded_file_ir)?;
         }
@@ -114,7 +117,7 @@ impl Compilation {
             if ir.dependencies.len() == 0 {
                 println!("[+] {} passed type check", file);
                 finished_type_checking += 1;
-                ir.type_checked = true;
+                ir.type_checked = true && ir.any_unknowns();
             }
             keys_index +=1;
             if keys_index >= keys.len() {

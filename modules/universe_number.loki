@@ -1,1 +1,3 @@
+#load "examples/module_load.loki"
+
 answer :: 42;

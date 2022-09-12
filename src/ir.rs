@@ -224,6 +224,14 @@ pub struct IR {
 }
 
 impl IR {
+    pub fn any_unknowns(&self) -> bool {
+        for (_, node) in self.nodes.iter() {
+            if node.type_information.is_none() {
+                return true;        
+            }
+        }
+        return false;
+    }
     pub fn get_loads(&self) -> Vec<String> {
         let root_node = self.nodes.get(&self.root).unwrap();
         let mut loads = vec![];
