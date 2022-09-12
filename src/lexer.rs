@@ -1,7 +1,6 @@
-use anyhow::Result;
-use anyhow::anyhow;
 use serde::Serialize;
 
+use crate::errors::*;
 pub type SrcLocation = (usize, usize);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
@@ -69,8 +68,6 @@ pub enum TokenType {
     IntPtrDirective,
     UintPtrDirective,
 
-    KeywordConst,
-    KeywordVar,
     KeywordIf,
     KeywordIn,
     KeywordSwitch,
@@ -134,8 +131,6 @@ impl TokenType {
             "as" => Self::KeywordAs,
             "in" => Self::KeywordIn,
             "if" => Self::KeywordIf,
-            "var" => Self::KeywordVar,
-            "const" => Self::KeywordConst,
             "for" => Self::KeywordFor,
             "true" => Self::KeywordTrue,
             "false" => Self::KeywordFalse,
@@ -193,8 +188,8 @@ impl Token {
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum State {
+#[derive(Debug, PartialEq, Clone)]
+pub enum State {
     Start,
     InStringLiteral(usize),
     InCharLiteral,
@@ -220,6 +215,7 @@ enum State {
 }
 
 pub struct Tokenizer {
+    filename: String,
     src: Vec<char>,
     cur: usize,
     state: State,
@@ -229,8 +225,9 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
-    pub fn new(src: &str) -> Self {
+    pub fn new(filename: String, src: &str) -> Self {
         Tokenizer {
+            filename,
             reached_eof: false,
             src: src.chars().collect(),
             cur: 0,
@@ -291,7 +288,12 @@ impl Tokenizer {
                 return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
             }
             _ => {
-                Err(anyhow!("state: {:?} emitting current token", self.state))
+                return Err(Error {
+                    filename: self.filename.clone(),
+                    line: self.line,
+                    col: self.col,
+                    reason: Reason::TokenizerError(TokenizerError::InvalidChar { state: self.state.clone() }),
+                })
             }
         }
     }
@@ -776,7 +778,7 @@ impl Tokenizer {
 #[test]
 fn floats() {
     let src = "123.123";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let num = tokenizer.next();
 
@@ -788,7 +790,7 @@ fn floats() {
 #[test]
 fn integers() {
     let src = "123";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let num = tokenizer.next();
 
@@ -799,7 +801,7 @@ fn integers() {
 #[test]
 fn const_decl_char() -> Result<()> {
     let src = "c :: 'c';";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -824,7 +826,7 @@ fn const_decl_char() -> Result<()> {
 #[test]
 fn const_decl_with_ti() -> Result<()> {
     let src = "f :u32: 12;";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -862,7 +864,7 @@ fn const_decl_with_ti() -> Result<()> {
 #[test]
 fn const_decl() {
     let src = "f :: 12;";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -886,7 +888,7 @@ fn const_decl() {
 #[test]
 fn const_decl_fn() {
     let src = "main :: (x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -987,7 +989,7 @@ fn const_decl_fn() {
 #[test]
 fn fn_sign() {
     let src = "(x: int, y: uint) void";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -1043,7 +1045,7 @@ fn fn_sign() {
 #[test]
 fn var_decl() {
     let src = "f := 12;";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -1067,7 +1069,7 @@ fn var_decl() {
 #[test]
 fn var_decl_with_ti() -> Result<()> {
     let src = "f :u32 = 12;";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1105,7 +1107,7 @@ fn var_decl_with_ti() -> Result<()> {
 #[test]
 fn strings() {
     let src = "\"amirreza\"";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
 
@@ -1116,7 +1118,7 @@ fn strings() {
 #[test]
 fn load_directive() {
     let src = "#load \"stdio\";";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1140,7 +1142,7 @@ fn load_directive() {
 #[test]
 fn host_directive() {
     let src = "#host \"cstdio\";";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1162,8 +1164,8 @@ fn host_directive() {
 }
 #[test]
 fn for_c() {
-    let src = "for (var i = 0; i < 10; i++) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new(src);
+    let src = "for (i := 0; i < 10; i++) {\n\tprint(i);\n}";
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
 
@@ -1183,13 +1185,6 @@ fn for_c() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(TokenType::KeywordVar, tok.ty);
-    assert_eq!("var", &src[tok.loc.0..=tok.loc.1]);
-
-    let tok = tokenizer.next();
-
-    assert!(tok.is_ok());
-    let tok = tok.unwrap();
     assert_eq!(TokenType::Ident, tok.ty);
     assert_eq!("i", &src[tok.loc.0..=tok.loc.1]);
 
@@ -1197,8 +1192,8 @@ fn for_c() {
 
     assert!(tok.is_ok());
     let tok = tok.unwrap();
-    assert_eq!(TokenType::Equal, tok.ty);
-    assert_eq!("=", &src[tok.loc.0..=tok.loc.1]);
+    assert_eq!(TokenType::ColonEqual, tok.ty);
+    assert_eq!(":=", &src[tok.loc.0..=tok.loc.1]);
 
     let tok = tokenizer.next();
 
@@ -1301,7 +1296,7 @@ fn for_c() {
 #[test]
 fn for_while() {
     let src = "for (i < 10) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
 
@@ -1383,7 +1378,7 @@ fn for_while() {
 #[test]
 fn for_each() {
     let src = "for (i in items) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
 
@@ -1464,7 +1459,7 @@ fn for_each() {
 #[test]
 fn if_stmt() {
     let src = "if (i < 10) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new(src);
+    let mut tokenizer = Tokenizer::new("".to_string(),src);
 
     let tok = tokenizer.next();
 

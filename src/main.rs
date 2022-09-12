@@ -1,13 +1,13 @@
 #![allow(clippy::needless_return)]
 #![allow(warnings, unused)]
-mod code_gen;
 mod parser;
 mod stack;
 mod lexer;
-mod ir;
-mod pipeline;
+mod typer;
 mod utils;
-mod ast;
+mod compliation;
+mod ir;
+mod errors;
 mod tests;
 // mod symbol_table;
 use anyhow::Result;
@@ -25,7 +25,8 @@ pub fn main() -> Result<()> {
     }
     let args = args[1..].to_vec();
     let filename = &args[0];
-    let mut p = pipeline::Pipeline::new();
-    p.compile_file(filename, code_gen::Backend::CPP)?;
+    let mut c = compliation::Compilation::new(&filename);
+    // p.compile_file(filename, code_gen::Backend::CPP)?;
+    // Ok(())
     Ok(())
 }

@@ -1,11 +1,6 @@
 #load "print"
 #host "string"
 
-Human :: struct {
-    age: s32,
-    name: string,
-}
-
 main :: () int {
     counter := 0;
     
@@ -30,4 +25,9 @@ main :: () int {
     for (numbers) {
         printf("for each syntax: %d\n", it);
     }
+}
+
+Human :: struct {
+    age: s32,
+    name: string,
 }

@@ -2,20 +2,20 @@ use std::collections::HashMap;
 use std::default;
 use std::ops::Deref;
 
-use crate::ir::lexer::{Token, TokenType};
+use crate::compliation::Dependency;
+use crate::lexer::{Token, TokenType};
 use super::typer::Type;
 use crate::utils;
-use anyhow::anyhow;
-use anyhow::Result;
+use crate::errors::Result;
 use rand::Rng;
 use rand::distributions::Alphanumeric;
 use rand::distributions::DistString;
 use serde::Serialize;
-type BitSize = u8;
+type BitSize = i64;
 
-pub type Index = u64;
+pub type NodeIndex = u64;
 
-pub fn new_index() -> Index {
+pub fn new_index() -> NodeIndex {
     let mut rng = rand::thread_rng();
     let id: u64 = rng.gen();
     return id;
@@ -31,10 +31,10 @@ pub enum AstTag {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Node {
-    pub id: Index,
+    pub id: NodeIndex,
     pub data: NodeData,
     pub type_information: Option<Type>,
-    pub parent_block: Option<Index>,
+    pub parent_block: Option<NodeIndex>,
     pub tags: Vec<AstTag>,
 
     pub line: usize,
@@ -63,17 +63,17 @@ pub enum TypeDefinition {
     String,
     Char,
     Void,
-    Pointer(Index),
+    Pointer(NodeIndex),
     Array {
-        length: Index,
-        elem_ty: Index,
+        length: NodeIndex,
+        elem_ty: NodeIndex,
     },
     Function {
-        args: Vec<Index>,
-        ret: Index,
+        args: Vec<NodeIndex>,
+        ret: NodeIndex,
     },
-    Struct(Vec<Index>),
-    Enum(Vec<Index>),
+    Struct(Vec<NodeIndex>),
+    Enum(Vec<NodeIndex>),
 }
 
 
@@ -88,51 +88,51 @@ pub enum Expression {
     Char(char),
     Identifier(String),
     
-    Paren(Index),
+    Paren(NodeIndex),
 
 
     UnaryOperation {
         operator: UnaryOperation,
-        expr: Index,
+        expr: NodeIndex,
     },
 
     ArrayIndex {
-        arr: Index,
-        idx: Index,
+        arr: NodeIndex,
+        idx: NodeIndex,
     },
 
     BinaryOperation {
         operation: BinaryOperation,
-        left: Index,
-        right: Index,
+        left: NodeIndex,
+        right: NodeIndex,
     },
 
     NamespaceAccess {
-        namespace: Index,
-        field: Index,
+        namespace: NodeIndex,
+        field: NodeIndex,
     },
 
     Initialize {
-        ty: Index,
-        fields: Vec<(Index, Index)>,
+        ty: NodeIndex,
+        fields: Vec<(NodeIndex, NodeIndex)>,
     },
     InitializeArray {
-        elements: Vec<Index>,
+        elements: Vec<NodeIndex>,
     },
 
     Function {
-        args: Vec<Index>,
-        ret_ty: Index,
-        body: Index,
+        args: Vec<NodeIndex>,
+        ret_ty: NodeIndex,
+        body: NodeIndex,
     },
 
     FunctionCall {
-        fn_name: Index,
-        args: Vec<Index>,
+        fn_name: NodeIndex,
+        args: Vec<NodeIndex>,
     },
 
-    PointerOf(Index),
-    Deref(Index),
+    PointerOf(NodeIndex),
+    Deref(NodeIndex),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -163,67 +163,90 @@ pub enum Statement {
     Host(String),
     Def {
         mutable: bool,
-        name: Index,
-        expr: Index,
+        name: NodeIndex,
+        expr: NodeIndex,
     },
     Decl {
-        name: Index,
-        ty: Index,
+        name: NodeIndex,
+        ty: NodeIndex,
     },
     Assign {
-        lhs: Index,
-        rhs: Index,
+        lhs: NodeIndex,
+        rhs: NodeIndex,
     },
 
     Scope {
         // this is for cases when we want to reach from an entity inside a block to it's owner like the if node that owns a block.
-        owner: Index, 
+        owner: NodeIndex, 
         is_file_root: bool,
-        stmts: Vec<Index>,
+        stmts: Vec<NodeIndex>,
     },
 
     If {
-        cases: Vec<(Index, Index)>,
+        cases: Vec<(NodeIndex, NodeIndex)>,
     },
 
     For {
-        start: Index,
-        cond: Index,
-        cont: Index,
-        body: Index,
+        start: NodeIndex,
+        cond: NodeIndex,
+        cont: NodeIndex,
+        body: NodeIndex,
     },
     ForIn {
-        iterator: Index,
-        iterable: Index,
-        body: Index,
+        iterator: NodeIndex,
+        iterable: NodeIndex,
+        body: NodeIndex,
     },
     While {
-        cond: Index,
-        body: Index,
+        cond: NodeIndex,
+        body: NodeIndex,
     },
 
     Break,
     Continue,
 
-    Goto(Index),
+    Goto(NodeIndex),
 
-    Return(Index),
+    Return(NodeIndex),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct IR {
     pub filename: String,
     pub tokens: Vec<Token>,
-    pub root: Index,
-    pub nodes: HashMap<Index, Node>,
+    pub root: NodeIndex,
+    pub nodes: HashMap<NodeIndex, Node>,
+    pub scoped_symbols: HashMap<NodeIndex, HashMap<String, Type>>,
+    pub exported_symbols: HashMap<String, Type>,
+    pub dependencies: Vec<Dependency>,
 }
 
 impl IR {
-    pub fn get_node(&self, index: Index) -> Result<Node> {
+    pub fn get_loads(&self) -> Vec<String> {
+        let root_node = self.nodes.get(&self.root).unwrap();
+        let mut loads = vec![];
+        match root_node.data {
+            NodeData::Statement(Statement::Scope { owner, is_file_root, ref stmts }) => {
+                for stmt in stmts {
+                    let stmt_node = self.nodes.get(stmt).unwrap();
+                    match stmt_node.data {
+                        NodeData::Statement(Statement::Load(ref rel_path)) => {
+                            loads.push(rel_path.clone())
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        return loads;
+    }
+    pub fn get_node(&self, index: NodeIndex) -> Result<Node> {
         return Ok(self.nodes.get(&index).unwrap().clone());
     }
 
-    pub fn add_tag(&mut self, index: Index, tag: AstTag) {
+    pub fn add_tag(&mut self, index: NodeIndex, tag: AstTag) {
         let node = self.nodes.get_mut(&index).unwrap();
         node.tags.push(tag);
     }
