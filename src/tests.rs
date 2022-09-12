@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 
 // #[test]
-
 // fn test_suite() -> Result<()> {
 //     let files = fs::read_dir("./examples").unwrap();
 //     let mut results: Vec<Result<()>> = vec![];

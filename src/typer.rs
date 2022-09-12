@@ -529,8 +529,14 @@ impl IR {
                         self.add_type(stmt_index, Type::NoType);
                         if node.parent_block.is_some() {
                             self.add_symbol_to_scope(node.parent_block.unwrap(), *name, expr_ty.clone());
+                            let block =  self.get_node(node.parent_block.unwrap())?;
+                            if let NodeData::Statement(Statement::Scope { owner: _, is_file_root, stmts: _ }) = block.data {
+                                if is_file_root {
+                                    self.add_exported_symbol(*name, expr_ty.clone());
+                                }
+                            }
+                            
                         }
-                        self.add_exported_symbol(*name, expr_ty.clone());
                         return Ok(Some(Type::NoType));
                     }
                     Statement::Def { mutable, ref name, ty: Some(ref ty), ref expr } => {
@@ -550,8 +556,17 @@ impl IR {
                         self.add_type(stmt_index, Type::NoType);
                         if node.parent_block.is_some() {
                             self.add_symbol_to_scope(node.parent_block.unwrap(), *name, type_annotation_type.clone());
+                            if node.parent_block.is_some() {
+                                self.add_symbol_to_scope(node.parent_block.unwrap(), *name, expr_ty.clone());
+                                let block =  self.get_node(node.parent_block.unwrap())?;
+                                if let NodeData::Statement(Statement::Scope { owner: _, is_file_root, stmts: _ }) = block.data {
+                                    if is_file_root {
+                                        self.add_exported_symbol(*name, expr_ty.clone());
+                                    }
+                                }
+                                
+                            }
                         }
-                        self.add_exported_symbol(*name, expr_ty.clone());
                         return Ok(Some(Type::NoType));
                     }
                     
@@ -566,8 +581,17 @@ impl IR {
                         self.add_type(*name, decl_type.clone().unwrap());
                         if node.parent_block.is_some() {
                             self.add_symbol_to_scope(node.parent_block.unwrap(), *name, decl_type.clone().unwrap());
+                            if node.parent_block.is_some() {
+                                self.add_symbol_to_scope(node.parent_block.unwrap(), *name, decl_type.clone().unwrap());
+                                let block =  self.get_node(node.parent_block.unwrap())?;
+                                if let NodeData::Statement(Statement::Scope { owner: _, is_file_root, stmts: _ }) = block.data {
+                                    if is_file_root {
+                                        self.add_exported_symbol(*name, decl_type.clone().unwrap());
+                                    }
+                                }
+                                
+                            }
                         }
-                        self.add_exported_symbol(*name, decl_type.clone().unwrap());
 
                         return Ok(Some(decl_type.clone().unwrap()));
                     },
