@@ -362,7 +362,15 @@ impl IR {
                             BinaryOperation::Less |
                             BinaryOperation::LessEqual |
                             BinaryOperation::Equal |
-                            BinaryOperation::NotEqual |
+                            BinaryOperation::NotEqual 
+                            => {
+                                if left_type == right_type {
+                                    self.add_type(expression_index, Type::Bool);
+                                    return Ok(left_type);
+                                } else {
+                                    unimplemented!();
+                                }
+                            },
                             BinaryOperation::BinaryAnd |
                             BinaryOperation::BinaryOr => {
                                 if left_type == Some(Type::Bool) && right_type == Some(Type::Bool) {
