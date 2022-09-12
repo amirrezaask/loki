@@ -80,40 +80,47 @@ impl Compilation {
         
         
         let main_ir = compilation.IRs.get_mut(&main_file_abs_path).unwrap();
-        main_ir.type_root()?;
-        println!("[+] dependencies: {:?}", main_ir.dependencies);
-        Self::pretty_print_nodes(&main_ir.nodes);
         // now we have all of our files used in our program in compilation.IRs
         let keys: Vec<File> = compilation.IRs.keys().map(|f| f.clone()).collect();
         let mut keys_index: usize = 0;
         let mut finished_type_checking = 0;
-        // loop {
-        //     if finished_type_checking == keys.len() {
-        //         break;
-        //     }
-        //     let file = &keys[keys_index];
-        //     println!("[+] type checking file {}", file);
-        //     let ir = compilation.IRs.get_mut(file).unwrap();
-        //     // try to do a pass on the file and type as much as possible
-        //     ir.type_root()?;
-        //     // get file exported symbols that are fully type checked and add them to compilation struct so other files know about these.
-        //     let mut file_exports = compilation.exported_symbols.get_mut(file);
-        //     if file_exports.is_none() {
-        //         compilation.exported_symbols.insert(file.clone(), HashMap::new());
-        //         file_exports = compilation.exported_symbols.get_mut(file);
-        //     }
-        //     let file_exports = file_exports.unwrap();
-        //     for (k,v) in ir.exported_symbols.iter() {
-        //         file_exports.insert(k.clone(), v.clone());
-        //     }
-        //     if ir.dependencies.len() == 0 {
-        //         finished_type_checking += 1;
-        //     }
-        //     keys_index +=1;
-        //     if keys_index >= keys.len() {
-        //         keys_index = 0;
-        //     }
-        // }
+        loop {
+            if finished_type_checking == keys.len() {
+                break;
+            }
+            let file = &keys[keys_index];
+            let ir = compilation.IRs.get_mut(file).unwrap();
+            if ir.type_checked {
+                keys_index +=1;
+                if keys_index >= keys.len() {
+                    keys_index = 0;
+                }
+                continue;    
+            }
+            println!("[+] trying to type check file {}", file);
+
+            // try to do a pass on the file and type as much as possible
+            ir.type_root(&compilation.exported_symbols)?;
+            // get file exported symbols that are fully type checked and add them to compilation struct so other files know about these.
+            let mut file_exports = compilation.exported_symbols.get_mut(file);
+            if file_exports.is_none() {
+                compilation.exported_symbols.insert(file.clone(), HashMap::new());
+                file_exports = compilation.exported_symbols.get_mut(file);
+            }
+            let file_exports = file_exports.unwrap();
+            for (k,v) in ir.exported_symbols.iter() {
+                file_exports.insert(k.clone(), v.clone());
+            }
+            if ir.dependencies.len() == 0 {
+                println!("[+] {} passed type check", file);
+                finished_type_checking += 1;
+                ir.type_checked = true;
+            }
+            keys_index +=1;
+            if keys_index >= keys.len() {
+                keys_index = 0;
+            }
+        }
         Ok(())
     }
 }

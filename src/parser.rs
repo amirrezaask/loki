@@ -57,7 +57,7 @@ impl Parser {
             data,
             tags: vec![],
             line: start_line, col: start_col,
-            parent_block: Some(self.block_stack.top().clone()),
+            parent_block: self.block_stack.top().clone(),
             filename: self.filename.clone(),
             type_information: None,
         };
@@ -89,6 +89,7 @@ impl Parser {
             scoped_symbols: HashMap::new(),
             exported_symbols: HashMap::new(),
             dependencies: vec![],
+            type_checked: false,
         };
         Ok(Self {
             filename,

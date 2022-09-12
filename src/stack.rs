@@ -24,12 +24,12 @@ impl<T: Clone + Default> Stack<T> {
         self.data.remove(last_index);
         return last_elem;
     }
-    pub fn top(&mut self) -> T {
+    pub fn top(&mut self) -> Option<T> {
         if self.data.len() < 1 {
-            return T::default();
+            return None;
         }
         let last_index = self.data.len()-1;
 
-        return self.data[last_index].clone(); 
+        return Some(self.data[last_index].clone()); 
     }
 }

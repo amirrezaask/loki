@@ -220,6 +220,7 @@ pub struct IR {
     pub scoped_symbols: HashMap<NodeIndex, HashMap<String, Type>>,
     pub exported_symbols: HashMap<String, Type>,
     pub dependencies: Vec<Dependency>,
+    pub type_checked: bool,
 }
 
 impl IR {
@@ -242,6 +243,12 @@ impl IR {
         }
 
         return loads;
+    }
+    pub fn add_exported_symbol(&mut self, identifier_index: NodeIndex, ty: Type) {
+        let identifier = self.get_node(identifier_index).unwrap();
+        if let NodeData::Expression(Expression::Identifier(ident)) = identifier.data {
+            self.exported_symbols.insert(ident, ty);
+        }
     }
     pub fn add_symbol_to_scope(&mut self, scope: NodeIndex, identifier_index: NodeIndex, ty: Type) {
         let identifier = self.get_node(identifier_index).unwrap();
