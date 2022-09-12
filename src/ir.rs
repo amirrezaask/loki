@@ -164,6 +164,7 @@ pub enum Statement {
     Def {
         mutable: bool,
         name: NodeIndex,
+        ty: Option<NodeIndex>,
         expr: NodeIndex,
     },
     Decl {
@@ -241,6 +242,22 @@ impl IR {
         }
 
         return loads;
+    }
+    pub fn add_symbol_to_scope(&mut self, scope: NodeIndex, identifier_index: NodeIndex, ty: Type) {
+        let identifier = self.get_node(identifier_index).unwrap();
+        if let NodeData::Expression(Expression::Identifier(ident)) = identifier.data {
+            match self.scoped_symbols.get_mut(&scope) {
+                Some(ss) => {
+                    ss.insert(ident, ty);
+                    return;
+                }
+                None => {
+                    let mut hm: HashMap<String, Type> = HashMap::new();
+                    hm.insert(ident, ty);
+                    self.scoped_symbols.insert(scope, hm);
+                }
+            }
+        }
     }
     pub fn get_node(&self, index: NodeIndex) -> Result<Node> {
         return Ok(self.nodes.get(&index).unwrap().clone());

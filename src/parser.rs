@@ -220,6 +220,7 @@ impl Parser {
                     NodeData::Statement(Statement::Def {
                         mutable: false,
                         name: dest.id,
+                        ty: None,
                         expr: rhs.id,
                     }),
                     self.current_token().line, self.current_token().col,
@@ -252,6 +253,7 @@ impl Parser {
                     self.new_entity_idx(), NodeData::Statement(Statement::Def{
                         mutable,
                         name: dest.id,
+                        ty: Some(ty.id),
                         expr: rhs.id,
                     }),
                     self.current_token().line, self.current_token().col
@@ -267,6 +269,7 @@ impl Parser {
                     NodeData::Statement(Statement::Def{
                         mutable: true,
                         name: dest.id,
+                        ty: None,
                         expr: rhs.id,
                     }),
                     self.current_token().line, self.current_token().col

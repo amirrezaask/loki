@@ -92,7 +92,13 @@ impl IR {
                     }
                 }
                 None => {
-                    unreachable!()
+                    match scope_node.parent_block {
+                        Some(parent) => {
+                            scope = parent; 
+                            scope_node = self.nodes.get(&scope).unwrap().clone();
+                        }
+                        None => break,
+                    }
                 }
             }
         }
@@ -106,7 +112,7 @@ impl IR {
     }
 
     fn resolve_type_definition(&mut self, type_definition_index: NodeIndex) -> Result<Option<Type>> {
-        let type_definition = self.nodes.get(&type_definition_index).unwrap();
+        let type_definition = self.get_node(type_definition_index).unwrap();
         match type_definition.data {
             NodeData::TypeDefinition(ref td) => {
                 match td {
@@ -114,13 +120,34 @@ impl IR {
                     TypeDefinition::CString => unimplemented!(),
                     TypeDefinition::IntPtr => unimplemented!(),
                     TypeDefinition::UintPtr => unimplemented!(),
-                    TypeDefinition::Int(size) => Ok(Some(Type::SignedInt(*size))),
-                    TypeDefinition::Uint(size) => Ok(Some(Type::UnsignedInt(*size))),
-                    TypeDefinition::Float(size) => Ok(Some(Type::Float(*size))),
-                    TypeDefinition::Bool => Ok(Some(Type::Bool)),
-                    TypeDefinition::String => Ok(Some(Type::String)),
-                    TypeDefinition::Char => Ok(Some(Type::Char)),
-                    TypeDefinition::Void => Ok(Some(Type::Void)),
+                    TypeDefinition::Int(ref size) => {
+                        self.add_type(type_definition_index, Type::SignedInt(*size));
+                        return Ok(Some(Type::SignedInt(*size)));
+                    },
+                    TypeDefinition::Uint(size) => {
+                        self.add_type(type_definition_index, Type::UnsignedInt(*size));
+                        return Ok(Some(Type::UnsignedInt(*size)));
+                    },
+                    TypeDefinition::Float(size) => {
+                        self.add_type(type_definition_index, Type::Float(*size));
+                        return Ok(Some(Type::Float(*size)));
+                    },
+                    TypeDefinition::Bool => {
+                        self.add_type(type_definition_index, Type::Bool);
+                        return Ok(Some(Type::Bool));
+                    },
+                    TypeDefinition::String => {
+                        self.add_type(type_definition_index, Type::String);
+                        return Ok(Some(Type::String));
+                    },
+                    TypeDefinition::Char => {
+                        self.add_type(type_definition_index, Type::Char);
+                        return Ok(Some(Type::Char));
+                    },
+                    TypeDefinition::Void => {
+                        self.add_type(type_definition_index, Type::Void);
+                        return Ok(Some(Type::Void));
+                    },
                     TypeDefinition::Pointer(_) => unimplemented!(),
                     TypeDefinition::Array { length, elem_ty } => unimplemented!(),
                     TypeDefinition::Function { args, ret } => unimplemented!(),
@@ -472,19 +499,46 @@ impl IR {
         match node.data {
             NodeData::Statement(ref stmt) => {
                 match stmt {
-                    Statement::Load(_) | Statement::Host(_) => Ok(None),
+                    Statement::Load(_) | Statement::Host(_) => {
+                        self.add_type(stmt_index, Type::NoType);
+                        return Ok(Some(Type::NoType))
+                    },
 
-                    Statement::Def { mutable, ref name, ref expr } => {
+                    Statement::Def { mutable, ref name, ty: None, ref expr } => {
                         let expr_ty = self.type_expression(*expr)?;
                         if expr_ty.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*expr) });
                             return Ok(None);
                         }
                         let expr_ty = expr_ty.unwrap();
-                        self.add_type(*name, expr_ty);
+                        self.add_type(*name, expr_ty.clone());
                         self.add_type(stmt_index, Type::NoType);
+                        if node.parent_block.is_some() {
+                            self.add_symbol_to_scope(node.parent_block.unwrap(), *name, expr_ty.clone());
+                        }
                         return Ok(Some(Type::NoType));
                     }
+                    Statement::Def { mutable, ref name, ty: Some(ref ty), ref expr } => {
+                        let expr_ty = self.type_expression(*expr)?;
+                        if expr_ty.is_none() {
+                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*expr) });
+                            return Ok(None);
+                        }
+                        let type_annotation_type = self.resolve_type_definition(*ty)?;
+                        if type_annotation_type.is_none() {
+                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*ty) });
+                            return Ok(None);
+                        }
+                        let expr_ty = expr_ty.unwrap();
+                        let type_annotation_type = type_annotation_type.unwrap();
+                        self.add_type(*name, type_annotation_type.clone());
+                        self.add_type(stmt_index, Type::NoType);
+                        if node.parent_block.is_some() {
+                            self.add_symbol_to_scope(node.parent_block.unwrap(), *name, type_annotation_type.clone());
+                        }
+                        return Ok(Some(Type::NoType));
+                    }
+                    
 
                     Statement::Decl { ref name, ref ty } => {
                         let decl_type = self.resolve_type_definition(*ty)?;
