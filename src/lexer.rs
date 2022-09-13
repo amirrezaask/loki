@@ -316,7 +316,6 @@ impl Tokenizer {
 
     pub fn next(&mut self) -> Result<Token> {
         loop {
-            self.col += 1;
             if self.eof() {
                 if (self.reached_eof) {
                     return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
@@ -326,6 +325,11 @@ impl Tokenizer {
                     return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
                 }
                 return Ok(self.emit_current_token()?);
+            }
+            self.col += 1;
+            if self.current_char() == '\n' {
+                self.col = 0;
+                self.line += 1;
             }
             match self.state {
                 State::Start => {
@@ -459,8 +463,6 @@ impl Tokenizer {
                             continue;
                         }
                         '\n' => {
-                            self.line += 1;
-                            self.col = 0;
                             self.forward_char();
                             continue;;
                         }

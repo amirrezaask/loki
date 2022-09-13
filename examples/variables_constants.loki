@@ -10,7 +10,7 @@ variable_uint := 2;
 
 variable_string := "salam";
 
-variable_char := 'c';
+variable_char asdasd:= 'c';
 
 variable_boolean_false := false;
 
