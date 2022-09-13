@@ -1211,42 +1211,33 @@ impl Parser {
                 self.forward_token();
 
                 let starting_inside_paren = self.cur;
-                let mut last_index_before_guessing = self.ir.registered_indexes.len()-1;
-
-                let guessing_for_c = self.expect_stmt();
-                if guessing_for_c.is_ok() {
-                    self.cur = starting_inside_paren;
-                    self.ir.delete_nodes_after_index(last_index_before_guessing);
-                    return self.expect_for_c();
-                } else {
-                    self.ir.delete_nodes_after_index(last_index_before_guessing);
-                    self.cur = starting_inside_paren;
-                }
-                last_index_before_guessing = self.ir.registered_indexes.len()-1;
-                if self.expect_ident().is_ok() {
-                    if self.expect_token(TokenType::Colon).is_ok() {
+                match self.current_token().ty {
+                    TokenType::Ident => {
+                        // either for_c or foreach
+                        self.forward_token();
+                        match self.current_token().ty {
+                            TokenType::Equal | TokenType::ColonEqual | TokenType::DoubleColon => {
+                                // for _c
+                                self.cur = starting_inside_paren;
+                                return self.expect_for_c();
+                            }
+                            TokenType::Colon => {
+                                self.cur = starting_inside_paren;
+                                return self.expect_for_each();
+                            },
+                            TokenType::CloseParen => {
+                                self.cur = starting_inside_paren;
+                                return self.expect_for_each_implicit_iterator();
+                            },
+                            _ => {
+                                return Err(self.report_error(ParseError::Unknown(format!("invalid for syntax"))));
+                            }
+                        }
+                    }
+                    _ => {
                         self.cur = starting_inside_paren;
-                        self.ir.delete_nodes_after_index(last_index_before_guessing);
-                        return self.expect_for_each();
-                    } else {
-                        self.cur = starting_inside_paren;
-                        self.ir.delete_nodes_after_index(last_index_before_guessing);
                         return self.expect_for_each_implicit_iterator();
                     }
-                } else {
-                    self.ir.delete_nodes_after_index(last_index_before_guessing);
-                    self.cur = starting_inside_paren;
-                }
-                last_index_before_guessing = self.ir.registered_indexes.len()-1;
-
-                if self.expect_expr().is_ok() {
-                    self.cur = starting_inside_paren;
-                    self.ir.delete_nodes_after_index(last_index_before_guessing);
-                    return self.expect_for_each_implicit_iterator();
-                } else {
-                    self.ir.delete_nodes_after_index(last_index_before_guessing);
-                    self.cur = starting_inside_paren;
-                    return Err(self.report_error(ParseError::Unknown(format!("invalid for syntax"))));
                 }
             }
             TokenType::KeywordReturn => {

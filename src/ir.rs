@@ -274,6 +274,7 @@ impl IR {
     pub fn add_symbol_to_scope(&mut self, scope: NodeIndex, identifier_index: NodeIndex, ty: Type) {
         let identifier = self.get_node(identifier_index).unwrap();
         if let NodeData::Expression(Expression::Identifier(ident)) = identifier.data {
+            println!("adding type for {} {:?}", ident, ty);
             match self.scoped_symbols.get_mut(&scope) {
                 Some(ss) => {
                     ss.insert(ident, ty);

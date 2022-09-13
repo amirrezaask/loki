@@ -352,7 +352,6 @@ impl IR {
                             unreachable!();
                         }
                     },
-                    //TODO check if fields are valid in context of it's type.
                     Expression::Initialize { ty, ref fields } => {
                         let initialize_type = self.type_expression(other_files_exports, *ty)?;
                         if initialize_type.is_none() {
@@ -360,6 +359,7 @@ impl IR {
                             return Ok(None);
                         }
                         let initialize_type = initialize_type.unwrap();
+                        //TODO check if fields are valid in context of it's type.
                         for (name, value) in fields {
                             let value_type = self.type_expression(other_files_exports, *value)?;
                             if value_type.is_none() {
@@ -802,25 +802,27 @@ impl IR {
                     },
                     
                     Statement::ForIn { ref iterator, ref iterable, ref body } => {
-                        let iterator_type = self.type_expression(other_files_exports, *iterator)?;
-                        if iterator_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*iterator) });
-                            return Ok(None);
-                        }
-
                         let iterable_type = self.type_expression(other_files_exports,*iterable)?;
                         if iterable_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*iterable) });
                             return Ok(None);
                         }
-                        let body_type = self.type_statement(other_files_exports,*body)?;
-                        if body_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
-                            return Ok(None);
+                        let iterable_type = iterable_type.unwrap();
+                        if let Type::Array(ref elem_type) = iterable_type {
+                            self.add_type(*iterator, elem_type.deref().clone());
+                            self.add_type(*iterable, iterable_type.clone());
+                            self.add_symbol_to_scope(*body, *iterator, elem_type.deref().clone());
+                            let body_type = self.type_statement(other_files_exports,*body)?;
+                            if body_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
+                                return Ok(None);
+                            }
+                            self.add_type(stmt_index, Type::NoType);
+    
+                            return Ok(Some(Type::NoType));
+                        } else {
+                            panic!("iterable type should be array {:?}", iterable_type);
                         }
-                        self.add_type(stmt_index, Type::NoType);
-
-                        return Ok(Some(Type::NoType));
                     },
                     
                     Statement::While { ref cond, ref body } => {
