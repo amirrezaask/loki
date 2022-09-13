@@ -1,6 +1,3 @@
-arrays
 dynamic_array
-loops
 pointer - stack overflow
 project euler - type mismatch error - same problem with always typing numbers in source as uint.
-structs

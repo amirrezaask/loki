@@ -607,7 +607,6 @@ impl Parser {
                 self.expect_token(TokenType::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_type_expression()?;
-                println!("array type {:?}", ty);
                 let node = self.new_node(self.new_index(), 
                     NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
                         self.current_line(), self.current_col()

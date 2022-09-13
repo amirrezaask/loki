@@ -3,7 +3,7 @@
 main :: () int {
     a := [3]int{1,2,3};
 
-	for (number in a) {
+	for (number: a) {
 		printf("num: %d\n", number);
 	}
     a[0] = 4;
