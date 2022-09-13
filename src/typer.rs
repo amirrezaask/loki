@@ -353,39 +353,65 @@ impl IR {
                         }
                     },
                     //TODO check if fields are valid in context of it's type.
-                    Expression::Initialize { ty, fields } => {
+                    Expression::Initialize { ty, ref fields } => {
                         let initialize_type = self.type_expression(other_files_exports, *ty)?;
                         if initialize_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
                         }
                         let initialize_type = initialize_type.unwrap();
-                        self.add_type(expression_index, initialize_type.clone());
-                        return Ok(Some(initialize_type));
-                    },
-                    Expression::InitializeArray { ref elements } => {
-                        let mut array_elem_type: Option<Type> = None;
-                        for elem in elements {
-                            let elem_type = self.type_expression(other_files_exports, *elem)?;
-                            if elem_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*elem) });
+                        for (name, value) in fields {
+                            let value_type = self.type_expression(other_files_exports, *value)?;
+                            if value_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*value) });
                                 return Ok(None);
                             }
-                            if array_elem_type.is_none() {
-                                array_elem_type = elem_type;
-                            } else {
-                                if array_elem_type.clone().unwrap() != elem_type.clone().unwrap() {
-                                    return Err(CompilerError {
-                                        filename: self.filename.clone(),
-                                        line: 0,
-                                        col: 0,
-                                        reason: Reason::TypeCheckError(TypeCheckError::ArrayElementsShouldBeOfSameType(array_elem_type.unwrap(), elem_type.unwrap())),
-                                    });
+                            self.add_type(*name, value_type.unwrap());
+                        }
+                        
+                        self.add_type(expression_index, initialize_type.clone());
+                        
+                        return Ok(Some(initialize_type));
+                    },
+                    Expression::InitializeArray { ty, ref elements } => {
+                        let array_type = self.get_node(*ty)?;
+                        if let NodeData::TypeDefinition(TypeDefinition::Array { length, elem_ty }) = array_type.data {
+                            let len_type = self.type_expression(other_files_exports, length)?;
+                            if len_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(length) });
+                                return Ok(None);
+                            }
+                            let elem_type = self.type_expression(other_files_exports, elem_ty)?;
+                            if elem_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(elem_ty) });
+                                return Ok(None);
+                            }
+                            let mut array_elem_type: Option<Type> = None;
+                            for elem in elements {
+                                let this_elem_type = self.type_expression(other_files_exports, *elem)?;
+                                if this_elem_type.is_none() {
+                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*elem) });
+                                    return Ok(None);
+                                }
+                                if array_elem_type.is_none() {
+                                    array_elem_type = this_elem_type;
+                                } else {
+                                    if array_elem_type.clone().unwrap() != this_elem_type.clone().unwrap() {
+                                        return Err(CompilerError {
+                                            filename: self.filename.clone(),
+                                            line: 0,
+                                            col: 0,
+                                            reason: Reason::TypeCheckError(TypeCheckError::ArrayElementsShouldBeOfSameType(array_elem_type.unwrap(), this_elem_type.unwrap())),
+                                        });
+                                    }
                                 }
                             }
+                            self.add_type(*ty, Type::Array(Box::new(array_elem_type.clone().unwrap())));
+                            self.add_type(expression_index, Type::Array(Box::new(array_elem_type.clone().unwrap())));
+                            return Ok(Some(Type::Array(Box::new(array_elem_type.unwrap()))));
+                        } else {
+                            unreachable!()
                         }
-
-                        return Ok(Some(Type::Array(Box::new(array_elem_type.unwrap()))));
                     },
                     Expression::Function { ref args, ret_ty: ref ret_ty_node, ref body } => {
                         for arg in args {
@@ -715,8 +741,6 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*rhs) });
                             return Ok(None);
                         }
-                        println!("left {:?}", lhs_type);
-                        println!("right {:?}", rhs_type);
                         self.add_type(stmt_index, Type::NoType);
 
                         return Ok(Some(Type::NoType));
@@ -767,6 +791,7 @@ impl IR {
                             return Ok(None);
                         }
                         let body_type = self.type_statement(other_files_exports, *body)?;
+                        
                         if body_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
@@ -838,7 +863,7 @@ impl IR {
                     },
                 }
             },
-            NodeData::Expression(Expression::FunctionCall { fn_name, args }) => {
+            NodeData::Expression(Expression::FunctionCall { fn_name, ref args }) => {
                 let fn_ret_type = self.type_expression(other_files_exports, stmt_index)?;
                 if fn_ret_type.is_none() {
                     self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(fn_name) });
@@ -865,11 +890,15 @@ impl IR {
                 let ty = self.type_statement(other_files_exports, *stmt)?;
                 if ty.is_none() {
                     self.dependencies.push(Dependency { file: self.filename.clone(), node_index: scope_index, reason: DependencyReason::Node(*stmt) });
-                    return Ok(None);
+                } else {
+                    self.add_type(scope_index, Type::NoType);
                 }
             }
-            self.add_type(scope_index, Type::NoType);
-            return Ok(Some(Type::NoType));
+            if self.dependencies.len() == 0 {
+                return Ok(Some(Type::NoType));
+            }
+
+            return Ok(None);
         } else {
             unreachable!();
         }

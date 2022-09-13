@@ -117,6 +117,7 @@ pub enum Expression {
         fields: Vec<(NodeIndex, NodeIndex)>,
     },
     InitializeArray {
+        ty: NodeIndex,
         elements: Vec<NodeIndex>,
     },
 
@@ -216,6 +217,7 @@ pub struct IR {
     pub filename: String,
     pub tokens: Vec<Token>,
     pub root: NodeIndex,
+    pub registered_indexes: Vec<NodeIndex>, 
     pub nodes: HashMap<NodeIndex, Node>,
     pub scoped_symbols: HashMap<NodeIndex, HashMap<String, Type>>,
     pub exported_symbols: HashMap<String, Type>,
@@ -224,6 +226,14 @@ pub struct IR {
 }
 
 impl IR {
+    pub fn delete_nodes_after_index(&mut self, index: usize) {
+        let to_delete = self.registered_indexes[index+1..].to_vec();
+        for id in &to_delete {
+            self.nodes.remove(id);
+        }
+
+        self.registered_indexes = self.registered_indexes[..index].to_vec();
+    }
     pub fn any_unknowns(&self) -> bool {
         for (_, node) in self.nodes.iter() {
             if node.type_information.is_none() {

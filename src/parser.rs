@@ -21,9 +21,10 @@ pub struct Parser {
     tokens: Vec<Token>,
     cur: usize,
     node_counter: i64,
-    hir: IR,
+    ir: IR,
     owner_stack: Stack<NodeIndex>, 
     block_stack: Stack<NodeIndex>,
+    just_use_top_of_block_stack: bool,
 }
 
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
@@ -45,7 +46,7 @@ impl Parser {
             reason: Reason::ParseError(parse_error),
         };
     }
-    fn new_entity_idx(&self) -> NodeIndex {
+    fn new_index(&self) -> NodeIndex {
         let mut rng = rand::thread_rng();
         let id: u64 = rng.gen();;
         return id;
@@ -61,7 +62,8 @@ impl Parser {
             filename: self.filename.clone(),
             type_information: None,
         };
-        self.hir.nodes.insert(id, node.clone());
+        self.ir.registered_indexes.push(id);
+        self.ir.nodes.insert(id, node.clone());
         return node;
     }
     fn current_token(&self) -> &Token {
@@ -84,6 +86,7 @@ impl Parser {
         let mut hir = IR {
             filename: filename.clone(),
             tokens: tokens.clone(),
+            registered_indexes: vec![],
             root: 0,
             nodes: HashMap::new(),
             scoped_symbols: HashMap::new(),
@@ -97,9 +100,10 @@ impl Parser {
             tokens,
             cur: 0,
             node_counter: 0,
-            hir,
+            ir: hir,
             block_stack: Stack::new(),
             owner_stack: Stack::new(),
+            just_use_top_of_block_stack: false,
         })
     }
     fn expect_ident(&mut self) -> Result<Node> {
@@ -107,7 +111,7 @@ impl Parser {
             TokenType::Ident => {
                 let name =
                     self.src[self.current_token().loc.0..=self.current_token().loc.1].to_string();
-                let node = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Identifier(name)), self.current_token().line, self.current_token().col);
+                let node = self.new_node(self.new_index(), NodeData::Expression(Expression::Identifier(name)), self.current_token().line, self.current_token().col);
                 self.forward_token();
                 return Ok(node);
             }
@@ -122,7 +126,7 @@ impl Parser {
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 return Ok(self.new_node(
-                    self.new_entity_idx(), 
+                    self.new_index(), 
                     NodeData::Expression(Expression::StringLiteral(literal.to_string())),
                     self.current_token().line,
                     self.current_token().col,
@@ -146,78 +150,78 @@ impl Parser {
             TokenType::Equal => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let node = self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_token().line, self.current_token().col);
+                let node = self.new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_token().line, self.current_token().col);
                 Ok(node)
             }
             TokenType::PlusEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Sum, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Sum, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::MinusEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Subtract, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Subtract, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::ModEqual => {
                 self.forward_token();
 
                 let rhs = self.expect_expr()?;
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Modulu, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Modulu, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::MulEqual => {
                 self.forward_token();
 
                 let rhs = self.expect_expr()?;
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Multiply, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Multiply, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DivEqual => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Divide, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Divide, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
 
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DoublePlus => {
                 self.forward_token();
-                let rhs = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Unsigned(1)), self.current_line(), self.current_col());
+                let rhs = self.new_node(self.new_index(), NodeData::Expression(Expression::Unsigned(1)), self.current_line(), self.current_col());
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Sum, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Sum, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DoubleMinus => {
                 self.forward_token();
 
-                let rhs = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Unsigned(1)), self.current_line(), self.current_col());
+                let rhs = self.new_node(self.new_index(), NodeData::Expression(Expression::Unsigned(1)), self.current_line(), self.current_col());
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Subtract, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_index(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Subtract, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DoubleColon => {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
-                let dest_clone = match self.hir.get_node(dest.id.clone()) {
+                let dest_clone = match self.ir.get_node(dest.id.clone()) {
                     Ok(d) => d,
                     Err(_) => return Err(self.report_error(ParseError::UnknownNode(dest.id.clone())))
                 };
                 let node = self.new_node(
-                    self.new_entity_idx(), 
+                    self.new_index(), 
                     NodeData::Statement(Statement::Def {
                         mutable: false,
                         name: dest.id,
@@ -236,12 +240,12 @@ impl Parser {
                     && self.current_token().ty != TokenType::Colon
                 {
                     let decl_node = self.new_node(
-                        self.new_entity_idx(), NodeData::Statement(Statement::Decl{ name: dest.id.clone(), ty: ty.id.clone()}),
+                        self.new_index(), NodeData::Statement(Statement::Decl{ name: dest.id.clone(), ty: ty.id.clone()}),
                         self.current_line(), self.current_col()
                     );
 
                     if self.current_token().ty == TokenType::ForeignDirective {
-                        self.hir.add_tag(decl_node.id, AstTag::Foreign);
+                        self.ir.add_tag(decl_node.id, AstTag::Foreign);
                         self.forward_token();
                     }
 
@@ -251,7 +255,7 @@ impl Parser {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let node = self.new_node(
-                    self.new_entity_idx(), NodeData::Statement(Statement::Def{
+                    self.new_index(), NodeData::Statement(Statement::Def{
                         mutable,
                         name: dest.id,
                         ty: Some(ty.id),
@@ -266,7 +270,7 @@ impl Parser {
                 self.forward_token();
                 let rhs = self.expect_expr()?;
                 let node = self.new_node(
-                    self.new_entity_idx(), 
+                    self.new_index(), 
                     NodeData::Statement(Statement::Def{
                         mutable: true,
                         name: dest.id,
@@ -306,26 +310,26 @@ impl Parser {
             self.forward_token();
             let ty = self.expect_type_expression()?;
 
-            let arg = self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Decl{name: name.id.clone(), ty: ty.id.clone()}), name.line, name.col);
+            let arg = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id.clone(), ty: ty.id.clone()}), name.line, name.col);
             args.push(arg.id);
         }
         let mut ret_ty: Option<Node> = None;
         if self.current_token().ty != TokenType::OpenBrace {
             ret_ty = Some(self.expect_type_expression()?);
         } else {
-            ret_ty = Some(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Void), self.current_line(), self.current_col()));
+            ret_ty = Some(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Void), self.current_line(), self.current_col()));
         }
         let ret_ty = ret_ty.unwrap();
         if self.current_token().ty != TokenType::OpenBrace {
             // fn type only
-            let node = self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Function {
+            let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Function {
                 args,
                 ret: ret_ty.id,
             }), self.current_line(), self.current_col());
             return Ok(node);
         }
         let body = self.expect_block()?;
-        let fn_def = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Function { args, ret_ty: ret_ty.id, body: body }), self.current_line(), self.current_col());
+        let fn_def = self.new_node(self.new_index(), NodeData::Expression(Expression::Function { args, ret_ty: ret_ty.id, body: body }), self.current_line(), self.current_col());
         Ok(fn_def)
     }
 
@@ -357,16 +361,16 @@ impl Parser {
                 }
             }
         }
-        Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::FunctionCall{fn_name: name.id, args}), self.current_line(), self.current_col()))
+        Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::FunctionCall{fn_name: name.id, args}), self.current_line(), self.current_col()))
     }
     fn expect_namespace_access_or_array_index(&mut self) -> Result<Node> {
-        let container = self.expect_expr_initialize()?;
+        let container = self.expect_expr_exact_expr()?;
         match self.current_token().ty {
             TokenType::Dot => {
                 self.forward_token();
                 let field = self.expect_ident()?;
-                let f = self.hir.nodes.get_mut(&field.id).unwrap();
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::NamespaceAccess{ namespace: container.id, field: field.id }), self.current_line(), self.current_col()));
+                let f = self.ir.nodes.get_mut(&field.id).unwrap();
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::NamespaceAccess{ namespace: container.id, field: field.id }), self.current_line(), self.current_col()));
             }
             
             _ => {
@@ -378,98 +382,10 @@ impl Parser {
     expr -> A (add_minus A)*
     A -> B (mul_div_mod B)*
     B -> initialize (< <= | >= > initialize)*
-    container_field -> initialize (. IDENT)
-    initialize -> exact_expr ({})*
+    container_field -> exact_expr (. ident)
     exact_expr -> int | unsigned_int | float | string | bool | ident | '(' expr ')' | deref: *expr | ref: &expr
-        | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float
+        | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float | ident.{} |
     */
-    
-    fn expect_expr_initialize(&mut self) -> Result<Node> {
-        let ty = self.expect_expr_exact_expr()?;
-        match self.current_token().ty {
-            TokenType::OpenBrace => match ty.data {
-                NodeData::TypeDefinition(_) => {
-                    return Ok(ty);
-                }
-
-                _ => {
-                    let mut is_struct_init = false;
-                    self.forward_token();
-                    if self.current_token().ty == TokenType::Ident {
-                        self.forward_token();
-                        if self.current_token().ty == TokenType::Equal {
-                            is_struct_init = true;
-                            self.backward_token();
-                            self.backward_token();
-                        } else {
-                            self.backward_token();
-                        }
-                    }
-
-                    if is_struct_init {
-                        self.forward_token();
-                        let mut fields = Vec::<(NodeIndex, NodeIndex)>::new();
-                        loop {
-                            if self.current_token().ty == TokenType::CloseBrace {
-                                self.forward_token();
-                                break;
-                            }
-
-                            let mut name = self.expect_ident()?;
-                            self.expect_token(TokenType::Equal)?;
-                            self.forward_token();
-                            let value = self.expect_expr()?;
-                            let mut name = self.hir.nodes.get_mut(&name.id.clone()).unwrap();
-                            fields.push((name.id.clone(), value.id));
-                            match self.current_token().ty {
-                                TokenType::Comma => {
-                                    self.forward_token();
-                                }
-                                TokenType::CloseBrace => {
-                                    self.forward_token();
-                                    break;
-                                }
-                                _ => return Err(self.err_uexpected_token(TokenType::Comma)),
-                            }
-                        }
-                        return Ok(self.new_node(self.new_entity_idx(), 
-                            NodeData::Expression(Expression::Initialize{ty: ty.id.clone(), fields}),
-                            
-                        self.current_line(), self.current_col()));
-                    } else {
-                        let mut fields = Vec::<NodeIndex>::new();
-                        loop {
-                            if self.current_token().ty == TokenType::CloseBrace {
-                                self.forward_token();
-                                break;
-                            }
-
-                            let val = self.expect_expr()?;
-                            fields.push(val.id);
-                            match self.current_token().ty {
-                                TokenType::Comma => {
-                                    self.forward_token();
-                                }
-                                TokenType::CloseBrace => {
-                                    self.forward_token();
-                                    break;
-                                }
-                                _ => return Err(self.err_uexpected_token(TokenType::Comma)),
-                            }
-                        }
-                        let node = self.new_node(self.new_entity_idx(), 
-                            NodeData::Expression(Expression::InitializeArray{elements: fields.clone()}),
-                             self.current_line(), self.current_col()
-                        );
-                        return Ok(node);
-                    }
-                }
-            },
-            _ => {
-                return Ok(ty);
-            }
-        }
-    }
 
     fn is_fn_def(&mut self) -> bool {
         if self.current_token().ty != TokenType::OpenParen {
@@ -505,7 +421,7 @@ impl Parser {
                     self.expect_token(TokenType::Colon)?;
                     self.forward_token();
                     let ty = self.expect_type_expression()?;
-                    let field = self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty.id.clone()}), self.current_line(), self.current_col());
+                    let field = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty.id.clone()}), self.current_line(), self.current_col());
                     fields.push(field.id);
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -519,7 +435,7 @@ impl Parser {
                         _ => return Err(self.err_uexpected_token(TokenType::Comma)),
                     }
                 }
-                let node = self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Struct(fields.clone())),  self.current_line(), self.current_col());
+                let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Struct(fields.clone())),  self.current_line(), self.current_col());
                 Ok(node)
             }
             TokenType::KeywordEnum => {
@@ -540,8 +456,8 @@ impl Parser {
                     }
 
                     let mut name = self.expect_ident()?;
-                    let ty_node = self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(64)),  self.current_line(), self.current_col());
-                    let variant = self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty_node.id.clone()}),  self.current_line(), self.current_col());
+                    let ty_node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)),  self.current_line(), self.current_col());
+                    let variant = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty_node.id.clone()}),  self.current_line(), self.current_col());
 
                     match self.current_token().ty {
                         TokenType::Comma => {
@@ -559,7 +475,7 @@ impl Parser {
                         }
                     }
                 }
-                let node = self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Enum(variants.clone())),  self.current_line(), self.current_col());
+                let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Enum(variants.clone())),  self.current_line(), self.current_col());
                 Ok(node)
             }
             TokenType::OpenBracket => {
@@ -569,7 +485,7 @@ impl Parser {
                 self.expect_token(TokenType::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_type_expression()?;
-                let node = self.new_node(self.new_entity_idx(), 
+                let node = self.new_node(self.new_index(), 
                     NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
                      self.current_line(), self.current_col()
                 );
@@ -578,11 +494,6 @@ impl Parser {
             TokenType::Ident => {
                 self.forward_token();
                 match self.current_token().ty {
-                    TokenType::OpenParen => {
-                        //function call
-                        self.backward_token();
-                        self.expect_fn_call()
-                    }
                     _ => {
                         self.backward_token();
                         let name = self.expect_ident()?;
@@ -592,89 +503,89 @@ impl Parser {
             }
             TokenType::KeywordVoid => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Void), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Void), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt8 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Int(8)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(8)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt16 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Int(16)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(16)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt32 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Int(32)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(32)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt64 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordInt128 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Int(128)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(128)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint8 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(8)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(8)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint16 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(16)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(16)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint32 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint64 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordUint128 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(128)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(128)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordFloat32 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordFloat64 => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
             }
             TokenType::KeywordChar => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Char), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Char), self.current_line(), self.current_col()))
             }
             TokenType::KeywordBool => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Bool), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Bool), self.current_line(), self.current_col()))
             }
             TokenType::UintPtrDirective => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::UintPtr), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::UintPtr), self.current_line(), self.current_col()))
             }
             TokenType::IntPtrDirective => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::IntPtr), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::IntPtr), self.current_line(), self.current_col()))
             }
 
             TokenType::KeywordString => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::String), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::String), self.current_line(), self.current_col()))
             }
             TokenType::Asterix | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let expr = self.expect_type_expression()?;
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::Pointer(expr.id)),  self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Pointer(expr.id)),  self.current_line(), self.current_col()));
             }
             TokenType::OpenParen => {
                 let before_check_fn_def_cur = self.cur;
@@ -690,13 +601,26 @@ impl Parser {
                 self.forward_token();
                 Ok(expr)
             }
+            TokenType::OpenBracket => {
+                self.forward_token();
+                let len = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                let ty = self.expect_type_expression()?;
+                println!("array type {:?}", ty);
+                let node = self.new_node(self.new_index(), 
+                    NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
+                        self.current_line(), self.current_col()
+                );
+                return Ok(node);
+            }
             TokenType::CVarArgsDirective => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::CVarArgs), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::CVarArgs), self.current_line(), self.current_col()))
             }
             TokenType::CString => {
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::TypeDefinition(TypeDefinition::CString), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::CString), self.current_line(), self.current_col()))
             }
             _ => {
                 return Err(self.report_error(ParseError::UnknownExpression(self.current_token().ty.clone())));
@@ -743,7 +667,7 @@ impl Parser {
                     Ok(n) => n,
                     Err(_) => return Err(self.report_error(ParseError::InvalidUnsignedInt(self.current_token().clone()))),
                 };
-                Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Unsigned(literal)),  self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Unsigned(literal)),  self.current_line(), self.current_col()))
             }
             TokenType::Float => {
                 self.forward_token();
@@ -753,13 +677,13 @@ impl Parser {
                     Ok(n) => n,
                     Err(_) => return Err(self.report_error(ParseError::InvalidFloat(self.current_token().clone()))),
                 };
-                Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Float(literal)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Float(literal)), self.current_line(), self.current_col()))
             }
             TokenType::StringLiteral => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                 NodeData::Expression(Expression::StringLiteral(literal.to_string())),
                     self.current_line(), self.current_col()
                 ))
@@ -769,33 +693,55 @@ impl Parser {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
             }
             TokenType::KeywordFalse => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
             }
             TokenType::Char => {
                 self.forward_token();
                 let src_range = &self.tokens[self.cur - 1];
                 let literal = &self.src[src_range.loc.0 + 1..=src_range.loc.1 - 1];
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                 NodeData::Expression(Expression::Char(literal.chars().next().unwrap())),
                     self.current_line(), self.current_col()
                 ))
             }
             TokenType::OpenBracket => {
-                // array type
                 self.forward_token();
                 let len = self.expect_expr()?;
                 self.expect_token(TokenType::CloseBracket)?;
                 self.forward_token();
                 let ty = self.expect_type_expression()?;
-                let node = self.new_node(self.new_entity_idx(), 
-                    NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
-                     self.current_line(), self.current_col()
+                self.expect_token(TokenType::OpenBrace)?;
+                self.forward_token();
+                let array_type = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Array { length: len.id, elem_ty: ty.id }), self.current_line(), self.current_col()); 
+                let mut fields = Vec::<NodeIndex>::new();
+                loop {
+                    if self.current_token().ty == TokenType::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+
+                    let val = self.expect_expr()?;
+                    fields.push(val.id);
+                    match self.current_token().ty {
+                        TokenType::Comma => {
+                            self.forward_token();
+                        }
+                        TokenType::CloseBrace => {
+                            self.forward_token();
+                            break;
+                        }
+                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
+                    }
+                }
+                let node = self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::InitializeArray{ty: array_type.id, elements: fields.clone()}),
+                        self.current_line(), self.current_col()
                 );
                 return Ok(node);
             }
@@ -811,18 +757,18 @@ impl Parser {
                 let expr = self.expect_expr()?;
                 self.expect_token(TokenType::CloseParen)?;
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Paren(expr.id.clone())), expr.line, expr.col))
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Paren(expr.id.clone())), expr.line, expr.col))
             }
 
             TokenType::Asterix | TokenType::DoubleLeftAngle => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Deref(expr.id)), self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Deref(expr.id)), self.current_line(), self.current_col()));
             }
             TokenType::Ampersand | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let expr = self.expect_expr()?;
-                return Ok(self.new_node(self.new_entity_idx(), 
+                return Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::PointerOf(expr.id)),
                     
                     self.current_line(), self.current_col()
@@ -836,6 +782,38 @@ impl Parser {
                         self.backward_token();
                         self.expect_fn_call()
                     }
+                    TokenType::OpenBrace => {
+                        // initialize.
+                        self.backward_token();
+                        let ty = self.expect_type_expression()?;
+                        self.forward_token();
+                        let mut fields = Vec::<(NodeIndex, NodeIndex)>::new();
+                        loop {
+                            if self.current_token().ty == TokenType::CloseBrace {
+                                self.forward_token();
+                                break;
+                            }
+
+                            let mut name = self.expect_ident()?;
+                            self.expect_token(TokenType::Equal)?;
+                            self.forward_token();
+                            let value = self.expect_expr()?;
+                            let mut name = self.ir.nodes.get_mut(&name.id.clone()).unwrap();
+                            fields.push((name.id.clone(), value.id));
+                            match self.current_token().ty {
+                                TokenType::Comma => {
+                                    self.forward_token();
+                                }
+                                TokenType::CloseBrace => {
+                                    self.forward_token();
+                                    break;
+                                }
+                                _ => return Err(self.err_uexpected_token(TokenType::Comma)),
+                            }
+                        }
+                        return Ok(self.new_node(self.new_index(), 
+                            NodeData::Expression(Expression::Initialize{ty: ty.id.clone(), fields}), self.current_line(), self.current_col()));
+                    }
                     _ => {
                         self.backward_token();
                         let name = self.expect_ident()?;
@@ -847,7 +825,7 @@ impl Parser {
             TokenType::Bang => {
                 self.forward_token();
                 let to_be_not_value = self.expect_expr()?;
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::UnaryOperation{operator: UnaryOperation::Not, expr: to_be_not_value.id.clone()}), self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::UnaryOperation{operator: UnaryOperation::Not, expr: to_be_not_value.id.clone()}), self.current_line(), self.current_col()));
             }
             _ => {
                 return Err(self.report_error(ParseError::UnknownExpression(self.current_token().ty.clone())));
@@ -885,13 +863,13 @@ impl Parser {
                 let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                 self.forward_token();
                 let rhs = self.expect_namespace_access_or_array_index()?;
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
             }
             TokenType::Bang => {
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::UnaryOperation{ operator: UnaryOperation::Not, expr: lhs.id }),
                     self.current_line(), self.current_col()
                 ))
@@ -902,7 +880,7 @@ impl Parser {
                 let index = self.expect_expr()?;
                 self.expect_token(TokenType::CloseBracket)?;
                 self.forward_token();
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::ArrayIndex{ arr: lhs.id, idx: index.id }),  self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::ArrayIndex{ arr: lhs.id, idx: index.id }),  self.current_line(), self.current_col()));
             }
 
             _ => Ok(lhs),
@@ -915,7 +893,7 @@ impl Parser {
             TokenType::Asterix => {
                 self.forward_token();
                 let rhs = self.expect_expr_binary_operations()?;
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
@@ -923,7 +901,7 @@ impl Parser {
             TokenType::Percent => {
                 self.forward_token();
                 let rhs = self.expect_expr_binary_operations()?;
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Modulu, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
@@ -931,7 +909,7 @@ impl Parser {
             TokenType::ForwardSlash => {
                 self.forward_token();
                 let rhs = self.expect_expr_binary_operations()?;
-               Ok(self.new_node(self.new_entity_idx(), 
+               Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
@@ -970,7 +948,7 @@ impl Parser {
             TokenType::Minus => {
                 self.forward_token();
                 let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Subtract, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
@@ -978,7 +956,7 @@ impl Parser {
             TokenType::Plus => {
                 self.forward_token();
                 let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(self.new_entity_idx(), 
+                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Sum, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
@@ -1001,7 +979,10 @@ impl Parser {
             self.forward_token()
         }
         let mut stmts = Vec::<NodeIndex>::new();
-        let block_id = self.new_entity_idx();
+        let mut block_id = self.new_index();
+        if self.just_use_top_of_block_stack {
+            block_id = self.block_stack.pop();
+        }
         let is_file_root = self.block_stack.len() == 0;
         let block_node = self.new_node(block_id.clone(), NodeData::Statement(Statement::Scope{ owner: 0, stmts: vec![], is_file_root }), self.current_line(), self.current_col()); 
         self.block_stack.push(block_id.clone());
@@ -1014,7 +995,7 @@ impl Parser {
             }
             let stmt = self.expect_stmt()?;
             self.if_semicolon_forward();
-            let mut block_mut = self.hir.nodes.get_mut(&block_id.clone()).unwrap();
+            let mut block_mut = self.ir.nodes.get_mut(&block_id.clone()).unwrap();
             if let NodeData::Statement(Statement::Scope { ref owner, ref mut stmts, ref is_file_root }) = &mut block_mut.data {
                 stmts.push(stmt.id);
             }
@@ -1033,6 +1014,9 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<Node> {
+        self.just_use_top_of_block_stack = true;
+        let block_id = self.new_index();
+        self.block_stack.push(block_id); 
         let start = self.expect_definition_declaration_assignment()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
@@ -1041,7 +1025,7 @@ impl Parser {
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
         let body = self.expect_block()?;
-        let for_node = self.new_node(self.new_entity_idx(), 
+        let for_node = self.new_node(self.new_index(), 
             NodeData::Statement(Statement::For{start: start.id, cond: cond.id, cont: cont.id, body: body}),
              self.current_line(), self.current_col()
         );
@@ -1049,6 +1033,9 @@ impl Parser {
     }
     
     fn expect_for_each(&mut self) -> Result<Node> {
+        self.just_use_top_of_block_stack = true;
+        let block_id = self.new_index();
+        self.block_stack.push(block_id); 
         let iterator = self.expect_ident()?;
         self.forward_token();
         let iterable = self.expect_expr()?;
@@ -1056,7 +1043,7 @@ impl Parser {
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block()?;
-        let node = self.new_node(self.new_entity_idx(), 
+        let node = self.new_node(self.new_index(), 
             NodeData::Statement(Statement::ForIn{iterator: iterator.id, iterable: iterable.id, body}),
              self.current_line(), self.current_col()
         );
@@ -1064,13 +1051,16 @@ impl Parser {
     }
 
     fn expect_for_each_implicit_iterator(&mut self) -> Result<Node> {
+        self.just_use_top_of_block_stack = true;
+        let block_id = self.new_index();
+        self.block_stack.push(block_id); 
         let iterable = self.expect_expr()?;
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();
         self.expect_token(TokenType::OpenBrace)?;
         let body = self.expect_block()?;
-        let iterator = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Identifier("it".to_string())),  self.current_line(), self.current_col());
-        let node = self.new_node(self.new_entity_idx(), 
+        let iterator = self.new_node(self.new_index(), NodeData::Expression(Expression::Identifier("it".to_string())),  self.current_line(), self.current_col());
+        let node = self.new_node(self.new_index(), 
             NodeData::Statement(Statement::ForIn{iterator: iterator.id, iterable: iterable.id, body}),
              self.current_line(), self.current_col()
         );
@@ -1097,17 +1087,17 @@ impl Parser {
                         cond_thens.push(cond_then.clone());
                     }
                 } 
-                let node = self.new_node(self.new_entity_idx(), 
+                let node = self.new_node(self.new_index(), 
                     NodeData::Statement(Statement::If{ cases: cond_thens }),
                      self.current_line(), self.current_col()
                 );
-                self.hir.nodes.remove(&else_if.id);
+                self.ir.nodes.remove(&else_if.id);
                 return Ok(node);
             } else if self.current_token().ty == TokenType::OpenBrace {
                 let _else = self.expect_block()?;
-                let default_case = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Bool(true)), self.current_line(), self.current_col());
+                let default_case = self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(true)), self.current_line(), self.current_col());
                 let cases = vec![(cond.id, then), (default_case.id, _else)];
-                let node = self.new_node(self.new_entity_idx(), 
+                let node = self.new_node(self.new_index(), 
                     NodeData::Statement(Statement::If { cases }),
                      self.current_line(), self.current_col()
                 );
@@ -1116,7 +1106,7 @@ impl Parser {
                 return Err(self.report_error(ParseError::Unknown(format!("after else keyword we expect either a code block or if keyword but found: {:?}", self.current_token()))));
             }
         }
-        let node = self.new_node(self.new_entity_idx(), 
+        let node = self.new_node(self.new_index(), 
             NodeData::Statement(Statement::If{
                 cases: vec![(cond.id, then)],
             }),
@@ -1137,7 +1127,7 @@ impl Parser {
                 let src_range = &self.tokens[path];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let top =
-                    self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Load(literal.to_string())), self.current_line(), self.current_col());
+                    self.new_node(self.new_index(), NodeData::Statement(Statement::Load(literal.to_string())), self.current_line(), self.current_col());
                 Ok(top)
             }
             TokenType::HostDirective => {
@@ -1151,7 +1141,7 @@ impl Parser {
                 let src_range = &self.tokens[path];
                 let literal = &self.src[src_range.loc.0..=src_range.loc.1];
                 let top =
-                    self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Host(literal.to_string())), self.current_line(), self.current_col());
+                    self.new_node(self.new_index(), NodeData::Statement(Statement::Host(literal.to_string())), self.current_line(), self.current_col());
                 Ok(top)
             }
             TokenType::Ident => {
@@ -1189,13 +1179,13 @@ impl Parser {
             TokenType::Asterix | TokenType::DoubleRightAngle => {
                 self.forward_token();
                 let deref = self.expect_expr()?;
-                let deref = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Deref(deref.id)),  self.current_line(), self.current_col());
+                let deref = self.new_node(self.new_index(), NodeData::Expression(Expression::Deref(deref.id)),  self.current_line(), self.current_col());
                 self.expect_token(TokenType::Equal)?;
                 self.forward_token();
                 let expr = self.expect_expr()?;
 
                 let node =
-                    self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: deref.id, rhs: expr.id}), self.current_line(), self.current_col());
+                    self.new_node(self.new_index(), NodeData::Statement(Statement::Assign{lhs: deref.id, rhs: expr.id}), self.current_line(), self.current_col());
 
                 return Ok(node);
             }
@@ -1211,7 +1201,7 @@ impl Parser {
                 self.forward_token();
                 self.expect_token(TokenType::OpenBrace)?;
                 let body = self.expect_block()?;
-                let node = self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::While{cond: cond.id, body}),  self.current_line(), self.current_col());
+                let node = self.new_node(self.new_index(), NodeData::Statement(Statement::While{cond: cond.id, body}),  self.current_line(), self.current_col());
                 return Ok(node);
             }
 
@@ -1221,31 +1211,40 @@ impl Parser {
                 self.forward_token();
 
                 let starting_inside_paren = self.cur;
+                let mut last_index_before_guessing = self.ir.registered_indexes.len()-1;
 
-                if self.expect_definition_declaration_assignment().is_ok() {
+                let guessing_for_c = self.expect_stmt();
+                if guessing_for_c.is_ok() {
                     self.cur = starting_inside_paren;
+                    self.ir.delete_nodes_after_index(last_index_before_guessing);
                     return self.expect_for_c();
                 } else {
+                    self.ir.delete_nodes_after_index(last_index_before_guessing);
                     self.cur = starting_inside_paren;
                 }
-
+                last_index_before_guessing = self.ir.registered_indexes.len()-1;
                 if self.expect_ident().is_ok() {
-                    if self.expect_token(TokenType::KeywordIn).is_ok() {
+                    if self.expect_token(TokenType::Colon).is_ok() {
                         self.cur = starting_inside_paren;
+                        self.ir.delete_nodes_after_index(last_index_before_guessing);
                         return self.expect_for_each();
                     } else {
                         self.cur = starting_inside_paren;
+                        self.ir.delete_nodes_after_index(last_index_before_guessing);
                         return self.expect_for_each_implicit_iterator();
                     }
                 } else {
+                    self.ir.delete_nodes_after_index(last_index_before_guessing);
                     self.cur = starting_inside_paren;
                 }
+                last_index_before_guessing = self.ir.registered_indexes.len()-1;
 
                 if self.expect_expr().is_ok() {
                     self.cur = starting_inside_paren;
-
+                    self.ir.delete_nodes_after_index(last_index_before_guessing);
                     return self.expect_for_each_implicit_iterator();
                 } else {
+                    self.ir.delete_nodes_after_index(last_index_before_guessing);
                     self.cur = starting_inside_paren;
                     return Err(self.report_error(ParseError::Unknown(format!("invalid for syntax"))));
                 }
@@ -1254,7 +1253,7 @@ impl Parser {
                 self.forward_token();
                 let expr = self.expect_expr()?;
                 self.forward_token();
-                Ok(self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Return(expr.id)), self.current_line(), self.current_col()))
+                Ok(self.new_node(self.new_index(), NodeData::Statement(Statement::Return(expr.id)), self.current_line(), self.current_col()))
             }
 
             TokenType::KeywordGoto => {
@@ -1263,7 +1262,7 @@ impl Parser {
             }
 
             TokenType::KeywordContinue => {
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Continue), self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_index(), NodeData::Statement(Statement::Continue), self.current_line(), self.current_col()));
             }
 
             TokenType::KeywordSwitch => {
@@ -1272,7 +1271,7 @@ impl Parser {
             }
 
             TokenType::KeywordBreak => {
-                return Ok(self.new_node(self.new_entity_idx(), NodeData::Statement(Statement::Break), self.current_line(), self.current_col()));
+                return Ok(self.new_node(self.new_index(), NodeData::Statement(Statement::Break), self.current_line(), self.current_col()));
             }
 
             _ => {
@@ -1283,7 +1282,7 @@ impl Parser {
 
     pub fn get_ast(mut self) -> Result<IR> {
         let block_id = self.expect_block()?; 
-        self.hir.root = block_id;
-        Ok(self.hir)
+        self.ir.root = block_id;
+        Ok(self.ir)
     }
 }
