@@ -3,7 +3,7 @@ use crate::lexer::{TokenType, Token, State};
 use super::{ir::NodeIndex, typer::Type};
 
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, CompilerError>;
 
 #[derive(Debug)]
 pub enum TypeCheckError {
@@ -57,18 +57,18 @@ pub enum Reason {
 }
 
 #[derive(Debug)]
-pub struct Error {
+pub struct CompilerError {
     pub filename: String,
     pub line: usize,
     pub col: usize,
     pub reason: Reason,
-    
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for CompilerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("{:?}", self))
     }
 }
 
-impl std::error::Error for Error {}
+
+impl std::error::Error for CompilerError {}

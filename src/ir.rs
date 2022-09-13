@@ -252,6 +252,9 @@ impl IR {
 
         return loads;
     }
+    pub fn print_node(&self, idx: NodeIndex) {
+        println!("{:?}", self.get_node(idx).unwrap());
+    }
     pub fn add_exported_symbol(&mut self, identifier_index: NodeIndex, ty: Type) {
         let identifier = self.get_node(identifier_index).unwrap();
         if let NodeData::Expression(Expression::Identifier(ident)) = identifier.data {

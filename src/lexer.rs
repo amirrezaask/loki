@@ -288,7 +288,7 @@ impl Tokenizer {
                 return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
             }
             _ => {
-                return Err(Error {
+                return Err(CompilerError {
                     filename: self.filename.clone(),
                     line: self.line,
                     col: self.col,

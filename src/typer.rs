@@ -9,7 +9,7 @@ use crate::errors::*;
 use crate::ir::TypeDefinition;
 use crate::utils;
 
-use super::errors::Error;
+use super::errors::CompilerError;
 use super::errors::TypeCheckError;
 use super::ir::BinaryOperation;
 use super::ir::Expression;
@@ -126,226 +126,6 @@ impl IR {
 
     }
 
-    fn resolve_type_definition(&mut self, other_files_exports: &HashMap<String, HashMap<String, Type>>, type_definition_index: NodeIndex) -> Result<Option<Type>> {
-        let type_definition = self.get_node(type_definition_index).unwrap();
-        match type_definition.data {
-            NodeData::TypeDefinition(ref td) => {
-                match td {
-                    TypeDefinition::Int(ref size) => {
-                        self.add_type(type_definition_index, Type::SignedInt(*size));
-                        return Ok(Some(Type::SignedInt(*size)));
-                    },
-                    TypeDefinition::Uint(size) => {
-                        self.add_type(type_definition_index, Type::UnsignedInt(*size));
-                        return Ok(Some(Type::UnsignedInt(*size)));
-                    },
-                    TypeDefinition::Float(size) => {
-                        self.add_type(type_definition_index, Type::Float(*size));
-                        return Ok(Some(Type::Float(*size)));
-                    },
-                    TypeDefinition::Bool => {
-                        self.add_type(type_definition_index, Type::Bool);
-                        return Ok(Some(Type::Bool));
-                    },
-                    TypeDefinition::String => {
-                        self.add_type(type_definition_index, Type::String);
-                        return Ok(Some(Type::String));
-                    },
-                    TypeDefinition::Char => {
-                        self.add_type(type_definition_index, Type::Char);
-                        return Ok(Some(Type::Char));
-                    },
-                    TypeDefinition::Void => {
-                        self.add_type(type_definition_index, Type::Void);
-                        return Ok(Some(Type::Void));
-                    },
-                    TypeDefinition::CVarArgs => {
-                        self.add_type(type_definition_index, Type::CVarArgs);
-                        return Ok(Some(Type::CVarArgs));
-                    },
-                    TypeDefinition::CString => {
-                        self.add_type(type_definition_index, Type::CString);
-                        return Ok(Some(Type::CString));
-                    },
-                    TypeDefinition::IntPtr => {
-                        self.add_type(type_definition_index, Type::CIntPtr);
-                        return Ok(Some(Type::CIntPtr));
-                    },
-                    TypeDefinition::UintPtr => {
-                        self.add_type(type_definition_index, Type::CUintPtr);
-                        return Ok(Some(Type::CUintPtr));
-                    },
-                    TypeDefinition::Pointer(ref pointee) => {
-                        let pointee_node = self.get_node(*pointee).unwrap();
-                        match pointee_node.data {
-                            NodeData::TypeDefinition(ref typedef) => {
-                                let pointee_type = self.resolve_type_definition(other_files_exports, *pointee)?;
-                                if pointee_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*pointee) });
-                                    return Ok(None);
-                                }
-
-                                return Ok(Some(pointee_type.unwrap()));
-                            },
-                            NodeData::Expression(ref expression) => {
-                                let pointee_type = self.type_expression(other_files_exports, *pointee)?;
-                                if pointee_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*pointee) });
-                                    return Ok(None);
-                                }
-
-                                return Ok(Some(pointee_type.unwrap()));
-                            },
-                            NodeData::Statement(_) => unreachable!(),
-                        }
-                    },
-                    TypeDefinition::Array { length, elem_ty } => {
-                        // TODO: if we can constantly know the lenght we need to store it in type for maybe later usage.
-                        let length_type = self.type_expression(other_files_exports, *length)?;
-                        if length_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*length) });
-                            return Ok(None);
-                        }
-                        let elem_ty_node = self.get_node(*elem_ty).unwrap();
-                        match elem_ty_node.data {
-                            NodeData::TypeDefinition(ref typedef) => {
-                                let elem_type = self.resolve_type_definition(other_files_exports, *elem_ty)?;
-                                if elem_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*elem_ty) });
-                                    return Ok(None);
-                                }
-
-                                return Ok(Some(elem_type.unwrap()));
-                            },
-                            NodeData::Expression(ref expression) => {
-                                let elem_type = self.type_expression(other_files_exports, *elem_ty)?;
-                                if elem_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*elem_ty) });
-                                    return Ok(None);
-                                }
-
-                                return Ok(Some(elem_type.unwrap()));
-                            },
-                            NodeData::Statement(_) => unreachable!(),
-                        }
-                        
-                    },
-                    TypeDefinition::Function { args, ret } => {
-                        let mut arg_types: Vec<Type> = vec![];
-                        for arg in args {
-                            let decl_node = self.get_node(*arg).unwrap();
-                            match decl_node.data {
-                                NodeData::Statement(Statement::Decl { name, ty }) => {
-                                    let type_def = self.resolve_type_definition(other_files_exports, ty)?;
-                                    if type_def.is_none() {
-                                        self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(ty) });
-                                        return Ok(None);
-                                    }
-                                    
-                                    let type_def = type_def.unwrap();
-                                    let name_node = self.get_node(name).unwrap();
-                                    match name_node.data {
-                                        NodeData::Expression(Expression::Identifier(ref identifier)) => {
-                                            arg_types.push(type_def);
-                                        },
-
-                                        _ => unreachable!()
-                                    }
-                                
-                                },
-                                _ => unreachable!(),
-                            }
-                        }
-                        
-                        let ret_node = self.get_node(*ret).unwrap();
-                        match ret_node.data {
-                            NodeData::TypeDefinition(ref typedef) => {
-                                let ret_type = self.resolve_type_definition(other_files_exports, *ret)?;
-                                if ret_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*ret) });
-                                    return Ok(None);
-                                }
-                                return Ok(Some(Type::FnType(arg_types, Box::new(ret_type.unwrap()))))
-
-                            },
-                            NodeData::Expression(ref expression) => {
-                                let ret_type = self.type_expression(other_files_exports, *ret)?;
-                                if ret_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(*ret) });
-                                    return Ok(None);
-                                }
-                                return Ok(Some(Type::FnType(arg_types, Box::new(ret_type.unwrap()))))
-
-                            },
-                            NodeData::Statement(_) => unreachable!(),
-                        }
-                    },
-                    TypeDefinition::Struct(ref decls) => {
-                        let mut fields: Vec<(String, Type)> = vec![];
-                        for decl in decls {
-                            let decl_node = self.get_node(*decl).unwrap();
-                            match decl_node.data {
-                                NodeData::Statement(Statement::Decl { name, ty }) => {
-                                    let type_def = self.resolve_type_definition(other_files_exports, ty)?;
-                                    if type_def.is_none() {
-                                        self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(ty) });
-                                        return Ok(None);
-                                    }
-                                    
-                                    let type_def = type_def.unwrap();
-                                    let name_node = self.get_node(name).unwrap();
-                                    match name_node.data {
-                                        NodeData::Expression(Expression::Identifier(ref identifier)) => {
-                                            fields.push((identifier.clone(), type_def));
-                                        },
-
-                                        _ => unreachable!()
-                                    }
-                                
-                                },
-                                _ => unreachable!(),
-                            }
-                        }
-
-                        return Ok(Some(Type::Struct { fields }));
-                    },
-                    TypeDefinition::Enum(ref decls) => {
-                        let mut variants: Vec<String> = vec![];
-                        for decl in decls {
-                            let decl_node = self.get_node(*decl).unwrap();
-                            match decl_node.data {
-                                NodeData::Statement(Statement::Decl { name, ty }) => {
-                                    let type_def = self.resolve_type_definition(other_files_exports, ty)?;
-                                    if type_def.is_none() {
-                                        self.dependencies.push(Dependency { file: self.filename.clone(), node_index: type_definition_index, reason: DependencyReason::Node(ty) });
-                                        return Ok(None);
-                                    }
-                                    
-                                    let type_def = type_def.unwrap();
-                                    let name_node = self.get_node(name).unwrap();
-                                    match name_node.data {
-                                        NodeData::Expression(Expression::Identifier(ref identifier)) => {
-                                            variants.push(identifier.clone());
-                                        },
-
-                                        _ => unreachable!()
-                                    }
-                                
-                                },
-                                _ => unreachable!(),
-                            }
-                        }
-
-                        return Ok(Some(Type::Enum { variants }));
-                    },
-                }
-            },
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-
     fn resolve_namespace_access_type(&self, ns_type: Type, field: String) -> Result<Type> {
         match &ns_type {
             Type::Struct { ref fields } => {
@@ -354,7 +134,7 @@ impl IR {
                         return Ok(sf.1.clone());
                     }
                 }
-                return Err(Error {
+                return Err(CompilerError {
                     filename: self.filename.clone(),
                     line: 0,
                     col: 0,
@@ -367,7 +147,7 @@ impl IR {
                         return Ok(Type::UnsignedInt(64));
                     }
                 }
-                return Err(Error {
+                return Err(CompilerError {
                     filename: self.filename.clone(),
                     line: 0,
                     col: 0,
@@ -381,7 +161,7 @@ impl IR {
                return self.resolve_namespace_access_type(ns_type, field);
             },
             _ => {
-                return Err(Error {
+                return Err(CompilerError {
                     filename: self.filename.clone(),
                     line: 0,
                     col: 0,
@@ -405,7 +185,7 @@ impl IR {
                         self.add_type(expression_index, Type::SignedInt(64));
                         return Ok(Some(Type::SignedInt(64)));
                     },
-                    Expression::StringLiteral(_) => {
+                    Expression::StringLiteral(ref s) => {
                         self.add_type(expression_index, Type::String);
                         return Ok(Some(Type::String));
                     },
@@ -473,7 +253,7 @@ impl IR {
                                                         return Ok(Some(*element_type.clone()))
                                                     },
                                                     _ => {
-                                                        return Err(Error {
+                                                        return Err(CompilerError {
                                                             filename: self.filename.clone(),
                                                             line: 0,
                                                             col: 0,
@@ -488,7 +268,7 @@ impl IR {
                                         }
                                     }
                                     _ => {
-                                        return Err(Error {
+                                        return Err(CompilerError {
                                             filename: self.filename.clone(),
                                             line: 0,
                                             col: 0,
@@ -525,7 +305,7 @@ impl IR {
                                     self.add_type(expression_index, left_type.clone().unwrap());
                                     return Ok(left_type);
                                 } else {
-                                    unimplemented!();
+                                    panic!("two sides of a binary operator should be same type. {:?} != {:?}", left_type, right_type);
                                 }
                             },
                             BinaryOperation::Greater |
@@ -537,18 +317,18 @@ impl IR {
                             => {
                                 if left_type == right_type {
                                     self.add_type(expression_index, Type::Bool);
-                                    return Ok(left_type);
+                                    return Ok(Some(Type::Bool));
                                 } else {
-                                    unimplemented!();
+                                    panic!("two sides of a binary operator should be same type. {:?} != {:?}", left_type, right_type);
                                 }
                             },
                             BinaryOperation::BinaryAnd |
                             BinaryOperation::BinaryOr => {
                                 if left_type == Some(Type::Bool) && right_type == Some(Type::Bool) {
                                     self.add_type(expression_index, Type::Bool);
-                                    return Ok(left_type);
+                                    return Ok(Some(Type::Bool));
                                 } else {
-                                    unimplemented!();
+                                    panic!("two sides of && || should be boolean. left {:?} right {:?}", left_type, right_type);
                                 }
                             }
                         }
@@ -574,7 +354,7 @@ impl IR {
                     },
                     //TODO check if fields are valid in context of it's type.
                     Expression::Initialize { ty, fields } => {
-                        let initialize_type = self.resolve_type_definition(other_files_exports, *ty)?;
+                        let initialize_type = self.type_expression(other_files_exports, *ty)?;
                         if initialize_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
@@ -595,7 +375,7 @@ impl IR {
                                 array_elem_type = elem_type;
                             } else {
                                 if array_elem_type.clone().unwrap() != elem_type.clone().unwrap() {
-                                    return Err(Error {
+                                    return Err(CompilerError {
                                         filename: self.filename.clone(),
                                         line: 0,
                                         col: 0,
@@ -618,12 +398,12 @@ impl IR {
 
                         let arg_types: Vec<Type> = args.iter().map(|arg_idx| {
                             if let NodeData::Statement(Statement::Decl { name, ty }) = self.nodes.get(arg_idx).unwrap().data {
-                                self.nodes.get(&ty).clone().unwrap().type_information.as_ref().unwrap();
+                                return self.nodes.get(&ty).clone().unwrap().type_information.as_ref().unwrap().to_owned();
                             }
-                            unreachable!();
+                            unreachable!()
                         }).collect();
 
-                        let ret_type = self.resolve_type_definition(other_files_exports, *ret_ty_node)?;
+                        let ret_type = self.type_expression(other_files_exports, *ret_ty_node)?;
                         if ret_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ret_ty_node) });
                             return Ok(None);
@@ -643,8 +423,16 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*fn_name) });
                             return Ok(None);
                         }
+                        for arg in args {
+                            let arg_type = self.type_expression(other_files_exports, *arg)?;
+                            if arg_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*arg) });
+                                return Ok(None);
+                            }
+                        }
                         let fn_type = fn_type.unwrap();
                         if let Type::FnType(_, ret) = fn_type {
+                            self.add_type(expression_index, ret.deref().clone());
                             return Ok(Some(ret.deref().clone()));
                         } else {
                             unreachable!()
@@ -681,7 +469,148 @@ impl IR {
                 }
             },
             NodeData::Statement(_) => panic!("unexpected when typing an expression {:?}", node),
-            NodeData::TypeDefinition(_) => panic!("unexpected when typing an expression {:?}", node)
+            NodeData::TypeDefinition(ref td) => {
+                match td {
+                    TypeDefinition::Int(ref size) => {
+                        self.add_type(expression_index, Type::SignedInt(*size));
+                        return Ok(Some(Type::SignedInt(*size)));
+                    },
+                    TypeDefinition::Uint(size) => {
+                        self.add_type(expression_index, Type::UnsignedInt(*size));
+                        return Ok(Some(Type::UnsignedInt(*size)));
+                    },
+                    TypeDefinition::Float(size) => {
+                        self.add_type(expression_index, Type::Float(*size));
+                        return Ok(Some(Type::Float(*size)));
+                    },
+                    TypeDefinition::Bool => {
+                        self.add_type(expression_index, Type::Bool);
+                        return Ok(Some(Type::Bool));
+                    },
+                    TypeDefinition::String => {
+                        self.add_type(expression_index, Type::String);
+                        return Ok(Some(Type::String));
+                    },
+                    TypeDefinition::Char => {
+                        self.add_type(expression_index, Type::Char);
+                        return Ok(Some(Type::Char));
+                    },
+                    TypeDefinition::Void => {
+                        self.add_type(expression_index, Type::Void);
+                        return Ok(Some(Type::Void));
+                    },
+                    TypeDefinition::CVarArgs => {
+                        self.add_type(expression_index, Type::CVarArgs);
+                        return Ok(Some(Type::CVarArgs));
+                    },
+                    TypeDefinition::CString => {
+                        self.add_type(expression_index, Type::CString);
+                        return Ok(Some(Type::CString));
+                    },
+                    TypeDefinition::IntPtr => {
+                        self.add_type(expression_index, Type::CIntPtr);
+                        return Ok(Some(Type::CIntPtr));
+                    },
+                    TypeDefinition::UintPtr => {
+                        self.add_type(expression_index, Type::CUintPtr);
+                        return Ok(Some(Type::CUintPtr));
+                    },
+                    TypeDefinition::Pointer(ref pointee) => {
+                        let pointee_node = self.get_node(*pointee).unwrap();
+                        let pointee_type = self.type_expression(other_files_exports, *pointee)?;
+                        if pointee_type.is_none() {
+                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*pointee) });
+                            return Ok(None);
+                        }
+
+                        self.add_type(expression_index, Type::Pointer(Box::new(pointee_type.clone().unwrap())));
+                        return Ok(Some(Type::Pointer(Box::new(pointee_type.clone().unwrap()))));
+                    },
+                    TypeDefinition::Array { length, elem_ty } => {
+                        // TODO: if we can constantly know the lenght we need to store it in type for maybe later usage.
+                        let length_type = self.type_expression(other_files_exports, *length)?;
+                        if length_type.is_none() {
+                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*length) });
+                            return Ok(None);
+                        }
+                        let elem_type = self.type_expression(other_files_exports, *elem_ty)?;
+                        if length_type.is_none() {
+                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*elem_ty) });
+                            return Ok(None);
+                        }
+                        self.add_type(expression_index, Type::Array(Box::new(elem_type.clone().unwrap())));
+                        return Ok(Some(Type::Array(Box::new(elem_type.clone().unwrap()))));
+                    },
+                    TypeDefinition::Function { args, ret } => {
+                        let mut arg_types: Vec<Type> = vec![];
+                        for arg in args {
+                            let decl_type = self.type_statement(other_files_exports, *arg)?;
+                            if decl_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*arg) });
+                                return Ok(None);
+                            }
+
+                            arg_types.push(decl_type.unwrap())
+                        }
+                        let ret_type = self.type_expression(other_files_exports, *ret)?;            
+                        if ret_type.is_none() {
+                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ret) });
+                            return Ok(None);
+                        }
+                        self.add_type(expression_index, Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap())));
+                        return Ok(Some(Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap()))));
+                        
+                    },
+                    TypeDefinition::Struct(ref decls) => {
+                        let mut fields: Vec<(String, Type)> = vec![];
+                        for decl in decls {
+                            let decl_type = self.type_statement(other_files_exports, *decl)?;
+                            if decl_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*decl) });
+                                return Ok(None);
+                            }
+                            if let (NodeData::Statement(Statement::Decl { name, ty: _ })) = self.get_node(*decl).unwrap().data {
+                                let name_node = self.get_node(name)?;
+                                if let NodeData::Expression(Expression::Identifier(ident)) = name_node.data {
+                                    fields.push((ident, decl_type.unwrap()))
+                                } else {
+                                    unreachable!();
+                                }
+
+                            } else {
+                                unreachable!();
+                            }
+                        }
+                        self.add_type(expression_index, Type::Struct { fields: fields.clone() });
+
+                        return Ok(Some(Type::Struct { fields }));
+                    },
+                    TypeDefinition::Enum(ref decls) => {
+                        let mut variants: Vec<String> = vec![];
+                        for decl in decls {
+                            let decl_type = self.type_statement(other_files_exports, *decl)?;
+                            if decl_type.is_none() {
+                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*decl) });
+                                return Ok(None);
+                            }
+                            if let (NodeData::Statement(Statement::Decl { name, ty: _ })) = self.get_node(*decl).unwrap().data {
+                                let name_node = self.get_node(name)?;
+                                if let NodeData::Expression(Expression::Identifier(ident)) = name_node.data {
+                                    variants.push((ident));
+                                } else {
+                                    unreachable!();
+                                }
+
+                            } else {
+                                unreachable!();
+                            }
+                            
+                        }
+                        self.add_type(expression_index, Type::Enum { variants: variants.clone() });
+                        return Ok(Some(Type::Enum { variants }));
+                    },
+                }
+            }
             
         }        
     }
@@ -724,7 +653,7 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*expr) });
                             return Ok(None);
                         }
-                        let type_annotation_type = self.resolve_type_definition(other_files_exports, *ty)?;
+                        let type_annotation_type = self.type_expression(other_files_exports, *ty)?;
                         if type_annotation_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
@@ -751,7 +680,7 @@ impl IR {
                     
 
                     Statement::Decl { ref name, ref ty } => {
-                        let decl_type = self.resolve_type_definition(other_files_exports, *ty)?;
+                        let decl_type = self.type_expression(other_files_exports, *ty)?;
                         if decl_type.is_none() {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*ty) });
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*ty) });
@@ -771,7 +700,7 @@ impl IR {
                                 
                             }
                         }
-
+                        self.add_type(stmt_index, decl_type.clone().unwrap());
                         return Ok(Some(decl_type.clone().unwrap()));
                     },
 
@@ -786,12 +715,15 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*rhs) });
                             return Ok(None);
                         }
+                        println!("left {:?}", lhs_type);
+                        println!("right {:?}", rhs_type);
+                        self.add_type(stmt_index, Type::NoType);
 
                         return Ok(Some(Type::NoType));
                     },
 
                     Statement::Scope { ref owner, is_file_root, ref stmts } => {
-                        self.type_scope(other_files_exports, node.id) 
+                        self.type_scope(other_files_exports, node.id)
                     }
 
                     Statement::If { ref cases } => {
@@ -802,12 +734,18 @@ impl IR {
                                 return Ok(None);
                             }
                             let cond_type = cond_type.unwrap();
+                            if let Type::Bool = cond_type {
+
+                            } else {
+                                panic!("if condition needs to be a boolean.")
+                            }
                             let scope_type = self.type_scope(other_files_exports, case.1)?;
                             if scope_type.is_none() {
                                 self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(case.1) });
                                 return Ok(None);
                             }
                         }
+                        self.add_type(stmt_index, Type::NoType);
 
                         return Ok(Some(Type::NoType));
                     },
@@ -833,6 +771,7 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
                         }
+                        self.add_type(stmt_index, Type::NoType);
 
                         return Ok(Some(Type::NoType));
                     },
@@ -854,6 +793,8 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
                         }
+                        self.add_type(stmt_index, Type::NoType);
+
                         return Ok(Some(Type::NoType));
                     },
                     
@@ -868,6 +809,8 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
                         }
+                        self.add_type(stmt_index, Type::NoType);
+
                         return Ok(Some(Type::NoType));
                     },
                     
@@ -889,17 +832,24 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*expr) });
                             return Ok(None);
                         }
+                        self.add_type(stmt_index, Type::NoType);
+
                         return Ok(Some(Type::NoType));
                     },
                 }
             },
-            NodeData::TypeDefinition(_) => {
-                unreachable!()
+            NodeData::Expression(Expression::FunctionCall { fn_name, args }) => {
+                let fn_ret_type = self.type_expression(other_files_exports, stmt_index)?;
+                if fn_ret_type.is_none() {
+                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(fn_name) });
+                    return Ok(None);
+                }
+                self.add_type(stmt_index, Type::NoType);
+                return Ok(Some(Type::NoType));
             },
-            NodeData::Expression(e) => {
-                panic!(">>> {:?}", e)
-                
-            },
+            _ => {
+                unreachable!();
+            }
         }
 
     }
@@ -919,7 +869,9 @@ impl IR {
                 }
             }
             self.add_type(scope_index, Type::NoType);
+            return Ok(Some(Type::NoType));
+        } else {
+            unreachable!();
         }
-        Ok(Some(Type::NoType))
     }
 }

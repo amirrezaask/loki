@@ -1,10 +1,11 @@
 
+use std::fmt::Debug;
 use std::{collections::HashMap, hash::Hash};
 use serde::Serialize;
 
 use super::{ir::IR};
 use super::typer::Type;
-use crate::ir::Node;
+use crate::ir::{Node, Statement};
 use crate::{errors::*, utils, parser::Parser, ir::NodeIndex};
 
 pub type FileIndex = usize;
@@ -59,11 +60,16 @@ impl Compilation {
 
         Ok(())
     }
-    fn pretty_print_nodes(nodes: &HashMap<NodeIndex, Node>) {
+    fn pretty_print_unknown_nodes(nodes: &HashMap<NodeIndex, Node>) {
         for (k,v) in nodes.iter() {
             if v.type_information.is_none() {
                 println!("{}: {:?}", k, v)
             }
+        }
+    }
+    fn pretty_print<T: Debug>(list: Vec<T>) {
+        for elem in &list {
+            println!("{:?}", elem);
         }
     }
 
@@ -80,8 +86,6 @@ impl Compilation {
         // parse all loaded files recursively
         compilation.resolve_loads(main_file_abs_path.clone());
         println!("[+] resolved main file loads...");
-        
-        
         let main_ir = compilation.IRs.get_mut(&main_file_abs_path).unwrap();
         // now we have all of our files used in our program in compilation.IRs
         let keys: Vec<File> = compilation.IRs.keys().map(|f| f.clone()).collect();
@@ -104,6 +108,8 @@ impl Compilation {
 
             // try to do a pass on the file and type as much as possible
             ir.type_root(&compilation.exported_symbols)?;
+            Self::pretty_print(ir.dependencies.clone());
+            Self::pretty_print_unknown_nodes(&ir.nodes);
             // get file exported symbols that are fully type checked and add them to compilation struct so other files know about these.
             let mut file_exports = compilation.exported_symbols.get_mut(file);
             if file_exports.is_none() {
@@ -114,10 +120,10 @@ impl Compilation {
             for (k,v) in ir.exported_symbols.iter() {
                 file_exports.insert(k.clone(), v.clone());
             }
-            if ir.dependencies.len() == 0 {
+            if ir.dependencies.len() == 0 && !ir.any_unknowns() {
                 println!("[+] {} passed type check", file);
                 finished_type_checking += 1;
-                ir.type_checked = true && ir.any_unknowns();
+                ir.type_checked = true;
             }
             keys_index +=1;
             if keys_index >= keys.len() {

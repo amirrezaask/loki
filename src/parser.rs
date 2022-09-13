@@ -10,7 +10,7 @@ use crate::utils;
 use rand::Rng;
 use rand::distributions::{Alphanumeric, DistString};
 
-use crate::errors::{Result, Error, Reason, ParseError};
+use crate::errors::{Result, CompilerError, Reason, ParseError};
 use crate::ir::{Expression, Statement, TypeDefinition, UnaryOperation};
 const ID_LENGTH: usize = 24;
 
@@ -28,8 +28,8 @@ pub struct Parser {
 
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
 impl Parser {
-    fn err_uexpected_token(&self, what: TokenType) -> Error {
-        Error {
+    fn err_uexpected_token(&self, what: TokenType) -> CompilerError {
+        CompilerError {
             filename: self.filename.clone(),
             line: self.current_line(),
             col: self.current_col(),
@@ -37,8 +37,8 @@ impl Parser {
         }
     }
     
-    fn report_error(&self, parse_error: ParseError) -> Error {
-        return Error {
+    fn report_error(&self, parse_error: ParseError) -> CompilerError {
+        return CompilerError {
             filename: self.filename.clone(),
             line: self.current_line(),
             col: self.current_col(),
@@ -155,7 +155,7 @@ impl Parser {
                 let inner = self
                     .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Sum, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::MinusEqual => {
                 self.forward_token();
@@ -163,7 +163,7 @@ impl Parser {
                 let inner = self
                     .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Subtract, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::ModEqual => {
                 self.forward_token();
@@ -172,7 +172,7 @@ impl Parser {
                 let inner = self
                     .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Modulu, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::MulEqual => {
                 self.forward_token();
@@ -181,7 +181,7 @@ impl Parser {
                 let inner = self
                     .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Multiply, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DivEqual => {
                 self.forward_token();
@@ -190,24 +190,24 @@ impl Parser {
                     .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Divide, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
 
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DoublePlus => {
                 self.forward_token();
                 let rhs = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Unsigned(1)), self.current_line(), self.current_col());
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Divide, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Sum, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DoubleMinus => {
                 self.forward_token();
 
                 let rhs = self.new_node(self.new_entity_idx(), NodeData::Expression(Expression::Unsigned(1)), self.current_line(), self.current_col());
                 let inner = self
-                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Divide, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
+                    .new_node(self.new_entity_idx(), NodeData::Expression(Expression::BinaryOperation {operation: BinaryOperation::Subtract, left: dest.id.clone(), right:rhs.id }), self.current_line(), self.current_col());
                 return Ok(self
-                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: rhs.id}), self.current_line(), self.current_col()));
+                    .new_node(self.new_entity_idx(), NodeData::Statement(Statement::Assign{lhs: dest.id, rhs: inner.id}), self.current_line(), self.current_col()));
             }
             TokenType::DoubleColon => {
                 self.forward_token();
@@ -1006,7 +1006,10 @@ impl Parser {
         let block_node = self.new_node(block_id.clone(), NodeData::Statement(Statement::Scope{ owner: 0, stmts: vec![], is_file_root }), self.current_line(), self.current_col()); 
         self.block_stack.push(block_id.clone());
         loop {
-            if self.current_token().ty == TokenType::CloseBrace || self.cur >= self.tokens.len() {
+            if (self.current_token().ty == TokenType::CloseBrace || self.cur >= self.tokens.len()) {
+                // if is_file_root { // BUG
+                //     return Err(self.report_error(ParseError::UnknownStatement(self.current_token().ty.clone())));
+                // }
                 break;
             }
             let stmt = self.expect_stmt()?;
@@ -1098,6 +1101,7 @@ impl Parser {
                     NodeData::Statement(Statement::If{ cases: cond_thens }),
                      self.current_line(), self.current_col()
                 );
+                self.hir.nodes.remove(&else_if.id);
                 return Ok(node);
             } else if self.current_token().ty == TokenType::OpenBrace {
                 let _else = self.expect_block()?;
@@ -1278,7 +1282,7 @@ impl Parser {
     }
 
     pub fn get_ast(mut self) -> Result<IR> {
-        let block_id = self.expect_block()?;      
+        let block_id = self.expect_block()?; 
         self.hir.root = block_id;
         Ok(self.hir)
     }
