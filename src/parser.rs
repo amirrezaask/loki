@@ -23,7 +23,7 @@ pub struct Parser {
     node_counter: i64,
     ir: IR,
     owner_stack: Stack<NodeIndex>, 
-    block_stack: Stack<NodeIndex>,
+    scope_stack: Stack<NodeIndex>,
 }
 
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
@@ -57,7 +57,7 @@ impl Parser {
             data,
             tags: vec![],
             line: start_line, col: start_col,
-            parent_block: self.block_stack.top().clone(),
+            parent_block: self.scope_stack.top().clone(),
             filename: self.filename.clone(),
             type_information: None,
         };
@@ -100,7 +100,7 @@ impl Parser {
             cur: 0,
             node_counter: 0,
             ir: hir,
-            block_stack: Stack::new(),
+            scope_stack: Stack::new(),
             owner_stack: Stack::new(),
         })
     }
@@ -395,9 +395,9 @@ impl Parser {
         }
         let mut stmts = Vec::<NodeIndex>::new();
         let mut block_id = self.new_index();
-        let is_file_root = self.block_stack.len() == 0;
+        let is_file_root = self.scope_stack.len() == 0;
         let block_node = self.new_node(block_id.clone(), NodeData::Statement(Statement::Scope{ owner: 0, stmts: vec![], is_file_root }), self.current_line(), self.current_col()); 
-        self.block_stack.push(block_id.clone());
+        self.scope_stack.push(block_id.clone());
         loop {
             if (self.current_token().ty == TokenType::CloseBrace || self.cur >= self.tokens.len()) {
                 // if is_file_root { // BUG
@@ -412,7 +412,7 @@ impl Parser {
                 stmts.push(stmt.id);
             }
         }
-        self.block_stack.pop();
+        self.scope_stack.pop();
         
         self.forward_token();
         Ok(block_node.id)
@@ -1197,7 +1197,13 @@ impl Parser {
                 return Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::Initialize{ty: value.id.clone(), fields}), self.current_line(), self.current_col()));
             }
-
+            TokenType::OpenBracket => {
+                self.forward_token();
+                let index = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::ArrayIndex{ arr: value.id, idx: index.id }),  self.current_line(), self.current_col()));
+            }
             TokenType::Dot => {
                 self.forward_token();
                 let field = self.expect_ident()?;
