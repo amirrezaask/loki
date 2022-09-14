@@ -89,7 +89,6 @@ impl Compilation {
 
         let main_ir = compilation.IRs.get_mut(&main_file_abs_path).unwrap();
         // now we have all of our files used in our program in compilation.IRs
-        Self::pretty_print_unknown_nodes(&main_ir.nodes);
         let keys: Vec<File> = compilation.IRs.keys().map(|f| f.clone()).collect();
         let mut keys_index: usize = 0;
         let mut finished_type_checking = 0;
