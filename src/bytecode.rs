@@ -1,12 +1,15 @@
-struct Instruction {}
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct Instruction {
 
+}
 
-struct ByteCode {
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct ByteCode {
 
 }
 
 
-
-struct ByteCodeBuilder {
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct ByteCodeBuilder {
 
 }
