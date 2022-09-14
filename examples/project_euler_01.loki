@@ -1,6 +1,6 @@
 #load "print"
 
-is_multiple_of :: (x: s64, d: s64) bool {
+is_multiple_of :: (x: uint, d: uint) bool {
 	if (x % d == 0) {
 		return true;
 	}
@@ -8,7 +8,7 @@ is_multiple_of :: (x: s64, d: s64) bool {
 	return false;
 }
 
-min :: (a: s64, b: s64) s64 {
+min :: (a: uint, b: uint) uint {
 	if (a > b) {
 		return b;
 	}
@@ -19,12 +19,11 @@ min :: (a: s64, b: s64) s64 {
 main :: () int {
 	threshold :: 1000;
 	sum := 0;
-	for (i := min(3, 5); i<threshold; i++) {
+	for (i := 3; i<threshold; i++) {
 		if (is_multiple_of(i, 3) || is_multiple_of(i, 5)) {
 			sum += i;
 		}
 	}
-
 	printf("sum is %d\n", sum);
 
 }

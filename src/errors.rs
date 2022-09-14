@@ -12,6 +12,7 @@ pub enum TypeCheckError {
         dependent_node: NodeIndex,
         identifier: String,
     },
+    TwoSidesOfABinaryOperatorShouldBeSameType(Type, Type),
     StructDoesNotHaveField(Type, String),
     EnumDoesNotHaveVariant(Type, String),
     InvalidNamespace(Type),

@@ -22,9 +22,9 @@ fn test_suite() -> Result<()> {
                     success += 1;
                     let os = std::env::consts::OS;
                     if os == "windows" {
-                        std::fs::remove_file(format!("{}.exe", file.path().file_stem().unwrap().to_str().unwrap())).unwrap();
+                        std::fs::remove_file(format!("{}.exe", file.path().file_stem().unwrap().to_str().unwrap()));
                     } else {
-                        std::fs::remove_file(file.path().file_stem().unwrap()).unwrap();
+                        std::fs::remove_file(file.path().file_stem().unwrap());
                     }
                 },
                 Err(e) => {

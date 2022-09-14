@@ -1,5 +1,5 @@
 #load "print.loki"
-#host "string"
+// #host "string"
 
 Human :: struct {
     name: string,

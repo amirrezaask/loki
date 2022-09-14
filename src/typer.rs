@@ -155,10 +155,10 @@ impl IR {
                 })
             },
             Type::Pointer(ref actual_ty) => {
-               return self.resolve_namespace_access_type(ns_type, field);
+               return self.resolve_namespace_access_type(actual_ty.deref().clone(), field);
             },
             Type::TypeRef { name, actual_ty } => {
-               return self.resolve_namespace_access_type(ns_type, field);
+               return self.resolve_namespace_access_type(actual_ty.deref().clone(), field);
             },
             _ => {
                 return Err(CompilerError {
@@ -305,7 +305,12 @@ impl IR {
                                     self.add_type(expression_index, left_type.clone().unwrap());
                                     return Ok(left_type);
                                 } else {
-                                    panic!("two sides of a binary operator should be same type. {:?} != {:?}", left_type, right_type);
+                                    return Err(CompilerError {
+                                        filename: self.filename.clone(),
+                                        line: node.line,
+                                        col: node.col,
+                                        reason: Reason::TypeCheckError(TypeCheckError::TwoSidesOfABinaryOperatorShouldBeSameType(left_type.unwrap(), right_type.unwrap())),
+                                    });
                                 }
                             },
                             BinaryOperation::Greater |
@@ -319,7 +324,14 @@ impl IR {
                                     self.add_type(expression_index, Type::Bool);
                                     return Ok(Some(Type::Bool));
                                 } else {
-                                    panic!("two sides of a binary operator should be same type. {:?} != {:?}", left_type, right_type);
+                                    println!("left is {:?}", self.get_node(*left).unwrap());
+                                    println!("right is {:?}", self.get_node(*right).unwrap());
+                                    return Err(CompilerError {
+                                        filename: self.filename.clone(),
+                                        line: node.line,
+                                        col: node.col,
+                                        reason: Reason::TypeCheckError(TypeCheckError::TwoSidesOfABinaryOperatorShouldBeSameType(left_type.unwrap(), right_type.unwrap())),
+                                    });
                                 }
                             },
                             BinaryOperation::BinaryAnd |
@@ -358,6 +370,8 @@ impl IR {
                             self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
                         }
+                        let type_node = self.get_node(*ty).unwrap();
+
                         let initialize_type = initialize_type.unwrap();
                         //TODO check if fields are valid in context of it's type.
                         for (name, value) in fields {
@@ -369,9 +383,8 @@ impl IR {
                             self.add_type(*name, value_type.unwrap());
                         }
                         
-                        self.add_type(expression_index, initialize_type.clone());
-                        
-                        return Ok(Some(initialize_type));
+                        self.add_type(expression_index, Type::TypeRef { name: type_node.get_identifier()?, actual_ty: Box::new(initialize_type.clone()) });
+                        return Ok(Some(Type::TypeRef { name: type_node.get_identifier()?, actual_ty: Box::new(initialize_type.clone()) }));
                     },
                     Expression::InitializeArray { ty, ref elements } => {
                         let array_type = self.get_node(*ty)?;
@@ -759,7 +772,7 @@ impl IR {
                             }
                             let cond_type = cond_type.unwrap();
                             if let Type::Bool = cond_type {
-
+                                println!("if type is boolean");
                             } else {
                                 panic!("if condition needs to be a boolean.")
                             }
@@ -768,6 +781,7 @@ impl IR {
                                 self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(case.1) });
                                 return Ok(None);
                             }
+                            println!("scope typed")
                         }
                         self.add_type(stmt_index, Type::NoType);
 
@@ -896,10 +910,11 @@ impl IR {
                     self.add_type(scope_index, Type::NoType);
                 }
             }
-            if self.dependencies.len() == 0 {
+            if stmts.len() == 0 || self.dependencies.len() == 0 {
+                self.add_type(scope_index, Type::NoType);
                 return Ok(Some(Type::NoType));
             }
-
+            
             return Ok(None);
         } else {
             unreachable!();

@@ -24,7 +24,6 @@ pub struct Parser {
     ir: IR,
     owner_stack: Stack<NodeIndex>, 
     block_stack: Stack<NodeIndex>,
-    just_use_top_of_block_stack: bool,
 }
 
 // Every parser function should parse until the last token in it's scope and then move cursor to the next token. so every parse function moves the cursor to the next.
@@ -103,7 +102,6 @@ impl Parser {
             ir: hir,
             block_stack: Stack::new(),
             owner_stack: Stack::new(),
-            just_use_top_of_block_stack: false,
         })
     }
     fn expect_ident(&mut self) -> Result<Node> {
@@ -378,14 +376,7 @@ impl Parser {
             }
         }
     }
-    /*
-    expr -> A (add_minus A)*
-    A -> B (mul_div_mod B)*
-    B -> initialize (< <= | >= > initialize)*
-    container_field -> exact_expr (. ident)
-    exact_expr -> int | unsigned_int | float | string | bool | ident | '(' expr ')' | deref: *expr | ref: &expr
-        | field_access | struct_def | enum_def | fn_def | types(int, uint, void, string, bool, char, float | ident.{} |
-    */
+    
 
     fn is_fn_def(&mut self) -> bool {
         if self.current_token().ty != TokenType::OpenParen {
@@ -849,7 +840,7 @@ impl Parser {
     }
 
     fn expect_expr_binary_operations(&mut self) -> Result<Node> {
-        let lhs = self.expect_namespace_access_or_array_index()?;
+        let lhs = self.expect_expr_sum_minus()?;
         match self.current_token().ty {
             TokenType::LeftAngle
             | TokenType::RightAngle
@@ -861,7 +852,7 @@ impl Parser {
             | TokenType::NotEqual => {
                 let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
                 self.forward_token();
-                let rhs = self.expect_namespace_access_or_array_index()?;
+                let rhs = self.expect_expr_sum_minus()?;
                 Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
@@ -886,12 +877,12 @@ impl Parser {
         }
     }
     fn expect_expr_mul_div_mod(&mut self) -> Result<Node> {
-        let mut lhs = self.expect_expr_binary_operations()?;
+        let mut lhs = self.expect_namespace_access_or_array_index()?;
 
         match self.current_token().ty {
             TokenType::Asterix => {
                 self.forward_token();
-                let rhs = self.expect_expr_binary_operations()?;
+                let rhs = self.expect_namespace_access_or_array_index()?;
                 Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
@@ -899,7 +890,7 @@ impl Parser {
             }
             TokenType::Percent => {
                 self.forward_token();
-                let rhs = self.expect_expr_binary_operations()?;
+                let rhs = self.expect_namespace_access_or_array_index()?;
                 Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Modulu, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
@@ -907,7 +898,7 @@ impl Parser {
             }
             TokenType::ForwardSlash => {
                 self.forward_token();
-                let rhs = self.expect_expr_binary_operations()?;
+                let rhs = self.expect_namespace_access_or_array_index()?;
                Ok(self.new_node(self.new_index(), 
                     NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
@@ -918,6 +909,26 @@ impl Parser {
     }
 
     fn expect_expr(&mut self) -> Result<Node> {
+        /*
+            TODO refactor expression to use same precedence as C
+            ||
+            &&
+            | bitwise or
+            ^ bitwise xor
+            & bitwise and
+            == !=
+            comparisons < > >= <=
+            >> << bitwise shift
+            + -
+            * / %
+            sizeof - deref - ref - !
+            initialize - ns access - array index - fn call
+            values...
+        */
+        return self.expect_expr_binary_operations();
+    }
+
+    fn expect_expr_sum_minus(&mut self) -> Result<Node> {
         match self.current_token().ty {
             TokenType::KeywordStruct |
             TokenType::KeywordEnum |
@@ -979,9 +990,6 @@ impl Parser {
         }
         let mut stmts = Vec::<NodeIndex>::new();
         let mut block_id = self.new_index();
-        if self.just_use_top_of_block_stack {
-            block_id = self.block_stack.pop();
-        }
         let is_file_root = self.block_stack.len() == 0;
         let block_node = self.new_node(block_id.clone(), NodeData::Statement(Statement::Scope{ owner: 0, stmts: vec![], is_file_root }), self.current_line(), self.current_col()); 
         self.block_stack.push(block_id.clone());
@@ -999,7 +1007,6 @@ impl Parser {
                 stmts.push(stmt.id);
             }
         }
-
         self.block_stack.pop();
         
         self.forward_token();
@@ -1013,9 +1020,6 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<Node> {
-        self.just_use_top_of_block_stack = true;
-        let block_id = self.new_index();
-        self.block_stack.push(block_id); 
         let start = self.expect_definition_declaration_assignment()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
@@ -1032,9 +1036,6 @@ impl Parser {
     }
     
     fn expect_for_each(&mut self) -> Result<Node> {
-        self.just_use_top_of_block_stack = true;
-        let block_id = self.new_index();
-        self.block_stack.push(block_id); 
         let iterator = self.expect_ident()?;
         self.forward_token();
         let iterable = self.expect_expr()?;
@@ -1050,9 +1051,6 @@ impl Parser {
     }
 
     fn expect_for_each_implicit_iterator(&mut self) -> Result<Node> {
-        self.just_use_top_of_block_stack = true;
-        let block_id = self.new_index();
-        self.block_stack.push(block_id); 
         let iterable = self.expect_expr()?;
         self.expect_token(TokenType::CloseParen)?;
         self.forward_token();

@@ -1,3 +1,1 @@
-dynamic_array
-pointer - stack overflow
-project euler - type mismatch error - same problem with always typing numbers in source as uint.
+dynamic_array - no size directive.

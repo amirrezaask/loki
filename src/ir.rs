@@ -49,6 +49,17 @@ pub enum NodeData {
    Expression(Expression),
 }
 
+impl Node {
+    pub fn get_identifier(&self) -> Result<String> {
+        match self.data {
+            NodeData::Expression(Expression::Identifier(ref ident)) => return Ok(ident.clone()),
+            _ => {
+                unreachable!()
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum TypeDefinition {
     CVarArgs,
