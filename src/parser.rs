@@ -361,22 +361,6 @@ impl Parser {
         }
         Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::FunctionCall{fn_name: name.id, args}), self.current_line(), self.current_col()))
     }
-    fn expect_namespace_access_or_array_index(&mut self) -> Result<Node> {
-        let container = self.expect_expr_exact_expr()?;
-        match self.current_token().ty {
-            TokenType::Dot => {
-                self.forward_token();
-                let field = self.expect_ident()?;
-                let f = self.ir.nodes.get_mut(&field.id).unwrap();
-                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::NamespaceAccess{ namespace: container.id, field: field.id }), self.current_line(), self.current_col()));
-            }
-            
-            _ => {
-                return Ok(container);
-            }
-        }
-    }
-    
 
     fn is_fn_def(&mut self) -> bool {
         if self.current_token().ty != TokenType::OpenParen {
@@ -395,586 +379,7 @@ impl Parser {
         return false;
     }
 
-    fn expect_type_expression(&mut self) -> Result<Node> {
-        match self.current_token().ty {
-            TokenType::KeywordStruct => {
-                self.forward_token();
-                self.expect_token(TokenType::OpenBrace)?;
-                self.forward_token();
-                let mut fields = Vec::<NodeIndex>::new();
-                loop {
-                    if self.current_token().ty == TokenType::CloseBrace {
-                        self.forward_token();
-                        break;
-                    }
-                    let mut name = self.expect_ident()?;
-
-                    self.expect_token(TokenType::Colon)?;
-                    self.forward_token();
-                    let ty = self.expect_type_expression()?;
-                    let field = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty.id.clone()}), self.current_line(), self.current_col());
-                    fields.push(field.id);
-                    match self.current_token().ty {
-                        TokenType::Comma => {
-                            self.forward_token();
-                            continue;
-                        }
-                        TokenType::CloseBrace => {
-                            self.forward_token();
-                            break;
-                        }
-                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
-                    }
-                }
-                let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Struct(fields.clone())),  self.current_line(), self.current_col());
-                Ok(node)
-            }
-            TokenType::KeywordEnum => {
-                self.forward_token();
-                self.expect_token(TokenType::OpenBrace)?;
-                self.forward_token();
-                let mut variants = Vec::<NodeIndex>::new();
-                let mut is_union = false;
-                loop {
-                    if self.current_token().ty == TokenType::CloseBrace {
-                        self.forward_token();
-                        break;
-                    }
-
-                    if self.current_token().ty == TokenType::Comma {
-                        self.forward_token();
-                        continue;
-                    }
-
-                    let mut name = self.expect_ident()?;
-                    let ty_node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)),  self.current_line(), self.current_col());
-                    let variant = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty_node.id.clone()}),  self.current_line(), self.current_col());
-
-                    match self.current_token().ty {
-                        TokenType::Comma => {
-                            variants.push(variant.id);
-                            self.forward_token();
-                            continue;
-                        }
-                        TokenType::CloseBrace => {
-                            variants.push(variant.id);
-                            self.forward_token();
-                            break;
-                        }
-                        _ => {
-                            self.expect_token(TokenType::Comma)?;
-                        }
-                    }
-                }
-                let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Enum(variants.clone())),  self.current_line(), self.current_col());
-                Ok(node)
-            }
-            TokenType::OpenBracket => {
-                // array type
-                self.forward_token();
-                let len = self.expect_expr()?;
-                self.expect_token(TokenType::CloseBracket)?;
-                self.forward_token();
-                let ty = self.expect_type_expression()?;
-                let node = self.new_node(self.new_index(), 
-                    NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
-                     self.current_line(), self.current_col()
-                );
-                return Ok(node);
-            }
-            TokenType::Ident => {
-                self.forward_token();
-                match self.current_token().ty {
-                    _ => {
-                        self.backward_token();
-                        let name = self.expect_ident()?;
-                        return Ok(name);
-                    }
-                }
-            }
-            TokenType::KeywordVoid => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Void), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordInt => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordInt8 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(8)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordInt16 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(16)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordInt32 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(32)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordInt64 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordInt128 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(128)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordUint => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordUint8 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(8)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordUint16 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(16)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordUint32 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordUint64 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordUint128 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(128)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordFloat32 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordFloat64 => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordChar => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Char), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordBool => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Bool), self.current_line(), self.current_col()))
-            }
-            TokenType::UintPtrDirective => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::UintPtr), self.current_line(), self.current_col()))
-            }
-            TokenType::IntPtrDirective => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::IntPtr), self.current_line(), self.current_col()))
-            }
-
-            TokenType::KeywordString => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::String), self.current_line(), self.current_col()))
-            }
-            TokenType::Asterix | TokenType::DoubleRightAngle => {
-                self.forward_token();
-                let expr = self.expect_type_expression()?;
-                return Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Pointer(expr.id)),  self.current_line(), self.current_col()));
-            }
-            TokenType::OpenParen => {
-                let before_check_fn_def_cur = self.cur;
-                if self.is_fn_def() {
-                    self.cur = before_check_fn_def_cur;
-                    return Ok(self.expect_function_definition()?);
-                }
-
-                self.cur = before_check_fn_def_cur;
-                self.forward_token();
-                let expr = self.expect_type_expression()?;
-                self.expect_token(TokenType::CloseParen)?;
-                self.forward_token();
-                Ok(expr)
-            }
-            TokenType::OpenBracket => {
-                self.forward_token();
-                let len = self.expect_expr()?;
-                self.expect_token(TokenType::CloseBracket)?;
-                self.forward_token();
-                let ty = self.expect_type_expression()?;
-                let node = self.new_node(self.new_index(), 
-                    NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
-                        self.current_line(), self.current_col()
-                );
-                return Ok(node);
-            }
-            TokenType::CVarArgsDirective => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::CVarArgs), self.current_line(), self.current_col()))
-            }
-            TokenType::CString => {
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::CString), self.current_line(), self.current_col()))
-            }
-            _ => {
-                return Err(self.report_error(ParseError::UnknownExpression(self.current_token().ty.clone())));
-            }
-        }
-    }
-
-    fn expect_expr_exact_expr(&mut self) -> Result<Node> {
-        match self.current_token().ty {
-            // TokenType::SizeDirective => {
-            //     self.forward_token();
-            //     self.expect_token(TokenType::OpenParen)?;
-            //     self.forward_token();
-            //     let ty = self.expect_type_expression()?;
-                
-            //     self.expect_token(TokenType::CloseParen)?;
-            //     self.forward_token();
-            //     let node = self.new_node(self.new_entity_idx(), NodeData::FnCall {fn_name: Index::default(), args: vec![ty.id.clone()] },   self.current_line(), self.current_col());
-            //     let node_mut = self.ast.nodes.get_mut(&node.id.clone()).unwrap();
-            //     node_mut.tags.push(AstTag::CompilerFunctionCall);
-            //     Ok(node)
-            // },
-            // TokenType::CastDirective => {
-            //     self.forward_token();
-            //     self.expect_token(TokenType::OpenParen)?;
-            //     self.forward_token();
-
-            //     let expr = self.expect_expr()?;
-            //     self.expect_token(TokenType::Comma)?;
-            //     self.forward_token();
-            //     let ty = self.expect_type_expression()?;
-            //     self.expect_token(TokenType::CloseParen)?;
-            //     let node = self.new_node(self.new_entity_idx(), NodeData::FnCall{ fn_name: Index::default(), args: vec![expr.id.clone(), ty.id.clone()] }, Type::new(&ty, &self.ast)?,  self.current_line(), self.current_col());
-            //     let node_mut = self.ast.nodes.get_mut(&node.id.clone()).unwrap();
-            //     node_mut.tags.push(AstTag::CompilerFunctionCall);
-            //     self.forward_token();
-            //     Ok(node)
-            // }
-            TokenType::UnsignedInt => {
-                self.forward_token();
-                let src_range = &self.tokens[self.cur - 1];
-                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                let literal = match literal.parse::<u64>() {
-                    Ok(n) => n,
-                    Err(_) => return Err(self.report_error(ParseError::InvalidUnsignedInt(self.current_token().clone()))),
-                };
-                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Unsigned(literal)),  self.current_line(), self.current_col()))
-            }
-            TokenType::Float => {
-                self.forward_token();
-                let src_range = &self.tokens[self.cur - 1];
-                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                let literal = match literal.parse::<f64>() {
-                    Ok(n) => n,
-                    Err(_) => return Err(self.report_error(ParseError::InvalidFloat(self.current_token().clone()))),
-                };
-                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Float(literal)), self.current_line(), self.current_col()))
-            }
-            TokenType::StringLiteral => {
-                self.forward_token();
-                let src_range = &self.tokens[self.cur - 1];
-                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(self.new_index(), 
-                NodeData::Expression(Expression::StringLiteral(literal.to_string())),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            
-            TokenType::KeywordTrue => {
-                self.forward_token();
-                let src_range = &self.tokens[self.cur - 1];
-                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
-            }
-            TokenType::KeywordFalse => {
-                self.forward_token();
-                let src_range = &self.tokens[self.cur - 1];
-                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
-                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
-            }
-            TokenType::Char => {
-                self.forward_token();
-                let src_range = &self.tokens[self.cur - 1];
-                let literal = &self.src[src_range.loc.0 + 1..=src_range.loc.1 - 1];
-                Ok(self.new_node(self.new_index(), 
-                NodeData::Expression(Expression::Char(literal.chars().next().unwrap())),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            TokenType::OpenBracket => {
-                self.forward_token();
-                let len = self.expect_expr()?;
-                self.expect_token(TokenType::CloseBracket)?;
-                self.forward_token();
-                let ty = self.expect_type_expression()?;
-                self.expect_token(TokenType::OpenBrace)?;
-                self.forward_token();
-                let array_type = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Array { length: len.id, elem_ty: ty.id }), self.current_line(), self.current_col()); 
-                let mut fields = Vec::<NodeIndex>::new();
-                loop {
-                    if self.current_token().ty == TokenType::CloseBrace {
-                        self.forward_token();
-                        break;
-                    }
-
-                    let val = self.expect_expr()?;
-                    fields.push(val.id);
-                    match self.current_token().ty {
-                        TokenType::Comma => {
-                            self.forward_token();
-                        }
-                        TokenType::CloseBrace => {
-                            self.forward_token();
-                            break;
-                        }
-                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
-                    }
-                }
-                let node = self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::InitializeArray{ty: array_type.id, elements: fields.clone()}),
-                        self.current_line(), self.current_col()
-                );
-                return Ok(node);
-            }
-            TokenType::OpenParen => {
-                let before_check_fn_def_cur = self.cur;
-                if self.is_fn_def() {
-                    self.cur = before_check_fn_def_cur;
-                    return Ok(self.expect_function_definition()?);
-                }
-
-                self.cur = before_check_fn_def_cur;
-                self.forward_token();
-                let expr = self.expect_expr()?;
-                self.expect_token(TokenType::CloseParen)?;
-                self.forward_token();
-                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Paren(expr.id.clone())), expr.line, expr.col))
-            }
-
-            TokenType::Asterix | TokenType::DoubleLeftAngle => {
-                self.forward_token();
-                let expr = self.expect_expr()?;
-                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Deref(expr.id)), self.current_line(), self.current_col()));
-            }
-            TokenType::Ampersand | TokenType::DoubleRightAngle => {
-                self.forward_token();
-                let expr = self.expect_expr()?;
-                return Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::PointerOf(expr.id)),
-                    
-                    self.current_line(), self.current_col()
-                ));
-            }
-            TokenType::Ident => {
-                self.forward_token();
-                match self.current_token().ty {
-                    TokenType::OpenParen => {
-                        //function call
-                        self.backward_token();
-                        self.expect_fn_call()
-                    }
-                    TokenType::OpenBrace => {
-                        // initialize.
-                        self.backward_token();
-                        let ty = self.expect_type_expression()?;
-                        self.forward_token();
-                        let mut fields = Vec::<(NodeIndex, NodeIndex)>::new();
-                        loop {
-                            if self.current_token().ty == TokenType::CloseBrace {
-                                self.forward_token();
-                                break;
-                            }
-
-                            let mut name = self.expect_ident()?;
-                            self.expect_token(TokenType::Equal)?;
-                            self.forward_token();
-                            let value = self.expect_expr()?;
-                            let mut name = self.ir.nodes.get_mut(&name.id.clone()).unwrap();
-                            fields.push((name.id.clone(), value.id));
-                            match self.current_token().ty {
-                                TokenType::Comma => {
-                                    self.forward_token();
-                                }
-                                TokenType::CloseBrace => {
-                                    self.forward_token();
-                                    break;
-                                }
-                                _ => return Err(self.err_uexpected_token(TokenType::Comma)),
-                            }
-                        }
-                        return Ok(self.new_node(self.new_index(), 
-                            NodeData::Expression(Expression::Initialize{ty: ty.id.clone(), fields}), self.current_line(), self.current_col()));
-                    }
-                    _ => {
-                        self.backward_token();
-                        let name = self.expect_ident()?;
-                        return Ok(name);
-                    }
-                }
-            }
-
-            TokenType::Bang => {
-                self.forward_token();
-                let to_be_not_value = self.expect_expr()?;
-                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::UnaryOperation{operator: UnaryOperation::Not, expr: to_be_not_value.id.clone()}), self.current_line(), self.current_col()));
-            }
-            _ => {
-                return Err(self.report_error(ParseError::UnknownExpression(self.current_token().ty.clone())));
-            }
-        }
-    }
-
-    fn ast_op_from_token_type(&mut self, op: TokenType) -> Result<BinaryOperation> {
-        match op {
-            TokenType::GreaterEqual => Ok(BinaryOperation::GreaterEqual),
-            TokenType::LessEqual => Ok(BinaryOperation::LessEqual),
-            TokenType::LeftAngle => Ok(BinaryOperation::Less),
-            TokenType::RightAngle => Ok(BinaryOperation::Greater),
-            TokenType::DoubleEqual => Ok(BinaryOperation::Equal),
-            TokenType::NotEqual => Ok(BinaryOperation::NotEqual),
-            TokenType::DoublePipe => Ok(BinaryOperation::BinaryOr),
-            TokenType::DoubleAmpersand => Ok(BinaryOperation::BinaryAnd),
-            _ => {
-                return Err(self.report_error(ParseError::UnknownOperation(op)));
-            }
-        }
-    }
-
-    fn expect_expr_binary_operations(&mut self) -> Result<Node> {
-        let lhs = self.expect_expr_sum_minus()?;
-        match self.current_token().ty {
-            TokenType::LeftAngle
-            | TokenType::RightAngle
-            | TokenType::LessEqual
-            | TokenType::GreaterEqual
-            | TokenType::DoubleEqual
-            | TokenType::DoubleAmpersand
-            | TokenType::DoublePipe
-            | TokenType::NotEqual => {
-                let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
-                self.forward_token();
-                let rhs = self.expect_expr_sum_minus()?;
-                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            TokenType::Bang => {
-                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::UnaryOperation{ operator: UnaryOperation::Not, expr: lhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-
-            TokenType::OpenBracket => {
-                self.forward_token();
-                let index = self.expect_expr()?;
-                self.expect_token(TokenType::CloseBracket)?;
-                self.forward_token();
-                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::ArrayIndex{ arr: lhs.id, idx: index.id }),  self.current_line(), self.current_col()));
-            }
-
-            _ => Ok(lhs),
-        }
-    }
-    fn expect_expr_mul_div_mod(&mut self) -> Result<Node> {
-        let mut lhs = self.expect_namespace_access_or_array_index()?;
-
-        match self.current_token().ty {
-            TokenType::Asterix => {
-                self.forward_token();
-                let rhs = self.expect_namespace_access_or_array_index()?;
-                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            TokenType::Percent => {
-                self.forward_token();
-                let rhs = self.expect_namespace_access_or_array_index()?;
-                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Modulu, left: lhs.id, right:rhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            TokenType::ForwardSlash => {
-                self.forward_token();
-                let rhs = self.expect_namespace_access_or_array_index()?;
-               Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            _ => Ok(lhs),
-        }
-    }
-
-    fn expect_expr(&mut self) -> Result<Node> {
-        /*
-            TODO refactor expression to use same precedence as C
-            ||
-            &&
-            | bitwise or
-            ^ bitwise xor
-            & bitwise and
-            == !=
-            comparisons < > >= <=
-            >> << bitwise shift
-            + -
-            * / %
-            sizeof - deref - ref - !
-            initialize - ns access - array index - fn call
-            values...
-        */
-        return self.expect_expr_binary_operations();
-    }
-
-    fn expect_expr_sum_minus(&mut self) -> Result<Node> {
-        match self.current_token().ty {
-            TokenType::KeywordStruct |
-            TokenType::KeywordEnum |
-            TokenType::KeywordInt |
-            TokenType::KeywordInt8 |
-            TokenType::KeywordInt16 |
-            TokenType::KeywordInt32 |
-            TokenType::KeywordInt64 |
-            TokenType::KeywordInt128 |
-            TokenType::KeywordUint |
-            TokenType::KeywordUint8 |
-            TokenType::KeywordUint16 |
-            TokenType::KeywordUint32 |
-            TokenType::KeywordUint64 |
-            TokenType::KeywordUint128 |
-            TokenType::KeywordString |
-            TokenType::KeywordFloat32 |
-            TokenType::KeywordFloat64 |
-            TokenType::KeywordVoid |
-            TokenType::KeywordChar => {
-                return self.expect_type_expression();
-            }
-            _ => {}
-        }
-        let mut lhs = self.expect_expr_mul_div_mod()?;
-        match self.current_token().ty {
-            TokenType::Minus => {
-                self.forward_token();
-                let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Subtract, left: lhs.id, right:rhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-            TokenType::Plus => {
-                self.forward_token();
-                let rhs = self.expect_expr_mul_div_mod()?;
-                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Sum, left: lhs.id, right:rhs.id }),
-                    self.current_line(), self.current_col()
-                ))
-            }
-
-            _ => Ok(lhs),
-        }
-    }
+    
 
     fn expect_token(&mut self, ty: TokenType) -> Result<()> {
         if self.current_token().ty != ty {
@@ -1268,9 +673,650 @@ impl Parser {
         }
     }
 
+    fn expect_type_expression(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            TokenType::KeywordStruct => {
+                self.forward_token();
+                self.expect_token(TokenType::OpenBrace)?;
+                self.forward_token();
+                let mut fields = Vec::<NodeIndex>::new();
+                loop {
+                    if self.current_token().ty == TokenType::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+                    let mut name = self.expect_ident()?;
+
+                    self.expect_token(TokenType::Colon)?;
+                    self.forward_token();
+                    let ty = self.expect_type_expression()?;
+                    let field = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty.id.clone()}), self.current_line(), self.current_col());
+                    fields.push(field.id);
+                    match self.current_token().ty {
+                        TokenType::Comma => {
+                            self.forward_token();
+                            continue;
+                        }
+                        TokenType::CloseBrace => {
+                            self.forward_token();
+                            break;
+                        }
+                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
+                    }
+                }
+                let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Struct(fields.clone())),  self.current_line(), self.current_col());
+                Ok(node)
+            }
+            TokenType::KeywordEnum => {
+                self.forward_token();
+                self.expect_token(TokenType::OpenBrace)?;
+                self.forward_token();
+                let mut variants = Vec::<NodeIndex>::new();
+                let mut is_union = false;
+                loop {
+                    if self.current_token().ty == TokenType::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+
+                    if self.current_token().ty == TokenType::Comma {
+                        self.forward_token();
+                        continue;
+                    }
+
+                    let mut name = self.expect_ident()?;
+                    let ty_node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)),  self.current_line(), self.current_col());
+                    let variant = self.new_node(self.new_index(), NodeData::Statement(Statement::Decl{name: name.id, ty: ty_node.id.clone()}),  self.current_line(), self.current_col());
+
+                    match self.current_token().ty {
+                        TokenType::Comma => {
+                            variants.push(variant.id);
+                            self.forward_token();
+                            continue;
+                        }
+                        TokenType::CloseBrace => {
+                            variants.push(variant.id);
+                            self.forward_token();
+                            break;
+                        }
+                        _ => {
+                            self.expect_token(TokenType::Comma)?;
+                        }
+                    }
+                }
+                let node = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Enum(variants.clone())),  self.current_line(), self.current_col());
+                Ok(node)
+            }
+            TokenType::OpenBracket => {
+                // array type
+                self.forward_token();
+                let len = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                let ty = self.expect_type_expression()?;
+                let node = self.new_node(self.new_index(), 
+                    NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
+                     self.current_line(), self.current_col()
+                );
+                return Ok(node);
+            }
+            TokenType::Ident => {
+                self.forward_token();
+                match self.current_token().ty {
+                    _ => {
+                        self.backward_token();
+                        let name = self.expect_ident()?;
+                        return Ok(name);
+                    }
+                }
+            }
+            TokenType::KeywordVoid => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Void), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordInt => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordInt8 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(8)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordInt16 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(16)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordInt32 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(32)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordInt64 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(64)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordInt128 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Int(128)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordUint => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordUint8 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(8)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordUint16 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(16)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordUint32 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordUint64 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordUint128 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(128)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordFloat32 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(32)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordFloat64 => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Uint(64)), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordChar => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Char), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordBool => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Bool), self.current_line(), self.current_col()))
+            }
+            TokenType::UintPtrDirective => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::UintPtr), self.current_line(), self.current_col()))
+            }
+            TokenType::IntPtrDirective => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::IntPtr), self.current_line(), self.current_col()))
+            }
+
+            TokenType::KeywordString => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::String), self.current_line(), self.current_col()))
+            }
+            TokenType::Asterix | TokenType::DoubleRightAngle => {
+                self.forward_token();
+                let expr = self.expect_type_expression()?;
+                return Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Pointer(expr.id)),  self.current_line(), self.current_col()));
+            }
+            TokenType::OpenParen => {
+                let before_check_fn_def_cur = self.cur;
+                if self.is_fn_def() {
+                    self.cur = before_check_fn_def_cur;
+                    return Ok(self.expect_function_definition()?);
+                }
+
+                self.cur = before_check_fn_def_cur;
+                self.forward_token();
+                let expr = self.expect_type_expression()?;
+                self.expect_token(TokenType::CloseParen)?;
+                self.forward_token();
+                Ok(expr)
+            }
+            TokenType::OpenBracket => {
+                self.forward_token();
+                let len = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                let ty = self.expect_type_expression()?;
+                let node = self.new_node(self.new_index(), 
+                    NodeData::TypeDefinition(TypeDefinition::Array{length: len.id, elem_ty: ty.id }),
+                        self.current_line(), self.current_col()
+                );
+                return Ok(node);
+            }
+            TokenType::CVarArgsDirective => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::CVarArgs), self.current_line(), self.current_col()))
+            }
+            TokenType::CString => {
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::CString), self.current_line(), self.current_col()))
+            }
+            _ => {
+                return Err(self.report_error(ParseError::UnknownExpression(self.current_token().ty.clone())));
+            }
+        }
+    }
+
     pub fn get_ast(mut self) -> Result<IR> {
         let block_id = self.expect_block()?; 
         self.ir.root = block_id;
         Ok(self.ir)
+    }
+}
+
+// this impl block handles all expression and operator precedence.
+impl Parser {
+    fn expect_expr(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            TokenType::KeywordStruct |
+            TokenType::KeywordEnum |
+            TokenType::KeywordInt |
+            TokenType::KeywordInt8 |
+            TokenType::KeywordInt16 |
+            TokenType::KeywordInt32 |
+            TokenType::KeywordInt64 |
+            TokenType::KeywordInt128 |
+            TokenType::KeywordUint |
+            TokenType::KeywordUint8 |
+            TokenType::KeywordUint16 |
+            TokenType::KeywordUint32 |
+            TokenType::KeywordUint64 |
+            TokenType::KeywordUint128 |
+            TokenType::KeywordString |
+            TokenType::KeywordFloat32 |
+            TokenType::KeywordFloat64 |
+            TokenType::KeywordVoid |
+            TokenType::KeywordChar => {
+                return self.expect_type_expression();
+            }
+            _ => {}
+        }
+        return self.expect_or();
+    }
+    fn expect_or(&mut self) -> Result<Node> {
+        let lhs = self.expect_and()?;
+        match self.current_token().ty {
+            TokenType::DoublePipe => {
+                self.forward_token();
+                let rhs = self.expect_and()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::BinaryOr, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn expect_and(&mut self) -> Result<Node> {
+        let lhs = self.expect_bitwise_or()?;
+        match self.current_token().ty {
+            TokenType::DoubleAmpersand => {
+                self.forward_token();
+                let rhs = self.expect_bitwise_or()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::BinaryAnd, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn expect_bitwise_or(&mut self) -> Result<Node> {
+        let lhs = self.expect_bitwise_xor()?;
+        match self.current_token().ty {
+            TokenType::Pipe => {
+                self.forward_token();
+                let rhs = self.expect_bitwise_xor()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::BitwiseOr, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn expect_bitwise_xor(&mut self) -> Result<Node> {
+        let lhs = self.expect_bitwise_and()?;
+        match self.current_token().ty {
+            TokenType::Hat => {
+                self.forward_token();
+                let rhs = self.expect_bitwise_and()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::BitwiseXor, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn expect_bitwise_and(&mut self) -> Result<Node> {
+        let lhs = self.expect_equality_check()?;
+        match self.current_token().ty {
+            TokenType::Ampersand => {
+                self.forward_token();
+                let rhs = self.expect_equality_check()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::BitwiseAnd, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn expect_equality_check(&mut self) -> Result<Node> {
+        let lhs = self.expect_comparisons()?;
+        match self.current_token().ty {
+            TokenType::DoubleEqual => {
+                self.forward_token();
+                let rhs = self.expect_comparisons()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Equal, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            TokenType::NotEqual => {
+                self.forward_token();
+                let rhs = self.expect_comparisons()?;
+
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::NotEqual, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn ast_op_from_token_type(&mut self, op: TokenType) -> Result<BinaryOperation> {
+        match op {
+            TokenType::GreaterEqual => Ok(BinaryOperation::GreaterEqual),
+            TokenType::LessEqual => Ok(BinaryOperation::LessEqual),
+            TokenType::LeftAngle => Ok(BinaryOperation::Less),
+            TokenType::RightAngle => Ok(BinaryOperation::Greater),
+            TokenType::DoubleEqual => Ok(BinaryOperation::Equal),
+            TokenType::NotEqual => Ok(BinaryOperation::NotEqual),
+            TokenType::DoublePipe => Ok(BinaryOperation::BinaryOr),
+            TokenType::DoubleAmpersand => Ok(BinaryOperation::BinaryAnd),
+            _ => {
+                return Err(self.report_error(ParseError::UnknownOperation(op)));
+            }
+        }
+    }
+    fn expect_comparisons(&mut self) -> Result<Node> {
+        let lhs = self.expect_bitwise_shift()?;
+        match self.current_token().ty {
+            TokenType::GreaterEqual | TokenType::RightAngle | TokenType::LeftAngle | TokenType::LessEqual => {
+                let op = self.ast_op_from_token_type(self.current_token().ty.clone())?;
+                self.forward_token();
+                let rhs = self.expect_bitwise_shift()?;
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: op, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => {
+                return Ok(lhs);         
+            }
+        }
+    }
+    fn expect_bitwise_shift(&mut self) -> Result<Node> {
+        return self.expect_sum_subtract();
+    }
+    fn expect_sum_subtract(&mut self) -> Result<Node> {
+        let mut lhs = self.expect_multiply_division_modulo()?;
+        match self.current_token().ty {
+            TokenType::Minus => {
+                self.forward_token();
+                let rhs = self.expect_multiply_division_modulo()?;
+                Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Subtract, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            TokenType::Plus => {
+                self.forward_token();
+                let rhs = self.expect_multiply_division_modulo()?;
+                Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Sum, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+
+            _ => Ok(lhs),
+        }
+    }
+    fn expect_multiply_division_modulo(&mut self) -> Result<Node> {
+        let mut lhs = self.expect_size_deref_ref_not()?;
+
+        match self.current_token().ty {
+            TokenType::Asterix => {
+                self.forward_token();
+                let rhs = self.expect_size_deref_ref_not()?;
+                Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            TokenType::Percent => {
+                self.forward_token();
+                let rhs = self.expect_size_deref_ref_not()?;
+                Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Modulu, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            TokenType::ForwardSlash => {
+                self.forward_token();
+                let rhs = self.expect_size_deref_ref_not()?;
+               Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            _ => Ok(lhs),
+        }
+    }
+    fn expect_size_deref_ref_not(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            TokenType::Bang => {
+                self.forward_token();
+                let to_be_not_value = self.expect_expr()?;
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::UnaryOperation{operator: UnaryOperation::Not, expr: to_be_not_value.id.clone()}), self.current_line(), self.current_col()));
+            }
+
+            TokenType::Asterix | TokenType::DoubleLeftAngle => {
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Deref(expr.id)), self.current_line(), self.current_col()));
+            }
+            TokenType::Ampersand | TokenType::DoubleRightAngle => {
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::PointerOf(expr.id)),
+                    
+                    self.current_line(), self.current_col()
+                ));
+            }
+            _ => {
+                return self.expect_initialize_namespace_access_array_index_function_call();
+            }
+        }
+    }
+    fn expect_initialize_namespace_access_array_index_function_call(&mut self) -> Result<Node> {
+        let value = self.expect_values()?;
+        match self.current_token().ty {
+            TokenType::OpenParen => {
+                //function call
+                self.backward_token();
+                self.expect_fn_call()
+            }
+            TokenType::OpenBrace => {
+                self.forward_token();
+                let mut fields = Vec::<(NodeIndex, NodeIndex)>::new();
+                loop {
+                    if self.current_token().ty == TokenType::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+
+                    let mut name = self.expect_ident()?;
+                    self.expect_token(TokenType::Equal)?;
+                    self.forward_token();
+                    let value = self.expect_expr()?;
+                    let mut name = self.ir.nodes.get_mut(&name.id.clone()).unwrap();
+                    fields.push((name.id.clone(), value.id));
+                    match self.current_token().ty {
+                        TokenType::Comma => {
+                            self.forward_token();
+                        }
+                        TokenType::CloseBrace => {
+                            self.forward_token();
+                            break;
+                        }
+                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
+                    }
+                }
+                return Ok(self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::Initialize{ty: value.id.clone(), fields}), self.current_line(), self.current_col()));
+            }
+
+            TokenType::Dot => {
+                self.forward_token();
+                let field = self.expect_ident()?;
+                let f = self.ir.nodes.get_mut(&field.id).unwrap();
+                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::NamespaceAccess{ namespace: value.id, field: field.id }), self.current_line(), self.current_col()));
+            }
+
+            _ => {
+                return Ok(value);
+            }
+        }
+    }
+    fn expect_values(&mut self) -> Result<Node> {
+        match self.current_token().ty {
+            TokenType::UnsignedInt => {
+                self.forward_token();
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                let literal = match literal.parse::<u64>() {
+                    Ok(n) => n,
+                    Err(_) => return Err(self.report_error(ParseError::InvalidUnsignedInt(self.current_token().clone()))),
+                };
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Unsigned(literal)),  self.current_line(), self.current_col()))
+            }
+            TokenType::Float => {
+                self.forward_token();
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                let literal = match literal.parse::<f64>() {
+                    Ok(n) => n,
+                    Err(_) => return Err(self.report_error(ParseError::InvalidFloat(self.current_token().clone()))),
+                };
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Float(literal)), self.current_line(), self.current_col()))
+            }
+            TokenType::StringLiteral => {
+                self.forward_token();
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                Ok(self.new_node(self.new_index(), 
+                NodeData::Expression(Expression::StringLiteral(literal.to_string())),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            TokenType::KeywordTrue => {
+                self.forward_token();
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
+            }
+            TokenType::KeywordFalse => {
+                self.forward_token();
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0..=src_range.loc.1];
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Bool(literal == "true")), self.current_line(), self.current_col()))
+            }
+            TokenType::Char => {
+                self.forward_token();
+                let src_range = &self.tokens[self.cur - 1];
+                let literal = &self.src[src_range.loc.0 + 1..=src_range.loc.1 - 1];
+                Ok(self.new_node(self.new_index(), 
+                NodeData::Expression(Expression::Char(literal.chars().next().unwrap())),
+                    self.current_line(), self.current_col()
+                ))
+            }
+            TokenType::Ident => {
+                let name = self.expect_ident()?;
+                return Ok(name);
+            }
+            TokenType::OpenParen => {
+                let before_check_fn_def_cur = self.cur;
+                if self.is_fn_def() {
+                    self.cur = before_check_fn_def_cur;
+                    return Ok(self.expect_function_definition()?);
+                }
+
+                self.cur = before_check_fn_def_cur;
+                self.forward_token();
+                let expr = self.expect_expr()?;
+                self.expect_token(TokenType::CloseParen)?;
+                self.forward_token();
+                Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Paren(expr.id.clone())), expr.line, expr.col))
+            }
+            TokenType::OpenBracket => {
+                self.forward_token();
+                let len = self.expect_expr()?;
+                self.expect_token(TokenType::CloseBracket)?;
+                self.forward_token();
+                let ty = self.expect_type_expression()?;
+                self.expect_token(TokenType::OpenBrace)?;
+                self.forward_token();
+                let array_type = self.new_node(self.new_index(), NodeData::TypeDefinition(TypeDefinition::Array { length: len.id, elem_ty: ty.id }), self.current_line(), self.current_col()); 
+                let mut fields = Vec::<NodeIndex>::new();
+                loop {
+                    if self.current_token().ty == TokenType::CloseBrace {
+                        self.forward_token();
+                        break;
+                    }
+
+                    let val = self.expect_expr()?;
+                    fields.push(val.id);
+                    match self.current_token().ty {
+                        TokenType::Comma => {
+                            self.forward_token();
+                        }
+                        TokenType::CloseBrace => {
+                            self.forward_token();
+                            break;
+                        }
+                        _ => return Err(self.err_uexpected_token(TokenType::Comma)),
+                    }
+                }
+                let node = self.new_node(self.new_index(), 
+                    NodeData::Expression(Expression::InitializeArray{ty: array_type.id, elements: fields.clone()}),
+                        self.current_line(), self.current_col()
+                );
+                return Ok(node);
+            }
+            _ => {
+                return Err(self.report_error(ParseError::UnknownExpression(self.current_token().ty.clone())));
+            }
+        }
     }
 }

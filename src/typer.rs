@@ -343,6 +343,9 @@ impl IR {
                                     panic!("two sides of && || should be boolean. left {:?} right {:?}", left_type, right_type);
                                 }
                             }
+                            BinaryOperation::BitwiseOr => todo!(),
+                            BinaryOperation::BitwiseAnd => todo!(),
+                            BinaryOperation::BitwiseXor => todo!(),
                         }
                     },
                     Expression::NamespaceAccess { namespace, field: field_id } => {

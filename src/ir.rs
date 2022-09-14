@@ -160,6 +160,9 @@ pub enum BinaryOperation {
     LessEqual,
     Equal,
     NotEqual,
+    BitwiseOr,
+    BitwiseAnd,
+    BitwiseXor,
     BinaryAnd,
     BinaryOr,
 }

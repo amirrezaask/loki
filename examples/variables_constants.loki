@@ -1,4 +1,4 @@
-#host "string";
+// #host "string";
 
 constant_uint :: 2;
 constant_float :: 2.2;
