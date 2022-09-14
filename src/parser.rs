@@ -1164,6 +1164,7 @@ impl Parser {
         match self.current_token().ty {
             TokenType::OpenParen => {
                 //function call
+                self.ir.nodes.remove(&value.id.clone());
                 self.backward_token();
                 self.expect_fn_call()
             }
