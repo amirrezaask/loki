@@ -62,9 +62,6 @@ pub enum Type {
     Pointer(Box<Type>),
 
     FnType(Vec<Type>, Box<Type>),
-
-
-
     Void,
 }
 
@@ -73,7 +70,9 @@ impl IR {
         let node = self.nodes.get_mut(&index).unwrap();
         node.type_information = Some(ty);
     }
-    fn find_identifier_type(&self, other_files_exports: &HashMap<String, HashMap<String, Type>>, mut scope: NodeIndex, identifier: String) -> Option<Type> {
+    fn find_identifier_type(&mut self, other_files_exports: &HashMap<String, HashMap<String, Type>>, mut scope: NodeIndex, identifier_node: NodeIndex) -> Result<Option<Type>> {
+        let identifier = self.nodes.get(&identifier_node).unwrap();
+        let identifier = identifier.get_identifier()?;
         let mut this_scope = self.nodes.get(&scope).unwrap().clone();
         loop {
             let this_scope_symbols = self.scoped_symbols.get(&scope);
@@ -93,7 +92,7 @@ impl IR {
             // this scope has some symbols so let's check them.
             match this_scope_symbols.get(&identifier) {
                 Some(ty) => {
-                    return Some(ty.clone());
+                    return Ok(Some(ty.clone()));
                 }
                 None => {
                     // this scope has no symbol named identifier so check for parent.
@@ -115,14 +114,15 @@ impl IR {
                 Some(exports) => {
                     let ty = exports.get(&identifier);
                     if ty.is_some() {
-                        return Some(ty.unwrap().clone());
+                        return Ok(Some(ty.unwrap().clone()));
                     }
                 },
                 None => continue,
             }
         }
 
-        return None;
+        self.dependencies.push(Dependency { file: self.filename.clone(), node_index: identifier_node, reason: DependencyReason::Identifier(identifier) });
+        return Ok(None);
 
     }
 
@@ -210,21 +210,19 @@ impl IR {
                                 return Ok(Some(ty.clone()));
                             }
                             None => {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*inner_expr) });
                                 return Ok(None);
                             }
                         }
                     },
                     
                     Expression::Identifier(ref identifier) => {
-                        let identifier_type = self.find_identifier_type(other_files_exports, node.parent_block.unwrap(), identifier.clone());
+                        let identifier_type = self.find_identifier_type(other_files_exports, node.parent_block.unwrap(), expression_index)?;
                         match identifier_type {
                             Some(ty) => {
                                 self.add_type(expression_index, ty.clone());
                                 return Ok(Some(ty));
                             }
                             None => {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Identifier(identifier.clone()) });
                                 return Ok(None);
                             }
                         }
@@ -278,7 +276,6 @@ impl IR {
                                 }
                             }
                             None => {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*arr) });
                                 return Ok(None)
                             }                          
                         }
@@ -287,11 +284,9 @@ impl IR {
                         let left_type = self.type_expression(other_files_exports, *left)?;
                         let right_type = self.type_expression(other_files_exports, *right)?;
                         if left_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*left) });
                             return Ok(None);
                         }
                         if right_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*right) });
                             return Ok(None);
                         }
                         match operation {
@@ -324,8 +319,6 @@ impl IR {
                                     self.add_type(expression_index, Type::Bool);
                                     return Ok(Some(Type::Bool));
                                 } else {
-                                    println!("left is {:?}", self.get_node(*left).unwrap());
-                                    println!("right is {:?}", self.get_node(*right).unwrap());
                                     return Err(CompilerError {
                                         filename: self.filename.clone(),
                                         line: node.line,
@@ -370,7 +363,6 @@ impl IR {
                     Expression::Initialize { ty, ref fields } => {
                         let initialize_type = self.type_expression(other_files_exports, *ty)?;
                         if initialize_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
                         }
                         let type_node = self.get_node(*ty).unwrap();
@@ -380,7 +372,6 @@ impl IR {
                         for (name, value) in fields {
                             let value_type = self.type_expression(other_files_exports, *value)?;
                             if value_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*value) });
                                 return Ok(None);
                             }
                             self.add_type(*name, value_type.unwrap());
@@ -394,19 +385,16 @@ impl IR {
                         if let NodeData::TypeDefinition(TypeDefinition::Array { length, elem_ty }) = array_type.data {
                             let len_type = self.type_expression(other_files_exports, length)?;
                             if len_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(length) });
                                 return Ok(None);
                             }
                             let elem_type = self.type_expression(other_files_exports, elem_ty)?;
                             if elem_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(elem_ty) });
                                 return Ok(None);
                             }
                             let mut array_elem_type: Option<Type> = None;
                             for elem in elements {
                                 let this_elem_type = self.type_expression(other_files_exports, *elem)?;
                                 if this_elem_type.is_none() {
-                                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*elem) });
                                     return Ok(None);
                                 }
                                 if array_elem_type.is_none() {
@@ -433,7 +421,6 @@ impl IR {
                         for arg in args {
                             let arg_type = self.type_statement(other_files_exports, *arg)?;
                             if arg_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*arg) });
                                 return Ok(None);
                             }
                         }
@@ -447,12 +434,10 @@ impl IR {
 
                         let ret_type = self.type_expression(other_files_exports, *ret_ty_node)?;
                         if ret_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ret_ty_node) });
                             return Ok(None);
                         }
                         let body_type = self.type_scope(other_files_exports, *body)?;
                         if body_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
                         }
                         let fn_type = Type::FnType(arg_types, Box::new(ret_type.unwrap()));
@@ -462,13 +447,11 @@ impl IR {
                     Expression::FunctionCall { ref fn_name, ref args } => {
                         let fn_type = self.type_expression(other_files_exports, *fn_name)?;
                         if fn_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*fn_name) });
                             return Ok(None);
                         }
                         for arg in args {
                             let arg_type = self.type_expression(other_files_exports, *arg)?;
                             if arg_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*arg) });
                                 return Ok(None);
                             }
                         }
@@ -484,7 +467,6 @@ impl IR {
                     Expression::PointerOf(ref pointee) => {
                         let pointee_type = self.type_expression(other_files_exports, *pointee)?;
                         if pointee_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*pointee) });
                             return Ok(None);
                         }
                         let pointee_type = pointee_type.unwrap();
@@ -494,7 +476,6 @@ impl IR {
                     Expression::Deref(ref pointer) => {
                         let pointer_type = self.type_expression(other_files_exports, *pointer)?;
                         if pointer_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*pointer) });
                             return Ok(None);
                         }
                         let pointer_type = pointer_type.unwrap();
@@ -561,7 +542,6 @@ impl IR {
                         let pointee_node = self.get_node(*pointee).unwrap();
                         let pointee_type = self.type_expression(other_files_exports, *pointee)?;
                         if pointee_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*pointee) });
                             return Ok(None);
                         }
 
@@ -572,12 +552,10 @@ impl IR {
                         // TODO: if we can constantly know the lenght we need to store it in type for maybe later usage.
                         let length_type = self.type_expression(other_files_exports, *length)?;
                         if length_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*length) });
                             return Ok(None);
                         }
                         let elem_type = self.type_expression(other_files_exports, *elem_ty)?;
                         if length_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*elem_ty) });
                             return Ok(None);
                         }
                         self.add_type(expression_index, Type::Array(Box::new(elem_type.clone().unwrap())));
@@ -588,7 +566,6 @@ impl IR {
                         for arg in args {
                             let decl_type = self.type_statement(other_files_exports, *arg)?;
                             if decl_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*arg) });
                                 return Ok(None);
                             }
 
@@ -596,7 +573,6 @@ impl IR {
                         }
                         let ret_type = self.type_expression(other_files_exports, *ret)?;            
                         if ret_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*ret) });
                             return Ok(None);
                         }
                         self.add_type(expression_index, Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap())));
@@ -608,7 +584,6 @@ impl IR {
                         for decl in decls {
                             let decl_type = self.type_statement(other_files_exports, *decl)?;
                             if decl_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*decl) });
                                 return Ok(None);
                             }
                             if let (NodeData::Statement(Statement::Decl { name, ty: _ })) = self.get_node(*decl).unwrap().data {
@@ -632,7 +607,6 @@ impl IR {
                         for decl in decls {
                             let decl_type = self.type_statement(other_files_exports, *decl)?;
                             if decl_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*decl) });
                                 return Ok(None);
                             }
                             if let (NodeData::Statement(Statement::Decl { name, ty: _ })) = self.get_node(*decl).unwrap().data {
@@ -671,7 +645,6 @@ impl IR {
                     Statement::Def { mutable, ref name, ty: None, ref expr } => {
                         let expr_ty = self.type_expression(other_files_exports, *expr)?;
                         if expr_ty.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*expr) });
                             return Ok(None);
                         }
                         let expr_ty = expr_ty.unwrap();
@@ -692,12 +665,10 @@ impl IR {
                     Statement::Def { mutable, ref name, ty: Some(ref ty), ref expr } => {
                         let expr_ty = self.type_expression(other_files_exports, *expr)?;
                         if expr_ty.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*expr) });
                             return Ok(None);
                         }
                         let type_annotation_type = self.type_expression(other_files_exports, *ty)?;
                         if type_annotation_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
                         }
                         let expr_ty = expr_ty.unwrap();
@@ -724,8 +695,6 @@ impl IR {
                     Statement::Decl { ref name, ref ty } => {
                         let decl_type = self.type_expression(other_files_exports, *ty)?;
                         if decl_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*ty) });
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: *name, reason: DependencyReason::Node(*ty) });
                             return Ok(None);
                         }
                         self.add_type(*name, decl_type.clone().unwrap());
@@ -750,11 +719,9 @@ impl IR {
                         let lhs_type = self.type_expression(other_files_exports, *lhs)?;
                         let rhs_type = self.type_expression(other_files_exports, *rhs)?;
                         if lhs_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*lhs) });
                             return Ok(None);
                         }
                         if rhs_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*rhs) });
                             return Ok(None);
                         }
                         self.add_type(stmt_index, Type::NoType);
@@ -770,7 +737,6 @@ impl IR {
                         for case in cases {
                             let cond_type = self.type_expression(other_files_exports, case.0)?;
                             if cond_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(case.0) });
                                 return Ok(None);
                             }
                             let cond_type = cond_type.unwrap();
@@ -781,7 +747,6 @@ impl IR {
                             }
                             let scope_type = self.type_scope(other_files_exports, case.1)?;
                             if scope_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(case.1) });
                                 return Ok(None);
                             }
                             println!("scope typed")
@@ -794,23 +759,19 @@ impl IR {
                     Statement::For { ref start, ref cond, ref cont, ref body } => {
                         let start_type = self.type_statement(other_files_exports, *start)?;
                         if start_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*start) });
                             return Ok(None);
                         }
                         let cond_type = self.type_expression(other_files_exports, *cond)?;
                         if cond_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*cond) });
                             return Ok(None);
                         }
                         let cont_type = self.type_statement(other_files_exports, *cont)?;
                         if cont_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*cont) });
                             return Ok(None);
                         }
                         let body_type = self.type_statement(other_files_exports, *body)?;
                         
                         if body_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
                         }
                         self.add_type(stmt_index, Type::NoType);
@@ -821,7 +782,6 @@ impl IR {
                     Statement::ForIn { ref iterator, ref iterable, ref body } => {
                         let iterable_type = self.type_expression(other_files_exports,*iterable)?;
                         if iterable_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*iterable) });
                             return Ok(None);
                         }
                         let iterable_type = iterable_type.unwrap();
@@ -831,7 +791,6 @@ impl IR {
                             self.add_symbol_to_scope(*body, *iterator, elem_type.deref().clone());
                             let body_type = self.type_statement(other_files_exports,*body)?;
                             if body_type.is_none() {
-                                self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                                 return Ok(None);
                             }
                             self.add_type(stmt_index, Type::NoType);
@@ -845,12 +804,10 @@ impl IR {
                     Statement::While { ref cond, ref body } => {
                         let cond_type = self.type_expression(other_files_exports,*cond)?;
                         if cond_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*cond) });
                             return Ok(None);
                         }
                         let body_type = self.type_statement(other_files_exports,*body)?;
                         if body_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*body) });
                             return Ok(None);
                         }
                         self.add_type(stmt_index, Type::NoType);
@@ -873,7 +830,6 @@ impl IR {
                     Statement::Return(ref expr) => {
                         let expr_type = self.type_expression(other_files_exports,*expr)?;
                         if expr_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(*expr) });
                             return Ok(None);
                         }
                         self.add_type(stmt_index, Type::NoType);
@@ -885,7 +841,6 @@ impl IR {
             NodeData::Expression(Expression::FunctionCall { fn_name, ref args }) => {
                 let fn_ret_type = self.type_expression(other_files_exports, stmt_index)?;
                 if fn_ret_type.is_none() {
-                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: stmt_index, reason: DependencyReason::Node(fn_name) });
                     return Ok(None);
                 }
                 self.add_type(stmt_index, Type::NoType);
@@ -908,7 +863,6 @@ impl IR {
             for stmt in stmts {
                 let ty = self.type_statement(other_files_exports, *stmt)?;
                 if ty.is_none() {
-                    self.dependencies.push(Dependency { file: self.filename.clone(), node_index: scope_index, reason: DependencyReason::Node(*stmt) });
                 } else {
                     self.add_type(scope_index, Type::NoType);
                 }

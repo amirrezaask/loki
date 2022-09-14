@@ -24,9 +24,7 @@ pub fn new_index() -> NodeIndex {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum AstTag {
     Foreign,
-    IsUsedInNamespaceAccess,
     NoCodeGen,
-    CompilerFunctionCall,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
