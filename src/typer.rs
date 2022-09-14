@@ -4,7 +4,6 @@ use std::ops::Deref;
 
 use serde::Serialize;
 use crate::compliation::Dependency;
-use crate::compliation::DependencyReason;
 use crate::errors::*;
 use crate::ir::TypeDefinition;
 use crate::utils;
@@ -121,7 +120,7 @@ impl IR {
             }
         }
 
-        self.dependencies.push(Dependency { file: self.filename.clone(), node_index: identifier_node, reason: DependencyReason::Identifier(identifier) });
+        self.dependencies.push(Dependency { file: self.filename.clone(), node_index: identifier_node, needs: identifier });
         return Ok(None);
 
     }
@@ -344,7 +343,6 @@ impl IR {
                     Expression::NamespaceAccess { namespace, field: field_id } => {
                         let ns_type = self.type_expression(other_files_exports, *namespace)?;
                         if ns_type.is_none() {
-                            self.dependencies.push(Dependency { file: self.filename.clone(), node_index: expression_index, reason: DependencyReason::Node(*namespace) });
                             return Ok(None);
                         }
                         let field_node = self.nodes.get(field_id).unwrap();
@@ -853,6 +851,10 @@ impl IR {
 
     }
     pub fn type_root(&mut self, other_files_exports: &HashMap<String, HashMap<String, Type>>) -> Result<()> {
+        // scanning file two times let us get rid of all dependencies that are later defined in the same file.
+        self.dependencies = vec![];
+        self.type_scope(other_files_exports, self.root)?;
+        
         self.dependencies = vec![];
         self.type_scope(other_files_exports, self.root)?;
         Ok(())

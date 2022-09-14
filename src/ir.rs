@@ -238,6 +238,7 @@ pub struct IR {
 }
 
 impl IR {
+
     pub fn delete_nodes_after_index(&mut self, index: usize) {
         let to_delete = self.registered_indexes[index+1..].to_vec();
         for id in &to_delete {

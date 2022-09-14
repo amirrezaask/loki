@@ -12,18 +12,10 @@ pub type FileIndex = usize;
 type File = String;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub enum DependencyReason {
-    File(String),
-    Node(NodeIndex),
-    Identifier(String),
-}
-
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Dependency {
     pub file: File,
     pub node_index: NodeIndex,
-    pub reason: DependencyReason,
+    pub needs: String,
 }
 
 pub struct Compilation {
@@ -72,7 +64,6 @@ impl Compilation {
             println!("{:?}", elem);
         }
     }
-
     pub fn new(main_file: &str) -> Result<()> {
         let mut compilation = Compilation { 
             total_lines: 0,
@@ -96,7 +87,15 @@ impl Compilation {
             if finished_type_checking == keys.len() {
                 break;
             }
+            
             let file = &keys[keys_index];
+            let mut still_hope = false;
+            for (name, ir) in &compilation.IRs {
+                if name != file && !ir.type_checked {
+                    still_hope = true;
+                }
+            }
+            
             let ir = compilation.IRs.get_mut(file).unwrap();
             if ir.type_checked {
                 keys_index +=1;
@@ -106,12 +105,17 @@ impl Compilation {
                 continue;    
             }
             println!("[+] trying to type check file {}", file);
+            // check all dependencies to see if they are ready.
+            // if not check if other files are fully typed.
+            // if yes and still unresolved dependencies it's an undeclared error.
+            // if no skip this file for now.
 
             // try to do a pass on the file and type as much as possible
             ir.type_root(&compilation.exported_symbols)?;
-            Self::pretty_print(ir.dependencies.clone());
-            Self::pretty_print_unknown_nodes(&ir.nodes);
-            // get file exported symbols that are fully type checked and add them to compilation struct so other files know about these.
+            // Self::pretty_print_unknown_nodes(&ir.nodes);
+
+
+            // get file exported symbols that are fully type checked and add them to compilation so other files know about these.
             let mut file_exports = compilation.exported_symbols.get_mut(file);
             if file_exports.is_none() {
                 compilation.exported_symbols.insert(file.clone(), HashMap::new());
@@ -121,10 +125,21 @@ impl Compilation {
             for (k,v) in ir.exported_symbols.iter() {
                 file_exports.insert(k.clone(), v.clone());
             }
+
+
+            if !still_hope && ir.dependencies.len() > 0 {
+                for dep in &ir.dependencies {
+                    let node = ir.get_node(dep.node_index).unwrap();
+                    println!("undeclared {} used in line {}", dep.needs, node.line);
+                }
+                break;
+            }           
+
             if ir.dependencies.len() == 0 && !ir.any_unknowns() {
                 println!("[+] {} passed type check", file);
                 finished_type_checking += 1;
                 ir.type_checked = true;
+                break;
             }
             keys_index +=1;
             if keys_index >= keys.len() {
