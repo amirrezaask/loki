@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::compliation;
 
 #[test]
-fn test_suite() -> Result<()> {
+fn type_checker() -> Result<()> {
     let files = fs::read_dir("./examples").unwrap();
     let mut results: Vec<Result<()>> = vec![];
     let mut has_error = false;

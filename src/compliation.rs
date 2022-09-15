@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use super::{ir::IR};
 use super::typer::Type;
+use crate::bytecode::Module;
 use crate::ir::{Node, Statement};
 use crate::{errors::*, utils, parser::Parser, ir::NodeIndex};
 
@@ -23,6 +24,7 @@ pub struct Compilation {
     IRs: HashMap<File, IR>,
     exported_symbols: HashMap<String, HashMap<String, Type>>,
     dependencies: Vec<Dependency>,
+    modules: HashMap<String, Module>
 }
 
 
@@ -54,9 +56,9 @@ impl Compilation {
     }
     fn pretty_print_unknown_nodes(nodes: &HashMap<NodeIndex, Node>) {
         for (k,v) in nodes.iter() {
-            if v.type_information.is_none() {
+            // if v.type_information.is_none() {
                 println!("{}: {:?}", k, v)
-            }
+            // }
         }
     }
     fn pretty_print<T: Debug>(list: Vec<T>) {
@@ -69,7 +71,8 @@ impl Compilation {
             total_lines: 0,
             IRs: HashMap::new(), 
             dependencies: vec![],
-            exported_symbols: HashMap::new()
+            exported_symbols: HashMap::new(),
+            modules: HashMap::new(),
         };
         println!("[+] parsing main file: {}", main_file);
         // parse main file
@@ -84,6 +87,7 @@ impl Compilation {
         let mut keys_index: usize = 0;
         let mut finished_type_checking = 0;
         loop {
+            
             if finished_type_checking == keys.len() {
                 break;
             }
@@ -127,7 +131,7 @@ impl Compilation {
             }
 
 
-            if !still_hope && ir.dependencies.len() > 0 {
+            if !still_hope && (ir.dependencies.len() > 0 || ir.any_unknowns())  {
                 for dep in &ir.dependencies {
                     let node = ir.get_node(dep.node_index).unwrap();
                     println!("undeclared {} used in line {}", dep.needs, node.line);
@@ -146,6 +150,16 @@ impl Compilation {
                 keys_index = 0;
             }
         }
+        // let mut modules = HashMap::new(); 
+
+        // now we lower our irs into a more limited version
+        for (file, ir) in &mut compilation.IRs {
+            println!("====================file {} nodes:", file);
+            // let module = ir.into_module();
+            // modules.insert(file, module);
+            Self::pretty_print_unknown_nodes(&ir.nodes);
+        }
+        println!("[+] lowering features completed.");
         Ok(())
     }
 }

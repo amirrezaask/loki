@@ -1,14 +1,15 @@
 ------
-- transform array initialize into decl + array pushes.
-- trasnform ForIn => while
-- transform For => while
-- defer
-  *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
-- tuple data type
-- unions
+bytecode :
+
+  - transform array initialize into decl + array pushes.
+  - trasnform ForIn => while
+  - transform For => while
+  - defer
+    *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
+  - tuple data type
 - generics: take a look into generics.loki.notyet
+- unions
 - using a block will put all it's decls into current block scope.
-- ast type checker errors should be stacked as possible.
 - scope/body is just another statement, parser should handle this so we can have nice things like:
   ```
   if true something;
