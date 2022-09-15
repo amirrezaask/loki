@@ -1,12 +1,14 @@
+use serde::Serialize;
+
 use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex}};
 
-
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Instruction {
     pub source_line: usize,
     pub source_column: usize,
     pub payload: InstructionPayload
 }
-
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum InstructionPayload {
     Load(String),
     Host(String),
@@ -42,16 +44,19 @@ pub enum InstructionPayload {
     Goto(Value),
     Return(Value),
 }
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Value {
     pub ty: Type,
     pub payload: ValuePayload,
 }
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum ValuePayload {
     Type(Type),
     Expression(Expression),
 }
 
-
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum Expression {
     // Literal values
     Unsigned(u64),
@@ -101,13 +106,15 @@ pub enum Expression {
     Function {
         args: Vec<(String, Type)>,
         ret: Type,
+        body: Vec<Instruction>,
     },
 }
-
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Scope {
     instructions: Vec<Instruction>
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Module {
     pub source_filename: String,
     pub root: Scope,
@@ -211,10 +218,9 @@ impl IR {
                             }
                         }
                         if let Type::FnType(_, ret) = expr_node.type_information.clone().unwrap() {
-                            println!("function expr _node {:?}", expr_node);
                             return Value {
                                 ty: expr_node.type_information.clone().unwrap(),
-                                payload: ValuePayload::Expression(Expression::Function { args: compiled_args, ret: *ret.clone() })
+                                payload: ValuePayload::Expression(Expression::Function { args: compiled_args, ret: *ret.clone(), body: self.compile_scope(*body) })
                             };
                         } else {
                             unreachable!()
@@ -246,7 +252,6 @@ impl IR {
                 }
             },
             NodeData::TypeDefinition(ref td) => {
-                println!("type def expr_node; {:?}", expr_node);
                 return Value {
                     ty: expr_node.type_information.clone().unwrap(),
                     payload: ValuePayload::Type(expr_node.type_information.clone().unwrap()),

@@ -56,9 +56,9 @@ impl Compilation {
     }
     fn pretty_print_unknown_nodes(nodes: &HashMap<NodeIndex, Node>) {
         for (k,v) in nodes.iter() {
-            // if v.type_information.is_none() {
+            if v.type_information.is_none() {
                 println!("{}: {:?}", k, v)
-            // }
+            }
         }
     }
     fn pretty_print<T: Debug>(list: Vec<T>) {
@@ -143,21 +143,19 @@ impl Compilation {
                 println!("[+] {} passed type check", file);
                 finished_type_checking += 1;
                 ir.type_checked = true;
-                break;
             }
             keys_index +=1;
             if keys_index >= keys.len() {
                 keys_index = 0;
             }
         }
-        // let mut modules = HashMap::new(); 
+        let mut modules = HashMap::new(); 
 
         // now we lower our irs into a more limited version
         for (file, ir) in &mut compilation.IRs {
-            println!("====================file {} nodes:", file);
-            // let module = ir.into_module();
-            // modules.insert(file, module);
-            Self::pretty_print_unknown_nodes(&ir.nodes);
+            let module = ir.into_module();
+            println!("file {} module:\n {:?}", file, module);
+            modules.insert(file, module);
         }
         println!("[+] lowering features completed.");
         Ok(())

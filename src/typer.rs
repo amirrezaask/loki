@@ -498,7 +498,6 @@ impl IR {
             },
             NodeData::Statement(_) => panic!("unexpected when typing an expression {:?}", node),
             NodeData::TypeDefinition(ref td) => {
-                println!("typing type definition {:?}", td);
                 match td {
                     TypeDefinition::Int(ref size) => {
                         let ty = Type::Type(Box::new(Type::SignedInt(*size)));
