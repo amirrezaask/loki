@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
+use std::time::Instant;
 use std::{collections::HashMap, hash::Hash};
 use serde::Serialize;
 
@@ -79,13 +80,18 @@ impl Compilation {
             exported_symbols: HashMap::new(),
             modules: HashMap::new(),
         };
-        println!("[+] parsing main file: {}", main_file);
+        let whole_thing = Instant::now();
+        let frontend_time_start = Instant::now();
         // parse main file
         let main_file_abs_path = compilation.parse_file(main_file)?;
         // parse all loaded files recursively
         compilation.resolve_loads(main_file_abs_path.clone());
-        println!("[+] resolved main file loads...");
 
+        let frontend_elapsed = frontend_time_start.elapsed();
+
+
+        
+        let type_check_time_start = Instant::now();
         let main_ir = compilation.IRs.get_mut(&main_file_abs_path).unwrap();
         // now we have all of our files used in our program in compilation.IRs
         let keys: Vec<File> = compilation.IRs.keys().map(|f| f.clone()).collect();
@@ -113,7 +119,6 @@ impl Compilation {
                 }
                 continue;    
             }
-            println!("[+] trying to type check file {}", file);
             // check all dependencies to see if they are ready.
             // if not check if other files are fully typed.
             // if yes and still unresolved dependencies it's an undeclared error.
@@ -145,7 +150,6 @@ impl Compilation {
             }           
 
             if ir.dependencies.len() == 0 && !ir.any_unknowns() {
-                println!("[+] {} passed type check", file);
                 finished_type_checking += 1;
                 ir.type_checked = true;
             }
@@ -154,10 +158,17 @@ impl Compilation {
                 keys_index = 0;
             }
         }
+        let type_check_elapsed = type_check_time_start.elapsed();
 
+        let byte_code_generation_start = Instant::now();
         let module = make_module(&mut compilation.IRs);
+        let byte_code_generation_elapsed = byte_code_generation_start.elapsed();
 
+
+        let backend_code_generation_start = Instant::now();
         let backend_code = c_backend::emit_for_module(module);
+        let backend_code_generation_elapsed = backend_code_generation_start.elapsed();
+
         let bin_name: String = {
             let this = Path::new(main_file).file_stem();
             let default = OsStr::new("main");
@@ -168,21 +179,31 @@ impl Compilation {
         }.to_string_lossy().to_string();
 
         let out_file_name = &format!("{}.c", main_file);
+        let writing_generated_code_into_disk = Instant::now();
         let mut out_file = std::fs::File::create(out_file_name).unwrap();
         out_file.write_all(&backend_code.as_bytes()).unwrap();
+        let writing_generated_code_into_disk = writing_generated_code_into_disk.elapsed();
 
+        let calling_backend_compiler = Instant::now();
         let mut cpp_command = Command::new("c++");
 
         cpp_command.arg("-o").arg(bin_name).arg(out_file_name);
         
         let cpp_output = cpp_command.output().unwrap();
+        let calling_backend_compiler = calling_backend_compiler.elapsed();
 
-        // std::fs::remove_file(out_file_name)?;
         if !cpp_output.status.success() {
             panic!("C++ compiler error:\n{}",
                 String::from_utf8_lossy(&cpp_output.stderr));
         }
-        
+        let whole_thing = whole_thing.elapsed();
+        println!("Compiler frontend took {}ns", frontend_elapsed.as_nanos());
+        println!("Type checker took {}ns", type_check_elapsed.as_nanos());
+        println!("Bytecode generation took {}ns", byte_code_generation_elapsed.as_nanos());
+        println!("Backend code generation took {}ns", backend_code_generation_elapsed.as_nanos());
+        println!("Writing generated code to disk {}ns", writing_generated_code_into_disk.as_nanos());
+        println!("Calling backend compiler took {}ns", calling_backend_compiler.as_nanos());       
+        println!("Whole compilation took {}milis", whole_thing.as_millis());       
         Ok(())
     }
 }
