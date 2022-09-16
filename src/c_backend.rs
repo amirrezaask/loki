@@ -85,7 +85,7 @@ fn emit_ty_forward_decl(ty: &Type) -> String {
         Type::CString => "*char".to_string(),
         Type::Char => "char".to_string(),
         Type::String => "char*".to_string(),
-        Type::Array(ref elem_ty) => format!("*{}", emit_ty_forward_decl(elem_ty)),
+        Type::Array(_, ref elem_ty) => format!("{}[]", emit_ty_forward_decl(elem_ty)),
         Type::Struct { fields } => {
             return "struct".to_string();
         },
@@ -113,7 +113,7 @@ fn emit_for_type(ty: &Type) -> String {
         Type::CString => "*char".to_string(),
         Type::Char => "char".to_string(),
         Type::String => "char*".to_string(),
-        Type::Array(ref elem_ty) => format!("*{}", emit_for_type(elem_ty)),
+        Type::Array(size, ref elem_ty) => format!("{}[{}]", emit_for_type(elem_ty), size),
         Type::Struct { fields } => {
             let mut fields_str: Vec<String> = vec![];
             for (field, fty) in fields {
@@ -140,7 +140,7 @@ fn emit_for_instruction(inst: &Instruction) -> String {
                 let mut instructions = Vec::new();
                 let mut argss = Vec::new();
                 for inst in body {
-                    instructions.push(format!("    {};", emit_for_instruction(inst)));
+                    instructions.push(format!("    {}", emit_for_instruction(inst)));
                 }
                 for (name, ty) in args {
                     argss.push(format!("{} {}", emit_for_type(ty), name));
@@ -164,7 +164,7 @@ fn emit_for_instruction(inst: &Instruction) -> String {
                     _ => {}
                 }
             }
-            return format!("{} {} = {}", emit_for_type(ty), name.to_string(), emit_for_value(value))
+            return format!("{} {} = {};", emit_for_type(ty), name.to_string(), emit_for_value(value))
         },
         InstructionPayload::Declaration { name, ty } => {
             if let Type::FnType(ref args, ref ret) = ty {
@@ -173,32 +173,40 @@ fn emit_for_instruction(inst: &Instruction) -> String {
                     argss.push(format!("{} {}", emit_for_type(ty), name));
                 }
                 return format!("{} {}({});", emit_for_type(&ret), name, argss.join(", "));
+            } else if let Type::Array(size, ref elem_ty) = ty {
+                return format!("{} {}[{}];", emit_for_type(elem_ty), name, size);
             }
-            return format!("{} {}", emit_for_type(ty), name);
+            return format!("{} {};", emit_for_type(ty), name);
         },
-        InstructionPayload::Assign { lhs, rhs } => format!("{} = {}", emit_for_value(lhs), emit_for_value(rhs)),
+        InstructionPayload::Assign { lhs, rhs } => format!("{} = {};", emit_for_value(lhs), emit_for_value(rhs)),
         InstructionPayload::Scope(Scope {ref instructions}) => {
             let mut code: Vec<String> = vec![];
             for instruction in instructions {
                 code.push(emit_for_instruction(instruction));
             }
         
-            return code.join(";\n");
+            return code.join("\n");
         },
         InstructionPayload::Branch { cases } => todo!(),
-        InstructionPayload::While { cond, body } => todo!(),
-        InstructionPayload::Break => "break".to_string(),
-        InstructionPayload::Continue => "continue".to_string(),
+        InstructionPayload::While { cond, body } => {
+            let mut code: Vec<String> = vec![];
+            for instruction in body {
+                code.push(format!("{}", emit_for_instruction(instruction)));
+            }
+            return format!("while({}) {{\n\t{}\n\t}}", emit_for_value(cond), code.join(";\n\t"));
+        },
+        InstructionPayload::Break => "break;".to_string(),
+        InstructionPayload::Continue => "continue;".to_string(),
         InstructionPayload::Call { function, args } => {
             let mut argss = vec![];
             for arg in args {
                 argss.push(emit_for_value(arg));
             }
-            format!("{}({})", emit_for_value(function), argss.join(", "))
+            format!("{}({});", emit_for_value(function), argss.join(", "))
         },
         InstructionPayload::Goto(_) => todo!(),
         InstructionPayload::Return(ref thing) => {
-            format!("return ({})", emit_for_value(thing))
+            format!("return ({});", emit_for_value(thing))
         } ,
     }
 }

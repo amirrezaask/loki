@@ -495,7 +495,20 @@ impl IR {
                         });
                     },
                     Statement::For { start, cond, cont, body } => {
-                        panic!("for transformation still not supported in bytecode.")
+                        let cond = self.compile_expression(current_scope_instructions,cond.clone());
+                        self.compile_statement(current_scope_instructions, *start);
+                        if let NodeData::Statement(Statement::Scope { owner, is_file_root, ref stmts } ) = self.get_node(*body).unwrap().data {
+                            let mut instructions = vec![];
+                            self.compile_statement(&mut instructions, *cont);
+                            for stmt in stmts {
+                                self.compile_statement(&mut instructions, *stmt);
+                            }
+                            current_scope_instructions.push(Instruction {
+                                source_line: node.line,
+                                source_column: node.col,
+                                payload: InstructionPayload::While { cond: cond, body: instructions }
+                            });
+                        }
                     },
                     Statement::ForIn { iterator, iterable, body } => {
                         panic!("for in transformation still not supported in bytecode.")
@@ -579,7 +592,7 @@ fn analyze_instruction_dependencies(inst: &Instruction) -> Vec<String> {
 fn analyze_type_dependencies(ty: &Type) -> Vec<String> {
     match ty {
         Type::Type(inner) => return analyze_type_dependencies(inner),
-        Type::Array(inner) => return analyze_type_dependencies(inner),
+        Type::Array(_, inner) => return analyze_type_dependencies(inner),
         Type::Struct { ref fields } => {
             let mut deps = vec![];
             for field in fields {
@@ -616,7 +629,7 @@ fn analyze_function_dependencies(function: &Expression) -> Vec<String> {
 }
 
 
-pub fn make_module(irs: &HashMap<String, IR>) -> Module {
+pub fn make_module(irs: &mut HashMap<String, IR>) -> Module {
     let mut module = Module {
         host_declarations: vec![],
         struct_definitons: vec![],
@@ -630,6 +643,8 @@ pub fn make_module(irs: &HashMap<String, IR>) -> Module {
     }
 
     // we start by putting all host declarations on the top of the module.
+    // then all struct definitions.
+    // then other stuff.
     for inst in &root_instructions {
         if let InstructionPayload::Host(_) = inst.payload {
             module.host_declarations.push(inst.clone());
@@ -646,6 +661,5 @@ pub fn make_module(irs: &HashMap<String, IR>) -> Module {
     }
 
     module
-    // now we should order all definitions.
 
 }

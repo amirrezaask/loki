@@ -1,6 +1,5 @@
 ------
 bytecode :
-
   - transform array initialize into decl + array pushes.
   - trasnform ForIn => while
   - transform For => while

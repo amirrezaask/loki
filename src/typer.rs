@@ -42,7 +42,7 @@ pub enum Type {
     Char,
     String,
 
-    Array(Box<Type>),
+    Array(u64, Box<Type>),
 
     Struct {
         fields: Vec<(String, Type)>, // name: type
@@ -260,7 +260,7 @@ impl IR {
                         match arr_type {
                             Some(ty) => {
                                 match ty {
-                                    Type::Array(ref element_type) => {
+                                    Type::Array(_, ref element_type) => {
                                         self.add_type(expression_index, element_type.deref().clone());
                                         match idx_type {
                                             Some(index_ty) => {
@@ -427,9 +427,9 @@ impl IR {
                                     }
                                 }
                             }
-                            self.add_type(*ty, Type::Array(Box::new(array_elem_type.clone().unwrap())));
-                            self.add_type(expression_index, Type::Array(Box::new(array_elem_type.clone().unwrap())));
-                            return Ok(Some(Type::Array(Box::new(array_elem_type.unwrap()))));
+                            self.add_type(*ty, Type::Array(elements.len() as u64, Box::new(array_elem_type.clone().unwrap())));
+                            self.add_type(expression_index, Type::Array(elements.len() as u64, Box::new(array_elem_type.clone().unwrap())));
+                            return Ok(Some(Type::Array(elements.len() as u64, Box::new(array_elem_type.unwrap()))));
                         } else {
                             unreachable!()
                         }
@@ -578,8 +578,8 @@ impl IR {
                         if length_type.is_none() {
                             return Ok(None);
                         }
-                        self.add_type(expression_index, Type::Array(Box::new(elem_type.clone().unwrap())));
-                        Ok(Some(Type::Type(Box::new(Type::Array(Box::new(elem_type.clone().unwrap()))))))
+                        self.add_type(expression_index, Type::Array(10, Box::new(elem_type.clone().unwrap())));
+                        Ok(Some(Type::Type(Box::new(Type::Array(10, Box::new(elem_type.clone().unwrap()))))))
                     },
                     TypeDefinition::Function { args, ret } => {
                         let mut arg_types: Vec<(String, Type)> = vec![];
@@ -803,7 +803,7 @@ impl IR {
                             return Ok(None);
                         }
                         let iterable_type = iterable_type.unwrap();
-                        if let Type::Array(ref elem_type) = iterable_type {
+                        if let Type::Array(_, ref elem_type) = iterable_type {
                             self.add_type(*iterator, elem_type.deref().clone());
                             self.add_type(*iterable, iterable_type.clone());
                             self.add_symbol_to_scope(*body, *iterator, elem_type.deref().clone());

@@ -155,7 +155,7 @@ impl Compilation {
             }
         }
 
-        let module = make_module(&compilation.IRs);
+        let module = make_module(&mut compilation.IRs);
 
         let backend_code = c_backend::emit_for_module(module);
         let bin_name: String = {
