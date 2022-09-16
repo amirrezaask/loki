@@ -58,7 +58,7 @@ pub enum Type {
 
     Pointer(Box<Type>),
 
-    FnType(Vec<Type>, Box<Type>),
+    FnType(Vec<(String, Type)>, Box<Type>),
     Void,
 }
 
@@ -442,9 +442,12 @@ impl IR {
                             }
                         }
 
-                        let arg_types: Vec<Type> = args.iter().map(|arg_idx| {
+                        let arg_types: Vec<(String, Type)> = args.iter().map(|arg_idx| {
                             if let NodeData::Statement(Statement::Decl { name, ty }) = self.nodes.get(arg_idx).unwrap().data {
-                                return self.nodes.get(&ty).clone().unwrap().type_information.as_ref().unwrap().to_owned();
+                                return (
+                                    self.nodes.get(&name).unwrap().get_identifier().unwrap(), 
+                                    self.nodes.get(&ty).clone().unwrap().type_information.as_ref().unwrap().to_owned()
+                                );
                             }
                             unreachable!()
                         }).collect();
@@ -579,14 +582,16 @@ impl IR {
                         Ok(Some(Type::Type(Box::new(Type::Array(Box::new(elem_type.clone().unwrap()))))))
                     },
                     TypeDefinition::Function { args, ret } => {
-                        let mut arg_types: Vec<Type> = vec![];
+                        let mut arg_types: Vec<(String, Type)> = vec![];
                         for arg in args {
+                            let decl = self.get_node(*arg).unwrap();
                             let decl_type = self.type_statement(other_files_exports, *arg)?;
                             if decl_type.is_none() {
                                 return Ok(None);
                             }
-
-                            arg_types.push(decl_type.unwrap())
+                            if let NodeData::Statement(Statement::Decl { name, ty }) = decl.data {
+                                arg_types.push((self.nodes.get(&name).unwrap().get_identifier().unwrap(), decl_type.unwrap()))
+                            }
                         }
                         let ret_type = self.type_expression(other_files_exports, *ret)?;            
                         if ret_type.is_none() {
@@ -614,7 +619,6 @@ impl IR {
                                 unreachable!();
                             }
                         }
-                        println!("adding type information for struct {:?}", Type::Struct { fields: fields.clone() });
                         self.add_type(expression_index, Type::Type(Box::new(Type::Struct { fields: fields.clone() })));
                         Ok(Some(Type::Type(Box::new(Type::Struct { fields }))))
                     },

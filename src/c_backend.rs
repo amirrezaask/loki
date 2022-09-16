@@ -71,6 +71,34 @@ fn emit_for_value(value: &Value) -> String {
     }
 }
 
+fn emit_ty_forward_decl(ty: &Type) -> String {
+    match ty {
+        Type::NoType => "".to_string(),
+        Type::Type(inner) => return emit_ty_forward_decl(inner),
+        Type::SignedInt(_) => "int".to_string(),
+        Type::UnsignedInt(_) => "unsigned int".to_string(),
+        Type::Float(_) => "double".to_string(),
+        Type::Bool => "bool".to_string(),
+        Type::CIntPtr => "intptr".to_string(),
+        Type::CUintPtr => "uintptr".to_string(),
+        Type::CVarArgs => "...".to_string(),
+        Type::CString => "*char".to_string(),
+        Type::Char => "char".to_string(),
+        Type::String => "char*".to_string(),
+        Type::Array(ref elem_ty) => format!("*{}", emit_ty_forward_decl(elem_ty)),
+        Type::Struct { fields } => {
+            return "struct".to_string();
+        },
+        Type::Enum { variants } => todo!(),
+        Type::TypeRef { name, actual_ty } => format!("{}", name),
+        Type::Pointer(obj) => format!("{}*", emit_ty_forward_decl(obj)),
+        Type::FnType(ref args, ref ret) => {
+            unreachable!();
+        },
+        Type::Void => format!("void"),
+    }
+}
+
 fn emit_for_type(ty: &Type) -> String {
     match ty {
         Type::NoType => "".to_string(),
@@ -96,7 +124,9 @@ fn emit_for_type(ty: &Type) -> String {
         Type::Enum { variants } => todo!(),
         Type::TypeRef { name, actual_ty } => format!("{}", name),
         Type::Pointer(obj) => format!("{}*", emit_for_type(obj)),
-        Type::FnType(_, _) => unreachable!(),
+        Type::FnType(ref args, ref ret) => {
+            unreachable!();
+        },
         Type::Void => format!("void"),
     }
 }
@@ -110,12 +140,12 @@ fn emit_for_instruction(inst: &Instruction) -> String {
                 let mut instructions = Vec::new();
                 let mut argss = Vec::new();
                 for inst in body {
-                    instructions.push(format!("    {}", emit_for_instruction(inst)));
+                    instructions.push(format!("    {};", emit_for_instruction(inst)));
                 }
                 for (name, ty) in args {
                     argss.push(format!("{} {}", emit_for_type(ty), name));
                 }
-                return format!("{} {}({}) {{\n{}\n}}", emit_for_type(&ret), name, argss.join(", "), instructions.join(";\n"));
+                return format!("{} {}({}) {{\n{}\n}}", emit_for_type(&ret), name, argss.join(", "), instructions.join("\n"));
             } else if let ValuePayload::Type(ref td) = value.payload {
                 let td = td.deref().clone().to_owned();
                 match td {
@@ -137,7 +167,13 @@ fn emit_for_instruction(inst: &Instruction) -> String {
             return format!("{} {} = {}", emit_for_type(ty), name.to_string(), emit_for_value(value))
         },
         InstructionPayload::Declaration { name, ty } => {
-
+            if let Type::FnType(ref args, ref ret) = ty {
+                let mut argss = Vec::new();
+                for (name, ty) in args {
+                    argss.push(format!("{} {}", emit_for_type(ty), name));
+                }
+                return format!("{} {}({});", emit_for_type(&ret), name, argss.join(", "));
+            }
             return format!("{} {}", emit_for_type(ty), name);
         },
         InstructionPayload::Assign { lhs, rhs } => format!("{} = {}", emit_for_value(lhs), emit_for_value(rhs)),
@@ -169,6 +205,24 @@ fn emit_for_instruction(inst: &Instruction) -> String {
 
 pub fn emit_for_module(module: Module) -> String {
     let mut code: Vec<String> = vec![];
+    code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
+    for instruction in &module.root.instructions {
+        if let InstructionPayload::Definition { mutable, ref name, ref ty, ref value } = instruction.payload {
+            if !ty.is_function() {
+                code.push(format!("{} {};", emit_ty_forward_decl(&ty), name));
+            } else {
+                if let Type::FnType(ref args, ref ret) = ty {
+                    let mut argss = Vec::new();
+                    for (name, ty) in args {
+                        argss.push(format!("{} {}", emit_for_type(ty), name));
+                    }
+                    code.push(format!("{} {}({});", emit_for_type(&ret), name, argss.join(", ")));
+                }
+            }
+        }
+    }
+    code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
+
     for instruction in &module.root.instructions {
         code.push(emit_for_instruction(instruction));
     }
