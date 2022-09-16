@@ -24,4 +24,7 @@ Loki compiler consists of multiple stages of compilation:
     * Initialize structs -> Declarations and assignments.
     * Initialize arrays -> Declarations and assignments.
     * Enums -> normal constants.
-- backend code generation: this will produce code that gets compiled or assembled using a third party toolchain. (C compiler, LLVM, machin assembler).
+- backend code generation: this will produce code that gets compiled or assembled using a third party toolchain. 
+    * C: almost done.
+    * LLVM IR: Comming soon! 
+    * WASM: Comming soon!
