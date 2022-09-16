@@ -128,8 +128,6 @@ pub struct Scope {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Module {
-    pub host_declarations: Vec<Instruction>,
-    pub struct_definitons: Vec<Instruction>,
     pub instructions: Vec<Instruction>,
 }
 impl IR {
@@ -631,33 +629,16 @@ fn analyze_function_dependencies(function: &Expression) -> Vec<String> {
 
 pub fn make_module(irs: &mut HashMap<String, IR>) -> Module {
     let mut module = Module {
-        host_declarations: vec![],
-        struct_definitons: vec![],
         instructions: vec![],
     };
-    // first we compile all instructions from all files into our bytecode format.
     let mut root_instructions = vec![];
     for (file, ir) in irs {
         let mut stmts = ir.compile_scope(ir.root);
         root_instructions.append(&mut stmts);
     }
 
-    // we start by putting all host declarations on the top of the module.
-    // then all struct definitions.
-    // then other stuff.
     for inst in &root_instructions {
-        if let InstructionPayload::Host(_) = inst.payload {
-            module.host_declarations.push(inst.clone());
-        }
-        else if let InstructionPayload::Definition { mutable: _, name: _, ty: _, ref value } = inst.payload {
-            if value.ty.is_struct_definition() {
-                module.struct_definitons.push(inst.clone());
-            } else {
-                module.instructions.push(inst.clone());
-            }
-        } else {
-            module.instructions.push(inst.clone());
-        }
+        module.instructions.push(inst.clone());
     }
 
     module
