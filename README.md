@@ -19,9 +19,9 @@ Loki compiler consists of multiple stages of compilation:
 - Parser: produces an IR structure for each file.
 - Type checker and inference: type inference and checking of the IR happens here.
 - internal bytecode: lowering language features into simpler constructs happen here.
-    . For -> While
-    . Foreach -> While
-    . Initialize structs -> Declarations and assignments.
-    . Initialize arrays -> Declarations and assignments.
-    . Enums -> normal constants.
+    * For -> While
+    * Foreach -> While
+    * Initialize structs -> Declarations and assignments.
+    * Initialize arrays -> Declarations and assignments.
+    * Enums -> normal constants.
 - backend code generation: this will produce code that gets compiled or assembled using a third party toolchain. (C compiler, LLVM, machin assembler).
