@@ -43,11 +43,12 @@ Loki compiler consists of multiple stages of compilation:
 ## Todos
 
 - Internal array and dynamic array implementation as a generic data structure.
-- defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
-- generics: take a look into generics.loki.notyet
+- support labels.
 - trasnform ForIn => while
+- defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - unions
 - definitions of #load that will make exported symbols accessible from a namespace.
+- generics: take a look into generics.loki.notyet
 - LLVM
 - dynamic array:
   * strings should be our own dynamic array impl.
