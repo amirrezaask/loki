@@ -41,7 +41,9 @@ fn emit_for_value(value: &Value) -> String {
                 crate::bytecode::Expression::Signed(number) => format!("{}", number),
                 crate::bytecode::Expression::StringLiteral(ref s) => format!("\"{}\"", s),
                 crate::bytecode::Expression::Float(number) => format!("{}", number),
-                crate::bytecode::Expression::Bool(b) => format!("{}", b),
+                crate::bytecode::Expression::Bool(b) => {
+                    format!("{}", b)
+                }
                 crate::bytecode::Expression::Char(c) => format!("'{}'", c),
                 crate::bytecode::Expression::Identifier(i) => format!("{}", i),
                 crate::bytecode::Expression::Paren(inner) => format!("({})", emit_for_value(inner)),
@@ -89,7 +91,7 @@ fn emit_ty_forward_decl(ty: &Type) -> String {
         Type::Struct { fields } => {
             return "struct".to_string();
         },
-        Type::Enum { variants } => todo!(),
+        Type::Enum { variants } => unreachable!(),
         Type::TypeRef { name, actual_ty } => format!("{}", name),
         Type::Pointer(obj) => format!("{}*", emit_ty_forward_decl(obj)),
         Type::FnType(ref args, ref ret) => {
@@ -121,7 +123,7 @@ fn emit_for_type(ty: &Type) -> String {
             }
             return format!("struct {{{}}}", fields_str.join(";\n"));
         },
-        Type::Enum { variants } => todo!(),
+        Type::Enum { variants } => unreachable!(),
         Type::TypeRef { name, actual_ty } => format!("{}", name),
         Type::Pointer(obj) => format!("{}*", emit_for_type(obj)),
         Type::FnType(ref args, ref ret) => {
@@ -187,7 +189,22 @@ fn emit_for_instruction(inst: &Instruction) -> String {
         
             return code.join("\n");
         },
-        InstructionPayload::Branch { cases } => todo!(),
+        InstructionPayload::Branch { ref cases } => {
+            let first_case = &cases[0];
+            let mut elifs: Vec<String> = vec![];
+            for (cond, insts) in &cases[1..] {
+                let mut instructions_strings: Vec<String> = vec![];
+                for inst in insts {
+                    instructions_strings.push(emit_for_instruction(inst));
+                }
+                elifs.push(format!("else if ({}) {{\n{}\n}}", emit_for_value(cond), instructions_strings.join("\n")));
+            }
+            let mut instructions_strings: Vec<String> = vec![];
+            for inst in &first_case.1 {
+                instructions_strings.push(emit_for_instruction(inst));
+            } 
+            return format!("if ({}) {{\n{}\n}}\n{}", emit_for_value(&first_case.0), instructions_strings.join("\n"), elifs.join("\n"));
+        },
         InstructionPayload::While { cond, body } => {
             let mut code: Vec<String> = vec![];
             for instruction in body {

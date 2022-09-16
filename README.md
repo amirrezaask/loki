@@ -42,7 +42,6 @@ Loki compiler consists of multiple stages of compilation:
 
 ## Todos
 
-- branch implementation in bytecode.
 - Internal array and dynamic array implementation as a generic data structure.
 - defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - generics: take a look into generics.loki.notyet
