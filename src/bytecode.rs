@@ -1,3 +1,5 @@
+use std::{vec, collections::HashMap};
+
 use serde::Serialize;
 
 use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex, AstTag}};
@@ -6,7 +8,7 @@ use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Sta
 pub struct Instruction {
     pub source_line: usize,
     pub source_column: usize,
-    pub payload: InstructionPayload
+    pub payload: InstructionPayload,
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum InstructionPayload {
@@ -50,6 +52,16 @@ pub enum InstructionPayload {
 pub struct Value {
     pub ty: Type,
     pub payload: ValuePayload,
+}
+
+impl Type {
+    pub fn is_struct_definition(&self) -> bool {
+        match self {
+            Type::Type(t) => return t.is_struct_definition(),
+            Type::Struct { fields } => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -116,10 +128,10 @@ pub struct Scope {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Module {
-    pub source_filename: String,
-    pub root: Scope,
+    pub host_declarations: Vec<Instruction>,
+    pub struct_definitons: Vec<Instruction>,
+    pub instructions: Vec<Instruction>,
 }
-
 impl IR {
     fn compile_expression(&self, current_scope_instructions: &mut Vec<Instruction>, expression_index: NodeIndex) -> Value {
         let expr_node = self.nodes.get(&expression_index).unwrap();
@@ -457,6 +469,7 @@ impl IR {
                         current_scope_instructions.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
+
                             payload: InstructionPayload::Assign {
                                lhs, rhs
                             }
@@ -557,15 +570,82 @@ impl IR {
 
         return instructions;
     }
-    pub fn into_module(&self) -> Module {
-        let mut module = Module {
-            source_filename: self.filename.clone(),
-            root: Scope { instructions: vec![] },
-        };
-        let root_instructions = self.compile_scope(self.root);
-        module.root.instructions = root_instructions;
-        return module;
+}
+
+fn analyze_instruction_dependencies(inst: &Instruction) -> Vec<String> {
+
+    unreachable!()
+}
+fn analyze_type_dependencies(ty: &Type) -> Vec<String> {
+    match ty {
+        Type::Type(inner) => return analyze_type_dependencies(inner),
+        Type::Array(inner) => return analyze_type_dependencies(inner),
+        Type::Struct { ref fields } => {
+            let mut deps = vec![];
+            for field in fields {
+                deps.append(&mut analyze_type_dependencies(&field.1));
+            }
+
+            deps
+        },
+        Type::TypeRef { name, actual_ty } => {
+            vec![name.clone()]
+        },
+        Type::Pointer(inner) => return analyze_type_dependencies(inner),
+        _ => vec![],
     }
-    
+}
+
+// returns a list of identifiers that a function needs.
+fn analyze_function_dependencies(function: &Expression) -> Vec<String> {
+    let mut deps: Vec<String> = vec![];
+    match function {
+        Expression::Function { ref args, ref ret, ref body } => {
+            for (_, ty) in args {
+                deps.append(&mut analyze_type_dependencies(ty));
+            }
+            deps.append(&mut analyze_type_dependencies(ret));
+            for inst in body {
+                deps.append(&mut analyze_instruction_dependencies(inst));
+            }
+        },
+        _ => {}
+    }
+
+    return deps;
+}
+
+
+pub fn make_module(irs: &HashMap<String, IR>) -> Module {
+    let mut module = Module {
+        host_declarations: vec![],
+        struct_definitons: vec![],
+        instructions: vec![],
+    };
+    // first we compile all instructions from all files into our bytecode format.
+    let mut root_instructions = vec![];
+    for (file, ir) in irs {
+        let mut stmts = ir.compile_scope(ir.root);
+        root_instructions.append(&mut stmts);
+    }
+
+    // we start by putting all host declarations on the top of the module.
+    for inst in &root_instructions {
+        if let InstructionPayload::Host(_) = inst.payload {
+            module.host_declarations.push(inst.clone());
+        }
+        else if let InstructionPayload::Definition { mutable: _, name: _, ty: _, ref value } = inst.payload {
+            if value.ty.is_struct_definition() {
+                module.struct_definitons.push(inst.clone());
+            } else {
+                module.instructions.push(inst.clone());
+            }
+        } else {
+            module.instructions.push(inst.clone());
+        }
+    }
+
+    module
+    // now we should order all definitions.
 
 }

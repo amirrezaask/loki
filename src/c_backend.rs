@@ -156,7 +156,7 @@ fn emit_for_instruction(inst: &Instruction) -> String {
                                 for (field, fty) in fields {
                                     fields_str.push(format!("    {} {};", emit_for_type(fty), field));
                                 }
-                                return format!("struct {} {{\n{}\n}}", name, fields_str.join("\n"));
+                                return format!("struct {} {{\n{}\n}};", name, fields_str.join("\n"));
                             },
                             _ => {}
                         }
@@ -205,8 +205,26 @@ fn emit_for_instruction(inst: &Instruction) -> String {
 
 pub fn emit_for_module(module: Module) -> String {
     let mut code: Vec<String> = vec![];
+    for host in &module.host_declarations {
+        code.push(emit_for_instruction(host));
+    }
     code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
-    for instruction in &module.root.instructions {
+    for instruction in &module.struct_definitons {
+        if let InstructionPayload::Definition { mutable, ref name, ref ty, ref value } = instruction.payload {
+            if !ty.is_function() {
+                code.push(format!("{} {};", emit_ty_forward_decl(&ty), name));
+            } else {
+                if let Type::FnType(ref args, ref ret) = ty {
+                    let mut argss = Vec::new();
+                    for (name, ty) in args {
+                        argss.push(format!("{} {}", emit_for_type(ty), name));
+                    }
+                    code.push(format!("{} {}({});", emit_for_type(&ret), name, argss.join(", ")));
+                }
+            }
+        }
+    }
+    for instruction in &module.instructions {
         if let InstructionPayload::Definition { mutable, ref name, ref ty, ref value } = instruction.payload {
             if !ty.is_function() {
                 code.push(format!("{} {};", emit_ty_forward_decl(&ty), name));
@@ -222,8 +240,10 @@ pub fn emit_for_module(module: Module) -> String {
         }
     }
     code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
-
-    for instruction in &module.root.instructions {
+    for instruction in &module.struct_definitons {
+        code.push(emit_for_instruction(instruction));
+    }
+    for instruction in &module.instructions {
         code.push(emit_for_instruction(instruction));
     }
 

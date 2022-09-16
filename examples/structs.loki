@@ -2,7 +2,6 @@
 #load "print.loki"
 
 
-
 main :: () int {
     amirreza := Human {
         name = "amirreza",
@@ -13,7 +12,6 @@ main :: () int {
     printf("amirreza age is %d\n", amirreza.age);
     printf("inline age is %d\n", (Human {name="comrade", age=12}).age);
 }
-
 Human :: struct {
     age: s32,
     name: string,

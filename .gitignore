@@ -12,4 +12,6 @@ ncurses
 *LOKI_OUT.c
 *LOKI_OUT.cpp
 *ast_E*
+*.cpp*
 *_module.json*
+*.loki.c*
