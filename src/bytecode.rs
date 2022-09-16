@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex}};
+use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex, AstTag}};
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Instruction {
@@ -92,8 +92,6 @@ pub enum Expression {
         field: Box<Value>,
     },
 
-    InitializeArray (Vec<Value>),
-
     Call {
         fn_name: Box<Value>,
         args: Vec<Value>,
@@ -113,7 +111,7 @@ pub enum Expression {
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Scope {
-    instructions: Vec<Instruction>
+    pub instructions: Vec<Instruction>
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -441,6 +439,9 @@ impl IR {
                         
                     },
                     Statement::Decl { name, ty } => {
+                        if node.tags.contains(&AstTag::Foreign) {
+                            return;
+                        }
                         current_scope_instructions.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,

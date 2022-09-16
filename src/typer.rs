@@ -43,9 +43,6 @@ pub enum Type {
     String,
 
     Array(Box<Type>),
-    DynamicArray(Box<Type>),
-
-    Initialize(Box<Type>),
 
     Struct {
         fields: Vec<(String, Type)>, // name: type
@@ -63,6 +60,21 @@ pub enum Type {
 
     FnType(Vec<Type>, Box<Type>),
     Void,
+}
+
+impl Type {
+    pub fn is_pointer(&self) -> bool {
+        match self {
+            Type::Pointer(_) => true,
+            _ => false
+        }
+    }
+    pub fn is_function(&self) -> bool {
+        match self {
+            Type::FnType(_, _) => true,
+            _ => false
+        }
+    }
 }
 
 impl IR {

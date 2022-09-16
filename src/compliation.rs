@@ -7,6 +7,7 @@ use serde::Serialize;
 use super::{ir::IR};
 use super::typer::Type;
 use crate::bytecode::Module;
+use crate::c_backend;
 use crate::ir::{Node, Statement};
 use crate::{errors::*, utils, parser::Parser, ir::NodeIndex};
 
@@ -155,12 +156,14 @@ impl Compilation {
         // now we lower our irs into a more limited version
         for (file, ir) in &mut compilation.IRs {
             let module = ir.into_module();
-            println!("file {} module:\n {:?}", file, module);
+            // println!("file {} module:\n {:?}", file, module);
             modules.insert(file, module.clone());
             let mut out_file = std::fs::File::create(format!("{}_module.json", file)).unwrap();
             out_file.write_all(serde_json::to_string_pretty(&module).unwrap().as_bytes()).unwrap();
+            println!("C Code:\n{}", c_backend::emit_for_module(module));
         }
         println!("[+] lowering features completed.");
+
         Ok(())
     }
 }
