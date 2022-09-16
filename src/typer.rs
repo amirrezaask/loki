@@ -347,7 +347,7 @@ impl IR {
                             },
                             BinaryOperation::BinaryAnd |
                             BinaryOperation::BinaryOr => {
-                                if left_type == Some(Type::Bool) && right_type == Some(Type::Bool) {
+                                if (left_type == Some(Type::Bool) && right_type == Some(Type::Bool)) || (left_type == Some(Type::Type(Box::new(Type::Bool))) && right_type == Some(Type::Type(Box::new(Type::Bool)))) {
                                     self.add_type(expression_index, Type::Bool);
                                     return Ok(Some(Type::Bool));
                                 } else {
