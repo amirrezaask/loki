@@ -35,27 +35,25 @@ Loki compiler consists of multiple stages of compilation:
 
     * Go: Comming soon!
 
-    * LLVM IR: Comming soon! 
+    * LLVM IR: Comming soon!
 
     * WASM: Comming soon!
 
 
 ## Todos
-* bytecode :
-  - transform array initialize into decl + array pushes.
-  - trasnform ForIn => while
-  - transform For => while
-  - defer
-    *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
-  - tuple data type
-* generics: take a look into generics.loki.notyet
-* unions
-* using a block will put all it's decls into current block scope.
-* LLVM
-* dynamic array:
-  - strings should be our own dynamic array impl. 
-  - variadic args
-  - slicing arrays
-  - converting a dynamic array into c variadic array.
-* load files into a namespace
-* memory allocators.
+
+- branch implementation in bytecode.
+- Internal array and dynamic array implementation as a generic data structure.
+- defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
+- generics: take a look into generics.loki.notyet
+- trasnform ForIn => while
+- unions
+- definitions of #load that will make exported symbols accessible from a namespace.
+- LLVM
+- dynamic array:
+  * strings should be our own dynamic array impl.
+  * variadic args
+  * slicing arrays
+  * converting a dynamic array into c variadic array.
+- load files into a namespace
+- memory allocators

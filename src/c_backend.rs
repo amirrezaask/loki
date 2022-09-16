@@ -221,7 +221,7 @@ pub fn emit_for_module(module: Module) -> String {
     code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
     for instruction in &module.instructions {
         if let InstructionPayload::Definition { mutable, ref name, ref ty, ref value } = instruction.payload {
-            if !ty.is_function() {
+            if ty.is_struct_definition() {
                 code.push(format!("{} {};", emit_ty_forward_decl(&ty), name));
             } else {
                 if let Type::FnType(ref args, ref ret) = ty {

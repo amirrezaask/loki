@@ -2,7 +2,7 @@ use std::{vec, collections::HashMap};
 
 use serde::Serialize;
 
-use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex, AstTag}};
+use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex, AstTag, self}};
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Instruction {
@@ -208,6 +208,14 @@ impl IR {
                         };
                     },
                     crate::ir::Expression::NamespaceAccess { namespace, field } => {
+                        let namespace_node = self.get_node(namespace.clone()).unwrap();
+                        if let Type::Enum { variants } = namespace_node.type_information.clone().unwrap() {
+                            let field_node = self.get_node(field.clone()).unwrap();
+                            return Value {
+                                ty: Type::UnsignedInt(64),
+                                payload: ValuePayload::Expression(Expression::Identifier(format!("___LOKI_GENERATED__Enum__{}_{}", namespace_node.get_identifier().unwrap(), field_node.get_identifier().unwrap()))),
+                            }
+                        }
                         return Value {
                             ty: expr_node.type_information.clone().unwrap(),
                             payload: ValuePayload::Expression(Expression::NamespaceAccess { namespace: Box::new(self.compile_expression(current_scope_instructions,namespace.clone())), field: Box::new(self.compile_expression(current_scope_instructions,field.clone())) })
@@ -432,6 +440,25 @@ impl IR {
                                         rhs: element_compiled,
                                     }
                                 });
+                            }
+                        } else if let NodeData::TypeDefinition(crate::ir::TypeDefinition::Enum(ref variants)) = &expr_node.data  {
+                            for (index, variant) in variants.iter().enumerate() {
+                                let decl_node = self.nodes.get(&variant).unwrap();
+                                if let NodeData::Statement(Statement::Decl { name: ref variant_name, ref ty }) = decl_node.data {
+                                    current_scope_instructions.push(Instruction {
+                                        source_line: node.line,
+                                        source_column: node.col,
+                                        payload: InstructionPayload::Definition { 
+                                            mutable: false, 
+                                            name: format!("___LOKI_GENERATED__Enum__{}_{}", self.get_identifier_as_string(name.clone()), self.get_identifier_as_string(variant_name.clone())) ,
+                                            value: Value { 
+                                                ty: Type::UnsignedInt(64),
+                                                payload: ValuePayload::Expression(Expression::Unsigned(index as u64))
+                                            },
+                                            ty: Type::UnsignedInt(64),
+                                        }
+                                    });
+                                }
                             }
                         } else {
                             let value = self.compile_expression(current_scope_instructions,expr.clone());
