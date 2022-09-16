@@ -10,6 +10,7 @@ mod compliation;
 mod ir;
 mod errors;
 mod bytecode;
+mod c_backend;
 mod tests;
 // mod symbol_table;
 use anyhow::Result;

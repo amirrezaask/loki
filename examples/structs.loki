@@ -5,7 +5,6 @@ main :: () int {
     amirreza := Human {
         name = "amirreza",
         age = 24,
-
     };
     amirreza.age = 12;
 

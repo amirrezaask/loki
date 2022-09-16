@@ -1,5 +1,6 @@
 
 use std::fmt::Debug;
+use std::io::Write;
 use std::{collections::HashMap, hash::Hash};
 use serde::Serialize;
 
@@ -155,7 +156,9 @@ impl Compilation {
         for (file, ir) in &mut compilation.IRs {
             let module = ir.into_module();
             println!("file {} module:\n {:?}", file, module);
-            modules.insert(file, module);
+            modules.insert(file, module.clone());
+            let mut out_file = std::fs::File::create(format!("{}_module.json", file)).unwrap();
+            out_file.write_all(serde_json::to_string_pretty(&module).unwrap().as_bytes()).unwrap();
         }
         println!("[+] lowering features completed.");
         Ok(())
