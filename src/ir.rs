@@ -227,6 +227,7 @@ pub enum Statement {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct IR {
     pub filename: String,
+    pub file_source: String,
     pub tokens: Vec<Token>,
     pub root: NodeIndex,
     pub registered_indexes: Vec<NodeIndex>, 

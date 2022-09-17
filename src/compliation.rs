@@ -142,10 +142,14 @@ impl Compilation {
 
 
             if !still_hope && (ir.dependencies.len() > 0 || ir.any_unknowns())  {
-                for dep in &ir.dependencies {
-                    let node = ir.get_node(dep.node_index).unwrap();
-                    println!("undeclared {} used in line {}", dep.needs, node.line);
-                }
+                let node = ir.get_node(ir.dependencies[0].node_index).unwrap();
+                return Err(CompilerError { 
+                    filename: ir.filename.clone(),
+                    file_source: ir.file_source.clone(),
+                    line: node.line,
+                    col: node.col, 
+                    reason: Reason::TypeCheckError(TypeCheckError::UndeclaredIdentifier(ir.dependencies[0].needs.clone()))
+                });
                 break;
             }           
 

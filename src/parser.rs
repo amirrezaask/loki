@@ -31,6 +31,7 @@ impl Parser {
     fn err_uexpected_token(&self, what: TokenType) -> CompilerError {
         CompilerError {
             filename: self.filename.clone(),
+            file_source: self.src.clone(),
             line: self.current_line(),
             col: self.current_col(),
             reason: Reason::ParseError(ParseError::UnexpectedToken { expected: what }),
@@ -39,6 +40,7 @@ impl Parser {
     
     fn report_error(&self, parse_error: ParseError) -> CompilerError {
         return CompilerError {
+            file_source: self.src.clone(),
             filename: self.filename.clone(),
             line: self.current_line(),
             col: self.current_col(),
@@ -83,6 +85,7 @@ impl Parser {
         tokens: Vec<Token>,
     ) -> Result<Self> {
         let mut hir = IR {
+            file_source: src.clone(),
             filename: filename.clone(),
             tokens: tokens.clone(),
             registered_indexes: vec![],

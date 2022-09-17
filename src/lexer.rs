@@ -1,3 +1,5 @@
+use std::iter::FromIterator;
+
 use serde::Serialize;
 
 use crate::errors::*;
@@ -289,6 +291,7 @@ impl Tokenizer {
             }
             _ => {
                 return Err(CompilerError {
+                    file_source: String::from_iter(self.src.iter()),
                     filename: self.filename.clone(),
                     line: self.line,
                     col: self.col,

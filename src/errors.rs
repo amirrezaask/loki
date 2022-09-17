@@ -7,11 +7,7 @@ pub type Result<T> = std::result::Result<T, CompilerError>;
 
 #[derive(Debug)]
 pub enum TypeCheckError {
-    DependencyToIdentifier {
-        filename: String,
-        dependent_node: NodeIndex,
-        identifier: String,
-    },
+    UndeclaredIdentifier(String),
     TwoSidesOfABinaryOperatorShouldBeSameType(Type, Type),
     StructDoesNotHaveField(Type, String),
     EnumDoesNotHaveVariant(Type, String),
@@ -19,6 +15,7 @@ pub enum TypeCheckError {
     OnlyArraysCanBeIndexed(Type),
     ArrayElementsShouldBeOfSameType(Type, Type),
     ArrayIndexShouldBeEitherUnsignedOrSignedInt(Type),
+    SizeOfFunctionShouldBeUsedInAnExpression
 }
 
 #[derive(Debug)]
@@ -60,6 +57,7 @@ pub enum Reason {
 #[derive(Debug)]
 pub struct CompilerError {
     pub filename: String,
+    pub file_source: String,
     pub line: usize,
     pub col: usize,
     pub reason: Reason,
@@ -67,7 +65,11 @@ pub struct CompilerError {
 
 impl std::fmt::Display for CompilerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_fmt(format_args!("in {} {:?}\n{}",
+            self.filename, 
+            self.reason,
+            self.file_source.lines().nth(self.line-1).unwrap())
+        )
     }
 }
 

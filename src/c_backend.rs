@@ -57,6 +57,11 @@ fn emit_for_value(value: &Value) -> String {
                     return format!("{}.{}", emit_for_value(namespace), emit_for_value(field));
                 }
                 crate::bytecode::Expression::Call { ref fn_name, ref args } => {
+                    if let ValuePayload::Expression(Expression::Identifier(ref name)) =  fn_name.payload {
+                        if name == "cast" {
+                            return format!("({}) {}", emit_for_value(&args[1]), emit_for_value(&args[0]));
+                        }
+                    }
                     let mut args_str: Vec<String> = vec![];
                     for arg in args {
                         args_str.push(emit_for_value(arg));
@@ -98,6 +103,8 @@ fn emit_ty_forward_decl(ty: &Type) -> String {
             unreachable!();
         },
         Type::Void => format!("void"),
+        Type::SizeOfCall => "".to_string(),
+        Type::CastCall => "".to_string(),
     }
 }
 
@@ -130,6 +137,8 @@ fn emit_for_type(ty: &Type) -> String {
             unreachable!();
         },
         Type::Void => format!("void"),
+        Type::SizeOfCall => "".to_string(),
+        Type::CastCall => "".to_string(),
     }
 }
 

@@ -1,0 +1,13 @@
+main :: () int {
+    a := Human {
+        age = 10,
+        name = "amirreza"
+    };
+    asize := sizeof(a);
+    b := cast(asize, int);
+}
+
+Human :: struct {
+    age: int,
+    name: string
+}

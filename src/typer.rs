@@ -60,6 +60,9 @@ pub enum Type {
 
     FnType(Vec<(String, Type)>, Box<Type>),
     Void,
+
+    SizeOfCall,
+    CastCall,
 }
 
 impl Type {
@@ -144,7 +147,8 @@ impl IR {
 
     }
 
-    fn resolve_namespace_access_type(&self, ns_type: Type, field: String) -> Result<Type> {
+    fn resolve_namespace_access_type(&self, node_index: NodeIndex, ns_type: Type, field: String) -> Result<Type> {
+        let node = self.get_node(node_index).unwrap();
         match &ns_type {
             Type::Struct { ref fields } => {
                 for sf in fields {
@@ -153,9 +157,10 @@ impl IR {
                     }
                 }
                 return Err(CompilerError {
+                    file_source: self.file_source.clone(),
                     filename: self.filename.clone(),
-                    line: 0,
-                    col: 0,
+                    line: node.line,
+                    col: node.col,
                     reason: Reason::TypeCheckError(TypeCheckError::StructDoesNotHaveField(ns_type, field)),
                 })
             },
@@ -166,23 +171,25 @@ impl IR {
                     }
                 }
                 return Err(CompilerError {
+                    file_source: self.file_source.clone(),
                     filename: self.filename.clone(),
-                    line: 0,
-                    col: 0,
+                    line: node.line,
+                    col: node.col,
                     reason: Reason::TypeCheckError(TypeCheckError::EnumDoesNotHaveVariant(ns_type, field)),
                 })
             },
             Type::Pointer(ref actual_ty) => {
-               return self.resolve_namespace_access_type(actual_ty.deref().clone(), field);
+               return self.resolve_namespace_access_type(node_index, actual_ty.deref().clone(), field);
             },
             Type::TypeRef { name, actual_ty } => {
-               return self.resolve_namespace_access_type(actual_ty.deref().clone(), field);
+               return self.resolve_namespace_access_type(node_index, actual_ty.deref().clone(), field);
             },
             _ => {
                 return Err(CompilerError {
+                    file_source: self.file_source.clone(),
                     filename: self.filename.clone(),
-                    line: 0,
-                    col: 0,
+                    line: node.line,
+                    col: node.col,
                     reason: Reason::TypeCheckError(TypeCheckError::InvalidNamespace(ns_type)),
                 })
             }
@@ -270,6 +277,7 @@ impl IR {
                                                     },
                                                     _ => {
                                                         return Err(CompilerError {
+                                                            file_source: self.file_source.clone(),
                                                             filename: self.filename.clone(),
                                                             line: 0,
                                                             col: 0,
@@ -285,6 +293,7 @@ impl IR {
                                     }
                                     _ => {
                                         return Err(CompilerError {
+                                            file_source: self.file_source.clone(),
                                             filename: self.filename.clone(),
                                             line: 0,
                                             col: 0,
@@ -319,6 +328,7 @@ impl IR {
                                     return Ok(left_type);
                                 } else {
                                     return Err(CompilerError {
+                                        file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
                                         line: node.line,
                                         col: node.col,
@@ -338,6 +348,7 @@ impl IR {
                                     return Ok(Some(Type::Bool));
                                 } else {
                                     return Err(CompilerError {
+                                        file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
                                         line: node.line,
                                         col: node.col,
@@ -368,7 +379,7 @@ impl IR {
 
                         // get struct/fileload/enum out of namespace then get field type of it
                         if let NodeData::Expression(Expression::Identifier(ref field)) = field_node.data {
-                            let field_type = self.resolve_namespace_access_type(ns_type.unwrap(), field.clone())?;
+                            let field_type = self.resolve_namespace_access_type(expression_index, ns_type.unwrap(), field.clone())?;
                             self.add_type(expression_index, field_type.clone());
                             self.add_type(*field_id, field_type.clone());
                             return Ok(Some(field_type));
@@ -419,6 +430,7 @@ impl IR {
                                 } else {
                                     if array_elem_type.clone().unwrap() != this_elem_type.clone().unwrap() {
                                         return Err(CompilerError {
+                                            file_source: self.file_source.clone(),
                                             filename: self.filename.clone(),
                                             line: 0,
                                             col: 0,
@@ -465,6 +477,36 @@ impl IR {
                         return Ok(Some(fn_type));
                     },
                     Expression::FunctionCall { ref fn_name, ref args } => {
+                        let fn_name_node = self.get_node(fn_name.clone()).unwrap();
+                        if let NodeData::Expression(Expression::Identifier(name)) = fn_name_node.data {
+                            if name == "sizeof" {
+                                if args.len() > 1 {
+                                    return Ok(None)
+                                }
+                                for arg in args {
+                                    let arg_type = self.type_expression(other_files_exports, *arg)?;
+                                    if arg_type.is_none() {
+                                        return Ok(None);
+                                    }
+                                }
+                                self.add_type(*fn_name, Type::SizeOfCall);
+                                self.add_type(expression_index, Type::SignedInt(64));
+                                return Ok(Some(Type::SignedInt(64)));
+                            } else if name == "cast" {
+                                if args.len() < 2 {
+                                    return Ok(None)
+                                }
+                                for arg in args {
+                                    let arg_type = self.type_expression(other_files_exports, *arg)?;
+                                    if arg_type.is_none() {
+                                        return Ok(None);
+                                    }
+                                }
+                                self.add_type(*fn_name, Type::CastCall);
+                                self.add_type(expression_index, self.get_node(args[1]).unwrap().type_information.unwrap());
+                                return Ok(Some(self.get_node(args[1]).unwrap().type_information.unwrap()));
+                            }
+                        }
                         let fn_type = self.type_expression(other_files_exports, *fn_name)?;
                         if fn_type.is_none() {
                             return Ok(None);
@@ -857,6 +899,12 @@ impl IR {
                 }
             },
             NodeData::Expression(Expression::FunctionCall { fn_name, ref args }) => {
+                let fn_name_node = self.get_node(fn_name).unwrap();
+                if let NodeData::Expression(Expression::Identifier(name)) = fn_name_node.data {
+                    if name == "sizeof" {
+                        return Err(CompilerError { filename: self.filename.clone(), file_source: self.file_source.clone(), line: fn_name_node.line, col: fn_name_node.col, reason: Reason::TypeCheckError(TypeCheckError::SizeOfFunctionShouldBeUsedInAnExpression) })
+                    }
+                }
                 let fn_ret_type = self.type_expression(other_files_exports, stmt_index)?;
                 if fn_ret_type.is_none() {
                     return Ok(None);
