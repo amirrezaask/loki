@@ -143,6 +143,9 @@ pub enum Expression {
 
     PointerOf(NodeIndex),
     Deref(NodeIndex),
+
+    Cast(NodeIndex, NodeIndex),
+    SizeOf(NodeIndex),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]

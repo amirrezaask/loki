@@ -37,6 +37,12 @@ fn emit_for_value(value: &Value) -> String {
         },
         crate::bytecode::ValuePayload::Expression(ref expr) => {
             match expr {
+                crate::bytecode::Expression::Cast { expr, ty } => {
+                    return format!("({}) {}", emit_for_type(ty), emit_for_value(expr));
+                }
+                crate::bytecode::Expression::SizeOf(expr) => {
+                    return format!("sizeof({})", emit_for_value(expr));
+                }
                 crate::bytecode::Expression::Unsigned(number) => format!("{}", number),
                 crate::bytecode::Expression::Signed(number) => format!("{}", number),
                 crate::bytecode::Expression::StringLiteral(ref s) => format!("\"{}\"", s),
@@ -57,11 +63,6 @@ fn emit_for_value(value: &Value) -> String {
                     return format!("{}.{}", emit_for_value(namespace), emit_for_value(field));
                 }
                 crate::bytecode::Expression::Call { ref fn_name, ref args } => {
-                    if let ValuePayload::Expression(Expression::Identifier(ref name)) =  fn_name.payload {
-                        if name == "cast" {
-                            return format!("({}) {}", emit_for_value(&args[1]), emit_for_value(&args[0]));
-                        }
-                    }
                     let mut args_str: Vec<String> = vec![];
                     for arg in args {
                         args_str.push(emit_for_value(arg));
@@ -247,7 +248,7 @@ pub fn emit_for_module(module: Module) -> String {
     code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
     for instruction in &module.instructions {
         if let InstructionPayload::Definition { mutable, ref name, ref ty, ref value } = instruction.payload {
-            if ty.is_struct_definition() {
+            if ty.is_type_definition() {
                 code.push(format!("{} {};", emit_ty_forward_decl(&ty), name));
             } else {
                 if let Type::FnType(ref args, ref ret) = ty {
@@ -263,7 +264,7 @@ pub fn emit_for_module(module: Module) -> String {
     code.push("// LOKI GENERATED FORWARD DECLARATIONS".to_string());
     for instruction in &module.instructions {
         if let InstructionPayload::Definition { mutable: _, name: _, ty: _, ref value } = instruction.payload {
-            if value.ty.is_struct_definition() {
+            if value.ty.is_type_definition() {
                 code.push(emit_for_instruction(instruction));
             }
         }
@@ -272,7 +273,7 @@ pub fn emit_for_module(module: Module) -> String {
 
     for instruction in &module.instructions {
         if let InstructionPayload::Definition { mutable: _, name: _, ty: _, ref value } = instruction.payload {
-            if !value.ty.is_struct_definition() {
+            if !value.ty.is_type_definition() {
                 code.push(emit_for_instruction(instruction));
             }
         }

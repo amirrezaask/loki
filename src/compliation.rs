@@ -142,6 +142,7 @@ impl Compilation {
 
 
             if !still_hope && (ir.dependencies.len() > 0 || ir.any_unknowns())  {
+                Self::pretty_print_unknown_nodes(&ir.nodes);
                 let node = ir.get_node(ir.dependencies[0].node_index).unwrap();
                 return Err(CompilerError { 
                     filename: ir.filename.clone(),

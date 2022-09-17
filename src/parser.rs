@@ -1166,6 +1166,33 @@ impl Parser {
         let value = self.expect_values()?;
         match self.current_token().ty {
             TokenType::OpenParen => {
+                match value.data {
+                    NodeData::Expression(Expression::Identifier(function_name)) => {
+                        match function_name.as_str() {
+                            "cast" => {
+                                self.ir.nodes.remove(&value.id.clone());
+                                self.forward_token();
+                                let cast_expr = self.expect_expr()?;
+                                self.expect_token(TokenType::Comma);
+                                self.forward_token();
+                                let cast_type = self.expect_type_expression()?;
+                                self.expect_token(TokenType::CloseParen)?;
+                                self.forward_token();
+                                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::Cast(cast_expr.id, cast_type.id)), self.current_line() , self.current_col()));
+                            }
+                            "sizeof" => {
+                                self.ir.nodes.remove(&value.id.clone());
+                                self.forward_token();
+                                let sizeof_expr = self.expect_expr()?;
+                                self.expect_token(TokenType::CloseParen)?;
+                                self.forward_token();
+                                return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::SizeOf(sizeof_expr.id)), self.current_line() , self.current_col()));
+                            }
+                            _ => {}
+                        }
+                    },
+                    _ => {}
+                }
                 //function call
                 self.ir.nodes.remove(&value.id.clone());
                 self.backward_token();

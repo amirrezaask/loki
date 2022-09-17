@@ -4,7 +4,7 @@ main :: () int {
         name = "amirreza"
     };
     asize := sizeof(a);
-    b := cast(asize, int);
+    aptr := cast(&a, *Human); // just to see how cast works
 }
 
 Human :: struct {

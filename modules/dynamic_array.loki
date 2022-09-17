@@ -10,36 +10,36 @@ DynamicArray :: struct {
 }
 
 dynamic_array_new :: (element_size: uint) *DynamicArray {
-    ptr := malloc(#size(DynamicArray));
-    array := #cast(ptr, *DynamicArray)
+    ptr := malloc(sizeof(DynamicArray));
+    array := cast(ptr, *DynamicArray)
 
 	array.cap = DEFAULT_DYNAMIC_ARRAY_SIZE;
-    *array.elements = malloc(#size(*void)*array.cap);
-    array.count = 0;
-    array.element_size = element_size;
+    *array.elements = malloc(sizeof(*void)*array.cap);
+    // array.count = 0;
+    // array.element_size = element_size;
     return array;
 }
 
-dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
-    if (array.count == array.cap) {
-        array.cap *= 2;
-        new_ptr := realloc(array.elements, array.cap * #size(*void))
-        array.elements = #cast(new_ptr, **void);
-    }
-    // BUG: type inference somehow thinks of the sum as boolean ?
-    dst: int;
-    dst = #cast(array.elements, int) + #cast((array.count * array.element_size), int);
-    memcpy(#cast(dst, *void), element, array.element_size);
-    array.count++;
-}
+// dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
+//     if (array.count == array.cap) {
+//         array.cap *= 2;
+//         new_ptr := realloc(array.elements, array.cap * sizeof(*void))
+//         array.elements = cast(new_ptr, **void);
+//     }
+//     // BUG: type inference somehow thinks of the sum as boolean ?
+//     dst: int;
+//     dst = cast(array.elements, int) + cast((array.count * array.element_size), int);
+//     memcpy(cast(dst, *void), element, array.element_size);
+//     array.count++;
+// }
 
-dynamic_array_free :: (a: *DynamicArray) {
-    free(a.elements);
-    a.elements = 0;
-    a.count = 0;
-    a.cap = 0;
-}
+// dynamic_array_free :: (a: *DynamicArray) {
+//     free(a.elements);
+//     a.elements = 0;
+//     a.count = 0;
+//     a.cap = 0;
+// }
 
-dynamic_array_get :: (a: *DynamicArray, idx: uint) *void {
-    return a.elements + (a.element_size * 0);
-}
+// dynamic_array_get :: (a: *DynamicArray, idx: uint) *void {
+//     return a.elements + (a.element_size * 0);
+// }

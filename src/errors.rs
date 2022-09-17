@@ -65,11 +65,12 @@ pub struct CompilerError {
 
 impl std::fmt::Display for CompilerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("in {} {:?}\n{}",
+        f.write_fmt(format_args!("in {} {:?}\n{}\n{}",
             self.filename, 
             self.reason,
-            self.file_source.lines().nth(self.line-1).unwrap())
-        )
+            self.file_source.lines().nth(self.line-1).unwrap(),
+            format!("{}^", "-".repeat(self.col)),
+        ))
     }
 }
 

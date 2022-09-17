@@ -1,4 +1,4 @@
-use std::{vec, collections::HashMap};
+use std::{vec, collections::HashMap, ops::Deref};
 
 use serde::Serialize;
 
@@ -52,16 +52,6 @@ pub enum InstructionPayload {
 pub struct Value {
     pub ty: Type,
     pub payload: ValuePayload,
-}
-
-impl Type {
-    pub fn is_struct_definition(&self) -> bool {
-        match self {
-            Type::Type(t) => return t.is_struct_definition(),
-            Type::Struct { fields } => true,
-            _ => false,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -120,6 +110,13 @@ pub enum Expression {
         ret: Type,
         body: Vec<Instruction>,
     },
+
+    Cast {
+        expr: Box<Value>,
+        ty: Type,
+    },
+
+    SizeOf(Box<Value>),
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Scope {
@@ -136,6 +133,21 @@ impl IR {
         match expr_node.data {
             NodeData::Expression(ref expr) => {
                 match expr {
+                    crate::ir::Expression::Cast(cast_expr, cast_type) => {
+                        let cast_value = self.compile_expression(current_scope_instructions, *cast_expr);
+                        let cast_type = self.compile_expression(current_scope_instructions, *cast_type);
+                        return Value {
+                            ty: cast_type.ty.clone(),
+                            payload: ValuePayload::Expression(Expression::Cast { expr: Box::new(cast_value), ty: cast_type.ty }),
+                        };
+                    }
+                    crate::ir::Expression::SizeOf(sizeof_expr) => {
+                        let sizeof_value = self.compile_expression(current_scope_instructions, *sizeof_expr);
+                        return Value {
+                            ty: Type::SignedInt(64),
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(sizeof_value))),
+                        };
+                    }
                     crate::ir::Expression::Unsigned(number) => {
                         return Value {
                             ty: expr_node.type_information.clone().unwrap(),
