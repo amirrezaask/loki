@@ -78,14 +78,6 @@ impl Type {
             _ => false
         }
     }
-    pub fn get_actual_type_if_type_definition(&self) -> Type {
-        match self {
-            Type::Type(td) => return *td.clone(),
-            _ => {
-                self.clone()
-            }
-        }
-    }
 }
 
 impl Type {
@@ -566,8 +558,15 @@ impl IR {
                         if cast_type_type.is_none() {
                             return Ok(None);
                         }
-                        self.add_type(expression_index, cast_type_type.clone().unwrap());
-                        return Ok(Some(cast_type_type.clone().unwrap()));
+                        match cast_type_type.clone().unwrap() {
+                            Type::Type(actual) => {
+                                self.add_type(expression_index, *actual.clone());
+                                return Ok(Some(*actual.clone()));        
+                            },
+                            _ => {
+                                panic!("cast second argument should be a type {:?}", cast_type_type)
+                            }
+                        }
                     },
                     Expression::SizeOf(sizeof_expr) => {
                         let sizof_expr_type = self.type_expression(other_files_exports, *sizeof_expr)?;
@@ -633,10 +632,8 @@ impl IR {
                         if pointee_type.is_none() {
                             return Ok(None);
                         }
-                        
                         self.add_type(expression_index,Type::Pointer(Box::new(pointee_type.clone().unwrap())));
                         Ok(Some(Type::Type(Box::new(Type::Pointer(Box::new(pointee_type.clone().unwrap()))))))
-                        
                     },
                     TypeDefinition::Array { length, elem_ty } => {
                         // TODO: if we can constantly know the lenght we need to store it in type for maybe later usage.
@@ -680,7 +677,6 @@ impl IR {
                             if let (NodeData::Statement(Statement::Decl { name, ty: _ })) = self.get_node(*decl).unwrap().data {
                                 let name_node = self.get_node(name)?;
                                 if let NodeData::Expression(Expression::Identifier(ident)) = name_node.data {
-                                    println!("struct field {} type {:?}", ident, decl_type.clone().unwrap().get_actual_type_if_type_definition());
                                     fields.push((ident, decl_type.unwrap()))
                                 } else {
                                     unreachable!();
@@ -718,63 +714,71 @@ impl IR {
                     },
                 }
             }
-            
+
         }        
     }
 
     fn type_type(&mut self,  other_files_exports: &HashMap<String, HashMap<String, Type>>, type_index: NodeIndex) -> Result<Option<Type>> {
         let type_node = self.get_node(type_index).unwrap();
         match type_node.data {
+            NodeData::Expression(Expression::Identifier(type_name)) => {
+                let actual_type = self.find_identifier_type(other_files_exports, type_node.parent_block.unwrap(), type_node.id)?;
+                if actual_type.is_none() {
+                    return Ok(None);
+                }
+                self.add_type(type_index, actual_type.clone().unwrap());
+                Ok(Some(actual_type.unwrap()))
+            }
             NodeData::TypeDefinition(td) => {
                 match td {
                     TypeDefinition::Int(ref size) => {
-                        let ty = Type::Type(Box::new(Type::SignedInt(*size)));
+                        let ty = Type::SignedInt(*size);
                         self.add_type(type_index, Type::SignedInt(*size));
                         Ok(Some(ty))
                     },
                     TypeDefinition::Uint(ref size) => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::UnsignedInt(*size))));
+                        self.add_type(type_index, Type::UnsignedInt(*size));
                         Ok(Some(Type::UnsignedInt(*size)))
                     },
                     TypeDefinition::Float(ref size) => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::Float(*size))));
+                        self.add_type(type_index, Type::Float(*size));
                         Ok(Some(Type::Float(*size)))
                     },
                     TypeDefinition::Bool => {
-                        self.add_type(type_index,Type::Type(Box::new(Type::Bool)));
+                        self.add_type(type_index,Type::Bool);
                         Ok(Some(Type::Bool))
                     },
                     TypeDefinition::String => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::String)));
+                        self.add_type(type_index, Type::String);
                         Ok(Some(Type::String))
                     },
                     TypeDefinition::Char => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::Char)));
+                        self.add_type(type_index, Type::Char);
                         Ok(Some(Type::Char))
                     },
                     TypeDefinition::Void => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::Void)));
+                        self.add_type(type_index, Type::Void);
                         Ok(Some(Type::Void))
                     },
                     TypeDefinition::CVarArgs => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::CVarArgs)));
+                        self.add_type(type_index, Type::CVarArgs);
                         Ok(Some(Type::CVarArgs))
                     },
                     TypeDefinition::CString => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::CString)));
+                        self.add_type(type_index, Type::CString);
                         Ok(Some(Type::CString))
                     },
                     TypeDefinition::IntPtr => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::CIntPtr)));
+                        self.add_type(type_index, Type::CIntPtr);
                         Ok(Some(Type::CIntPtr))
                     },
                     TypeDefinition::UintPtr => {
-                        self.add_type(type_index, Type::Type(Box::new(Type::CUintPtr)));
+                        self.add_type(type_index, Type::CUintPtr);
                         Ok(Some(Type::CUintPtr))
                     },
                     TypeDefinition::Pointer(ref pointee) => {
                         let pointee_node = self.get_node(*pointee).unwrap();
-                        let pointee_type = self.type_expression(other_files_exports, *pointee)?;
+                        let pointee_type = self.type_type(other_files_exports, *pointee)?;
                         if pointee_type.is_none() {
                             return Ok(None);
                         }
@@ -793,8 +797,8 @@ impl IR {
                         if length_type.is_none() {
                             return Ok(None);
                         }
-                        self.add_type(type_index, Type::Type(Box::new(Type::Array(10, Box::new(elem_type.clone().unwrap().get_actual_type_if_type_definition())))));
-                        Ok(Some(Type::Array(10, Box::new(elem_type.clone().unwrap().get_actual_type_if_type_definition()))))
+                        self.add_type(type_index, Type::Array(10, Box::new(elem_type.clone().unwrap())));
+                        Ok(Some(Type::Array(10, Box::new(elem_type.clone().unwrap()))))
                     },
                     TypeDefinition::Function { ref args, ref ret } => {
                         let mut arg_types: Vec<(String, Type)> = vec![];
@@ -812,8 +816,8 @@ impl IR {
                         if ret_type.is_none() {
                             return Ok(None);
                         }
-                        self.add_type(type_index, Type::Type(Box::new(Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap().get_actual_type_if_type_definition())))));
-                        Ok(Some(Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap().get_actual_type_if_type_definition()))))
+                        self.add_type(type_index, Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap())));
+                        Ok(Some(Type::FnType(arg_types.clone(), Box::new(ret_type.clone().unwrap()))))
                     },
                     TypeDefinition::Struct(ref decls) => {
                         let mut fields: Vec<(String, Type)> = vec![];
@@ -825,7 +829,7 @@ impl IR {
                             if let (NodeData::Statement(Statement::Decl { name, ty: _ })) = self.get_node(*decl).unwrap().data {
                                 let name_node = self.get_node(name)?;
                                 if let NodeData::Expression(Expression::Identifier(ident)) = name_node.data {
-                                    fields.push((ident, decl_type.unwrap().get_actual_type_if_type_definition()))
+                                    fields.push((ident, decl_type.unwrap()))
                                 } else {
                                     unreachable!();
                                 }
@@ -834,7 +838,7 @@ impl IR {
                                 unreachable!();
                             }
                         }
-                        self.add_type(type_index, Type::Type(Box::new(Type::Struct { fields: fields.clone() })));
+                        self.add_type(type_index, Type::Struct { fields: fields.clone() });
                         Ok(Some(Type::Struct { fields }))
                     },
                     TypeDefinition::Enum(ref decls) => {
@@ -857,12 +861,13 @@ impl IR {
                             }
                             
                         }
-                        self.add_type(type_index, Type::Type(Box::new(Type::Enum { variants:variants.clone() })));
+                        self.add_type(type_index, Type::Enum { variants:variants.clone() });
                         Ok(Some(Type::Enum { variants }))
                     },
                 }
             },
-            _ => unreachable!()
+
+            _ => panic!("expected type node got {:?}", type_node)
         }
     }
 
@@ -883,6 +888,7 @@ impl IR {
                             return Ok(None);
                         }
                         let expr_ty = expr_ty.unwrap();
+                        println!("expression type; {:?}", expr_ty);
                         self.add_type(*name, expr_ty.clone());
                         self.add_type(stmt_index, Type::NoType);
                         if node.parent_block.is_some() {

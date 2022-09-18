@@ -15,31 +15,33 @@ dynamic_array_new :: (element_size: uint) *DynamicArray {
 
 	array.cap = DEFAULT_DYNAMIC_ARRAY_SIZE;
     *array.elements = malloc(sizeof(*void)*array.cap);
-    // array.count = 0;
-    // array.element_size = element_size;
+    array.count = 0;
+    array.element_size = element_size;
     return array;
 }
 
-// dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
-//     if (array.count == array.cap) {
-//         array.cap *= 2;
-//         new_ptr := realloc(array.elements, array.cap * sizeof(*void))
-//         array.elements = cast(new_ptr, **void);
-//     }
-//     // BUG: type inference somehow thinks of the sum as boolean ?
-//     dst: int;
-//     dst = cast(array.elements, int) + cast((array.count * array.element_size), int);
-//     memcpy(cast(dst, *void), element, array.element_size);
-//     array.count++;
-// }
+dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
+    if (array.count == array.cap) {
+        array.cap *= cast(2, s64);
+        new_ptr := realloc(array.elements, array.cap * sizeof(*void))
+        array.elements = cast(new_ptr, **void);
+    }
+    // BUG: type inference somehow thinks of the sum as boolean ?
+    dst: int;
+    dst = cast(array.elements, int) + cast((array.count * array.element_size), int);
+    memcpy(cast(dst, *void), element, array.element_size);
+    array.count+=cast(1, s64);
+}
 
-// dynamic_array_free :: (a: *DynamicArray) {
-//     free(a.elements);
-//     a.elements = 0;
-//     a.count = 0;
-//     a.cap = 0;
-// }
+dynamic_array_free :: (a: *DynamicArray) {
+    free(a.elements);
+    a.elements = 0;
+    a.count = 0;
+    a.cap = 0;
+}
 
-// dynamic_array_get :: (a: *DynamicArray, idx: uint) *void {
-//     return a.elements + (a.element_size * 0);
-// }
+dynamic_array_get :: (a: *DynamicArray, idx: uint) *void {
+    elements_ptr := cast(a.elements, s64);
+    elements_ptr = elements_ptr + (a.element_size * cast(0, s64));
+    return cast(elements_ptr, **void);
+}

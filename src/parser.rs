@@ -1183,7 +1183,7 @@ impl Parser {
                             "sizeof" => {
                                 self.ir.nodes.remove(&value.id.clone());
                                 self.forward_token();
-                                let sizeof_expr = self.expect_expr()?;
+                                let sizeof_expr = self.expect_type_expression()?;
                                 self.expect_token(TokenType::CloseParen)?;
                                 self.forward_token();
                                 return Ok(self.new_node(self.new_index(), NodeData::Expression(Expression::SizeOf(sizeof_expr.id)), self.current_line() , self.current_col()));
