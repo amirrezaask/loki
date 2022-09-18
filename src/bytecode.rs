@@ -221,12 +221,19 @@ impl IR {
                     },
                     crate::ir::Expression::NamespaceAccess { namespace, field } => {
                         let namespace_node = self.get_node(namespace.clone()).unwrap();
-                        if let Type::Enum { variants } = namespace_node.type_information.clone().unwrap() {
-                            let field_node = self.get_node(field.clone()).unwrap();
-                            return Value {
-                                ty: Type::UnsignedInt(64),
-                                payload: ValuePayload::Expression(Expression::Identifier(format!("___LOKI_GENERATED__Enum__{}_{}", namespace_node.get_identifier().unwrap(), field_node.get_identifier().unwrap()))),
+                        println!("namespace byte code gen: {:?}", namespace_node);
+                        if let Type::TypeRef {name: enum_name, actual_ty: actual } = namespace_node.type_information.clone().unwrap() {
+                            match *actual {
+                                Type::Enum { variants } => {
+                                    let field_node = self.get_node(field.clone()).unwrap();
+                                    return Value {
+                                        ty: Type::UnsignedInt(64),
+                                        payload: ValuePayload::Expression(Expression::Identifier(format!("___LOKI_GENERATED__Enum__{}_{}", namespace_node.get_identifier().unwrap(), field_node.get_identifier().unwrap()))),
+                                    }
+                                },
+                                _ => {}
                             }
+                            
                         }
                         return Value {
                             ty: expr_node.type_information.clone().unwrap(),
