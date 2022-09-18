@@ -1128,7 +1128,7 @@ impl Parser {
                 self.forward_token();
                 let rhs = self.expect_size_deref_ref_not()?;
                Ok(self.new_node(self.new_index(), 
-                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Multiply, left: lhs.id, right:rhs.id }),
+                    NodeData::Expression(Expression::BinaryOperation{ operation: BinaryOperation::Divide, left: lhs.id, right:rhs.id }),
                     self.current_line(), self.current_col()
                 ))
             }

@@ -166,7 +166,6 @@ impl Compilation {
         let type_check_elapsed = type_check_time_start.elapsed();
 
         let byte_code_generation_start = Instant::now();
-        println!("loaded irs {:?}", compilation.IRs.keys());
         let module = make_module(&mut compilation.IRs);
         let byte_code_generation_elapsed = byte_code_generation_start.elapsed();
 

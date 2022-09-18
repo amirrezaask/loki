@@ -22,12 +22,18 @@
 main :: () int {
     a := [3]int{1,2,3};
 
-	for (number: a) {
-		printf("num: %d\n", number);
-	}
+	// for (number: a) {
+	// 	printf("num: %d\n", number);
+	// }
+	printf("a[0] = %d\n", a[0]);
     a[0] = 4;
-
-	for (a) {
-		printf("num: %d\n", it);
+	len := sizeof(a) / sizeof(int);
+	printf("len is %d\n", len);
+	i := 0;
+	while (i < cast(len, u64)) {
+		printf("num: %d\n", a[i]);
+		i++;
 	}
+	printf("a[0] = %d\n", a[0]);
+	printf("sizeof(a) = %d\n", sizeof(a)); // 3x4-byte integers = 12 bytes
 }
