@@ -782,7 +782,6 @@ impl IR {
                         if pointee_type.is_none() {
                             return Ok(None);
                         }
-                        println!("pointee type {:?}", pointee_type.clone().unwrap());
                         self.add_type(type_index, Type::Pointer(Box::new(pointee_type.clone().unwrap())));
                         Ok(Some(Type::Pointer(Box::new(pointee_type.clone().unwrap()))))
                         
@@ -888,7 +887,6 @@ impl IR {
                             return Ok(None);
                         }
                         let expr_ty = expr_ty.unwrap();
-                        println!("expression type; {:?}", expr_ty);
                         self.add_type(*name, expr_ty.clone());
                         self.add_type(stmt_index, Type::NoType);
                         if node.parent_block.is_some() {

@@ -1,9 +1,10 @@
 #load "modules/universe_number.loki"
-
+#load "print.loki"
 
 a :: answer;
 
 main :: () int {
     c := a;
     b := answer
+    printf("answer %d\n", b);
 }

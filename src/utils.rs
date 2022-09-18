@@ -22,7 +22,7 @@ pub fn generate_node_id() -> String {
 
 pub fn find_abs_path_to_file(name: &str) -> Result<String> {
     if Path::new(name).is_file() {
-        return Ok(name.to_string());
+        return Ok(Path::new(name).to_str().unwrap().to_string().replace("\\\\", "\\").replace("\\", "/"));
     }
     let s = std::env::var("LOKI_MODULE_PATH")?;
     let mut paths: Vec<&str> = s.split(';').collect();

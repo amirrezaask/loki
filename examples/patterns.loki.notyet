@@ -1,0 +1,10 @@
+State :: enum {
+    A { a_data: int },
+    B { b_data: int },
+}
+
+
+
+
+
+
