@@ -81,6 +81,7 @@ fn emit_for_value(value: &Value) -> String {
 
 fn emit_ty_forward_decl(ty: &Type) -> String {
     match ty {
+        Type::Label => "".to_string(),
         Type::NoType => "".to_string(),
         Type::Type(inner) => return emit_ty_forward_decl(inner),
         Type::SignedInt(_) => "int".to_string(),
@@ -111,6 +112,7 @@ fn emit_ty_forward_decl(ty: &Type) -> String {
 
 fn emit_for_type(ty: &Type) -> String {
     match ty {
+        Type::Label => unreachable!(),
         Type::NoType => "".to_string(),
         Type::Type(inner) => return emit_for_type(inner),
         Type::SignedInt(_) => "int".to_string(),
@@ -220,10 +222,10 @@ fn emit_for_instruction(inst: &Instruction) -> String {
             for instruction in body {
                 code.push(format!("{}", emit_for_instruction(instruction)));
             }
-            return format!("while({}) {{\n\t{}\n\t}}", emit_for_value(cond), code.join(";\n\t"));
+            return format!("while({}) {{\n\t{}\n\t}}", emit_for_value(cond), code.join("\n\t"));
         },
         InstructionPayload::Break => "break;".to_string(),
-        InstructionPayload::Continue => "continue;".to_string(),
+        InstructionPayload::Continue => "goto CONTINUE;".to_string(),
         InstructionPayload::Call { function, args } => {
             let mut argss = vec![];
             for arg in args {
@@ -231,7 +233,8 @@ fn emit_for_instruction(inst: &Instruction) -> String {
             }
             format!("{}({});", emit_for_value(function), argss.join(", "))
         },
-        InstructionPayload::Goto(_) => todo!(),
+        InstructionPayload::Goto(label) => format!("goto {};", label),
+        InstructionPayload::Label(label) => format!("{}:;", label),
         InstructionPayload::Return(ref thing) => {
             format!("return ({});", emit_for_value(thing))
         } ,

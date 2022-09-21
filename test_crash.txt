@@ -1,1 +1,0 @@
-dynamic_array - no size directive.

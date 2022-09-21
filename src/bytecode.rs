@@ -45,8 +45,9 @@ pub enum InstructionPayload {
 
     Call { function: Value, args: Vec<Value> },
 
-    Goto(Value),
+    Goto(String),
     Return(Value),
+    Label(String),
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Value {
@@ -543,10 +544,12 @@ impl IR {
                         self.compile_statement(current_scope_instructions, *start);
                         if let NodeData::Statement(Statement::Scope { owner, is_file_root, ref stmts } ) = self.get_node(*body).unwrap().data {
                             let mut instructions = vec![];
-                            self.compile_statement(&mut instructions, *cont);
                             for stmt in stmts {
                                 self.compile_statement(&mut instructions, *stmt);
                             }
+                            instructions.push(Instruction { source_line: 0, source_column: 0, payload: InstructionPayload::Goto("CONTINUE".to_string())});
+                            instructions.push(Instruction { source_line: 0, source_column: 0, payload: InstructionPayload::Label("CONTINUE".to_string())});
+                            self.compile_statement(&mut instructions, *cont);
                             current_scope_instructions.push(Instruction {
                                 source_line: node.line,
                                 source_column: node.col,
@@ -569,7 +572,7 @@ impl IR {
                         current_scope_instructions.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Continue
+                            payload: InstructionPayload::Break
                         });
                     },
                     Statement::Continue => {
@@ -580,12 +583,14 @@ impl IR {
                         });
                     },
                     Statement::Goto(expr) => {
-                        let goto = self.compile_expression(current_scope_instructions, expr.clone());
-                        current_scope_instructions.push(Instruction {
-                            source_line: node.line,
-                            source_column: node.col,
-                            payload: InstructionPayload::Goto(goto)
-                        });
+                        // let label = self.get_node(expr).unwrap();
+                        // if Expression::
+                        // current_scope_instructions.push(Instruction {
+                        //     source_line: node.line,
+                        //     source_column: node.col,
+                        //     payload: InstructionPayload::Goto(goto)
+                        // });
+                        unreachable!()
                     }
                     Statement::Return(expr) => {
                         let ret = self.compile_expression(current_scope_instructions, expr.clone());

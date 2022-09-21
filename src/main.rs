@@ -10,6 +10,7 @@ mod compliation;
 mod ir;
 mod errors;
 mod bytecode;
+mod generic_ds;
 mod c_backend;
 mod tests;
 // mod symbol_table;

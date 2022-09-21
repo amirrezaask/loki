@@ -4,16 +4,20 @@
 main :: () int {
     counter := 0;
 
-    while (counter <= 10) {
-        printf("counter : %d\n", counter);
-        counter++;
-    }
+    // while (counter <= 10) {
+    //     printf("counter : %d\n", counter);
+    //     counter++;
+    // }
     
     for (i:=0;i<10;i++) {
         printf("for c syntax: %d\n", i);
+        if (i < 5) {
+            continue;
+        }
     }
 
-    numbers := [10]uint{1, 2, 3, 4};
+    // numbers := [10]uint{1, 2, 3, 4};
+
     // for (num: numbers) {
     //     printf("for each syntax: %d\n", num);
     // }

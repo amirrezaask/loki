@@ -63,6 +63,7 @@ pub enum Type {
 
     SizeOfCall,
     CastCall,
+    Label,
 }
 
 impl Type {
@@ -1053,15 +1054,19 @@ impl IR {
                     },
                     
                     Statement::Break => {
-                        unimplemented!()
+                        self.add_type(stmt_index, Type::NoType);
+                        return Ok(Some(Type::NoType));
                     },
                     
                     Statement::Continue => {
-                        unimplemented!()
+                        self.add_type(stmt_index, Type::NoType);
+                        return Ok(Some(Type::NoType));
                     },
                     
                     Statement::Goto(_) => {
-                        unimplemented!()
+                        self.add_type(stmt_index, Type::NoType);
+                        return Ok(Some(Type::NoType));
+                        
                     },
                     
                     Statement::Return(ref expr) => {

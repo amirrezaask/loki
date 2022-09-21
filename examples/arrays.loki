@@ -1,24 +1,5 @@
 #load "print.loki"
 
-
-// a: []int ->
-	// a: struct {
-	// 	cap: uint,
-	// 	count: uint,
-	// 	element_size: uint = 64,
-	// 	data: [cap]int // int data[cap]
-	// };
-// array_add()
-// array_delete(index)
-
-// b: [10]int -> 
-	// b: struct {
-	// 	cap: uint Valuething in the system not a constant necesarily,
-	// 	count: uint,
-	// 	element_size: 64
-	// 	data: [cap]int // int data[cap]
-	// }
-
 main :: () int {
     a := [3]int{1,2,3};
 
