@@ -24,9 +24,8 @@ pub fn find_abs_path_to_file(name: &str) -> Result<String> {
     if Path::new(name).is_file() {
         return Ok(Path::new(name).to_str().unwrap().to_string().replace("\\\\", "\\").replace("\\", "/"));
     }
-    let s = std::env::var("LOKI_MODULE_PATH")?;
+    let s = std::env::var("LOKI_MODULE_PATH").unwrap_or_else(|_| return ".".to_string());
     let mut paths: Vec<&str> = s.split(';').collect();
-    paths.insert(0, ".");
     for path in &paths {
         let files = std::fs::read_dir(path);
         if files.is_err() {

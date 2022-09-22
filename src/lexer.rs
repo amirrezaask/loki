@@ -65,10 +65,6 @@ pub enum TokenType {
     NoCodeGenDirective,
     CVarArgsDirective,
     CString,
-    SizeDirective,
-    CastDirective,
-    IntPtrDirective,
-    UintPtrDirective,
 
     KeywordIf,
     KeywordIn,
@@ -102,6 +98,8 @@ pub enum TokenType {
     KeywordUint64,
     KeywordUint128,
 
+    KeywordIntPtr,
+
     KeywordString,
     KeywordFloat32,
     KeywordFloat64,
@@ -122,10 +120,7 @@ impl TokenType {
             "#compiler_flag" => Self::CompilerFlagDirective,
             "#foreign" => Self::ForeignDirective,
             "#no_codegen" => Self::NoCodeGenDirective,
-            "#size" => Self::SizeDirective,
-            "#cast" => Self::CastDirective,
-            "#intptr" => Self::IntPtrDirective,
-            "#uintptr" => Self::UintPtrDirective,
+            "intptr" => Self::KeywordIntPtr,
 
             "#c_varargs" => Self::CVarArgsDirective,
             "#c_string" => Self::CString,
