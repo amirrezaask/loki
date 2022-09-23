@@ -837,12 +837,12 @@ impl IR {
                                 payload: InstructionPayload::Label(format!("Case{}", cond)),
                             });
                             let mut body_insts = self.compile_scope(loop_stack, *body);
-                            insts.append(&mut body_insts);
-                            insts.push(Instruction {
+                            body_insts.push(Instruction {
                                 source_line: cond_node.line,
                                 source_column: cond_node.col,
                                 payload: InstructionPayload::Jump(format!("IfEnd{}", node.id)),
                             });
+                            insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: body_insts } })
                         }
 
                         insts.push(Instruction {
