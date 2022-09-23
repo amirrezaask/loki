@@ -147,8 +147,8 @@ fn emit_for_type(ty: &Type) -> String {
 
 fn emit_for_instruction(inst: &Instruction) -> String {
     match &inst.payload {
-        InstructionPayload::JumpTrue { cond, label } => {
-            return format!("if ({}) goto {};", emit_for_value(cond), label);
+        InstructionPayload::JumpTrueOrElse { cond, then_label, else_label } => {
+            return format!("if ({}) {{ goto {}; }} else {{ goto {}; }}", emit_for_value(cond), then_label, else_label);
         }
         InstructionPayload::JumpFalse { cond, label } => {
             return format!("if (!({})) goto {};", emit_for_value(cond), label);

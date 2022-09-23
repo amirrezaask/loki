@@ -40,9 +40,10 @@ pub enum InstructionPayload {
         args: Vec<Value>,
     },
     Label(String),
-    JumpTrue {
+    JumpTrueOrElse {
         cond: Value,
-        label: String,
+        then_label: String,
+        else_label: String,
     },
     JumpFalse {
         cond: Value,
@@ -820,9 +821,10 @@ impl IR {
                             insts.push(Instruction {
                                 source_line: cond_node.line,
                                 source_column: cond_node.col,
-                                payload: InstructionPayload::JumpTrue {
+                                payload: InstructionPayload::JumpTrueOrElse {
                                     cond: cond_value,
-                                    label: format!("Case{}", cond),
+                                    then_label: format!("Case{}", cond),
+                                    else_label: format!("IfEnd{}", node.id),
                                 },
                             })
                         }
