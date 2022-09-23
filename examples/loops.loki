@@ -2,12 +2,11 @@
 // #host "string"
 
 main :: () int {
-    // counter := 0;
-
-    // while (counter <= 10) {
-    //     printf("counter : %d\n", counter);
-    //     counter++;
-    // }
+    counter := 0;
+    while (counter <= 10) {
+        printf("counter : %d\n", counter);
+        counter++;
+    }
     
     for (i:=0;i<10;i++) {
         printf("for c syntax: %d\n", i);

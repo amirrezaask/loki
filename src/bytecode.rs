@@ -875,10 +875,34 @@ impl IR {
                         vec![]
                     }
                     Statement::While { cond, body } => {
-                        vec![]
+                        let mut insts = vec![];
+                        let mut scope_insts = vec![];
+                        let mut loop_insts = vec![];
+
+                        let (cond_insts, cond) = self.compile_expression(loop_stack, *cond);
+
+                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOP{}", node.id)) });
+
+                        loop_stack.push(node.id);
+
+                        loop_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::JumpFalse { cond, label: format!("LOOPEND{}", node.id) } });
+
+                        let mut body_insts = self.compile_scope(loop_stack, *body);
+                        loop_insts.append(&mut body_insts);
+                        loop_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id))});
+
+                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: loop_insts } });
+
+                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)) });
+                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOP{}", node.id)) });
+
+                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: scope_insts } });
+                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOPEND{}", node.id))});
+
+                        return insts;
                     }
                     Statement::Break => {
-                        vec![]
+                        vec![Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOPEND{}", loop_stack.top().unwrap())) }]
                     }
                     Statement::Continue => {
                         let mut insts = vec![];

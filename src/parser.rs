@@ -617,7 +617,6 @@ impl Parser {
     }
 
     fn expect_for_c(&mut self) -> Result<Node> {
-        println!("parsing for c...");
         let start = self.expect_definition_declaration_assignment()?;
         self.expect_semicolon_and_forward()?;
         let cond = self.expect_expr()?;
