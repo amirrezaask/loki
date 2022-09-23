@@ -240,7 +240,6 @@ pub struct IR {
     pub exported_symbols: HashMap<String, Type>,
     pub dependencies: Vec<Dependency>,
     pub type_checked: bool,
-    pub continue_jstack: Stack<String>,
 }
 
 impl IR {
