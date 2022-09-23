@@ -128,7 +128,11 @@ pub struct Module {
 }
 
 impl IR {
-    fn compile_expression(&self, continue_jstack: &mut Stack<NodeIndex>, expression_index: NodeIndex) -> (Vec<Instruction>, Value) {
+    fn compile_expression(
+        &self,
+        continue_jstack: &mut Stack<NodeIndex>,
+        expression_index: NodeIndex,
+    ) -> (Vec<Instruction>, Value) {
         let expr_node = self.nodes.get(&expression_index).unwrap();
         match expr_node.data {
             NodeData::Expression(ref expr) => {
@@ -148,7 +152,8 @@ impl IR {
                         );
                     }
                     crate::ir::Expression::SizeOf(sizeof_expr) => {
-                        let (insts, sizeof_value) = self.compile_expression(continue_jstack, *sizeof_expr);
+                        let (insts, sizeof_value) =
+                            self.compile_expression(continue_jstack, *sizeof_expr);
                         return (
                             insts,
                             Value {
@@ -253,8 +258,10 @@ impl IR {
                         );
                     }
                     crate::ir::Expression::ArrayIndex { arr, idx } => {
-                        let (mut arr_insts, arr) = self.compile_expression(continue_jstack, arr.clone());
-                        let (mut idx_insts, idx) = self.compile_expression(continue_jstack, idx.clone());
+                        let (mut arr_insts, arr) =
+                            self.compile_expression(continue_jstack, arr.clone());
+                        let (mut idx_insts, idx) =
+                            self.compile_expression(continue_jstack, idx.clone());
                         arr_insts.append(&mut idx_insts);
                         return (
                             arr_insts,
@@ -272,8 +279,10 @@ impl IR {
                         left,
                         right,
                     } => {
-                        let (mut left_insts, left) = self.compile_expression(continue_jstack, left.clone());
-                        let (mut right_insts, right) = self.compile_expression(continue_jstack, right.clone());
+                        let (mut left_insts, left) =
+                            self.compile_expression(continue_jstack, left.clone());
+                        let (mut right_insts, right) =
+                            self.compile_expression(continue_jstack, right.clone());
                         left_insts.append(&mut right_insts);
                         return (
                             left_insts,
@@ -316,7 +325,8 @@ impl IR {
                         }
                         let (mut namespace_insts, namespace) =
                             self.compile_expression(continue_jstack, namespace.clone());
-                        let (mut field_insts, field) = self.compile_expression(continue_jstack, field.clone());
+                        let (mut field_insts, field) =
+                            self.compile_expression(continue_jstack, field.clone());
                         namespace_insts.append(&mut field_insts);
                         return (
                             namespace_insts,
@@ -342,7 +352,8 @@ impl IR {
                         // for each field add a assign instruction
                         for (field, value) in fields {
                             let value_expr = self.get_node(*value).unwrap();
-                            let (mut more_insts, value_compiled) = self.compile_expression(continue_jstack, *value);
+                            let (mut more_insts, value_compiled) =
+                                self.compile_expression(continue_jstack, *value);
                             insts.append(&mut more_insts);
                             insts.push(Instruction {
                                 source_line: expr_node.line,
@@ -472,11 +483,13 @@ impl IR {
                         let mut compiled_args = vec![];
                         let mut insts = vec![];
                         for arg in args {
-                            let (mut arg_insts, arg) = self.compile_expression(continue_jstack, *arg);
+                            let (mut arg_insts, arg) =
+                                self.compile_expression(continue_jstack, *arg);
                             insts.append(&mut arg_insts);
                             compiled_args.push(arg);
                         }
-                        let (mut fn_name_insts, fn_name) = self.compile_expression(continue_jstack, fn_name.clone());
+                        let (mut fn_name_insts, fn_name) =
+                            self.compile_expression(continue_jstack, fn_name.clone());
                         insts.append(&mut fn_name_insts);
                         return (
                             insts,
@@ -490,7 +503,8 @@ impl IR {
                         );
                     }
                     crate::ir::Expression::PointerOf(pointee) => {
-                        let (pointer_insts, pointer) = self.compile_expression(continue_jstack, pointee.clone());
+                        let (pointer_insts, pointer) =
+                            self.compile_expression(continue_jstack, pointee.clone());
                         return (
                             pointer_insts,
                             Value {
@@ -502,7 +516,8 @@ impl IR {
                         );
                     }
                     crate::ir::Expression::Deref(pointer) => {
-                        let (deref_insts, deref) = self.compile_expression(continue_jstack, pointer.clone());
+                        let (deref_insts, deref) =
+                            self.compile_expression(continue_jstack, pointer.clone());
                         return (
                             deref_insts,
                             Value {
@@ -536,7 +551,11 @@ impl IR {
             .get_identifier()
             .unwrap();
     }
-    fn compile_statement(&self, loop_stack: &mut Stack<NodeIndex>, index: NodeIndex) -> Vec<Instruction> {
+    fn compile_statement(
+        &self,
+        loop_stack: &mut Stack<NodeIndex>,
+        index: NodeIndex,
+    ) -> Vec<Instruction> {
         let node = self.get_node(index).unwrap();
         match node.data {
             NodeData::Statement(ref statement) => {
@@ -720,7 +739,8 @@ impl IR {
                             return insts;
                         } else {
                             let mut insts = vec![];
-                            let (mut value_insts, value) = self.compile_expression(loop_stack, expr.clone());
+                            let (mut value_insts, value) =
+                                self.compile_expression(loop_stack, expr.clone());
                             insts.append(&mut value_insts);
                             insts.push(Instruction {
                                 source_line: node.line,
@@ -794,7 +814,8 @@ impl IR {
                         let mut insts = vec![];
                         for (cond, body) in cases {
                             let cond_node = self.get_node(*cond).unwrap();
-                            let (mut cond_insts, cond_value) = self.compile_expression(loop_stack, *cond);
+                            let (mut cond_insts, cond_value) =
+                                self.compile_expression(loop_stack, *cond);
                             insts.append(&mut cond_insts);
                             insts.push(Instruction {
                                 source_line: cond_node.line,
@@ -845,26 +866,65 @@ impl IR {
 
                         let (cond_insts, cond) = self.compile_expression(loop_stack, *cond);
 
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOP{}", node.id)) });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOP{}", node.id)),
+                        });
 
                         loop_stack.push(node.id);
 
-                        loop_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::JumpFalse { cond, label: format!("LOOPEND{}", node.id) } });
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::JumpFalse {
+                                cond,
+                                label: format!("LOOPEND{}", node.id),
+                            },
+                        });
 
                         let mut body_insts = self.compile_scope(loop_stack, *body);
                         loop_insts.append(&mut body_insts);
-                        loop_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id))});
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id)),
+                        });
 
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: loop_insts } });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: loop_insts,
+                            },
+                        });
 
                         let mut cont_insts = self.compile_statement(loop_stack, *cont);
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)) });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)),
+                        });
                         scope_insts.append(&mut cont_insts);
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOP{}", node.id)) });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOP{}", node.id)),
+                        });
 
-                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: scope_insts } });
-                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOPEND{}", node.id))});
-
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: scope_insts,
+                            },
+                        });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPEND{}", node.id)),
+                        });
+                        loop_stack.pop();
                         return insts;
                     }
                     Statement::ForIn {
@@ -881,32 +941,85 @@ impl IR {
 
                         let (cond_insts, cond) = self.compile_expression(loop_stack, *cond);
 
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOP{}", node.id)) });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOP{}", node.id)),
+                        });
 
                         loop_stack.push(node.id);
 
-                        loop_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::JumpFalse { cond, label: format!("LOOPEND{}", node.id) } });
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::JumpFalse {
+                                cond,
+                                label: format!("LOOPEND{}", node.id),
+                            },
+                        });
 
                         let mut body_insts = self.compile_scope(loop_stack, *body);
                         loop_insts.append(&mut body_insts);
-                        loop_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id))});
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id)),
+                        });
 
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: loop_insts } });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: loop_insts,
+                            },
+                        });
 
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)) });
-                        scope_insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOP{}", node.id)) });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)),
+                        });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOP{}", node.id)),
+                        });
 
-                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: scope_insts } });
-                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("LOOPEND{}", node.id))});
-
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: scope_insts,
+                            },
+                        });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPEND{}", node.id)),
+                        });
+                        loop_stack.pop();
                         return insts;
                     }
                     Statement::Break => {
-                        vec![Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOPEND{}", loop_stack.top().unwrap())) }]
+                        vec![Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!(
+                                "LOOPEND{}",
+                                loop_stack.top().unwrap()
+                            )),
+                        }]
                     }
                     Statement::Continue => {
                         let mut insts = vec![];
-                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Jump(format!("LOOPCONT{}", loop_stack.top().unwrap())) });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!(
+                                "LOOPCONT{}",
+                                loop_stack.top().unwrap()
+                            )),
+                        });
                         return insts;
                     }
                     Statement::Goto(expr) => {
@@ -914,7 +1027,8 @@ impl IR {
                     }
                     Statement::Return(expr) => {
                         let mut insts = vec![];
-                        let (mut ret_insts, ret) = self.compile_expression(loop_stack, expr.clone());
+                        let (mut ret_insts, ret) =
+                            self.compile_expression(loop_stack, expr.clone());
                         insts.append(&mut ret_insts);
                         insts.push(Instruction {
                             source_line: node.line,
@@ -937,7 +1051,8 @@ impl IR {
                     insts.append(&mut arg_insts);
                     compiled_args.push(arg);
                 }
-                let (mut function_insts, function) = self.compile_expression(loop_stack, fn_name.clone());
+                let (mut function_insts, function) =
+                    self.compile_expression(loop_stack, fn_name.clone());
                 insts.append(&mut function_insts);
                 insts.push(Instruction {
                     source_line: node.line,
@@ -952,7 +1067,11 @@ impl IR {
             NodeData::Expression(_) => panic!("unexpected {:?}", node),
         }
     }
-    fn compile_scope(&self, continue_jstack: &mut Stack<NodeIndex>, index: NodeIndex) -> Vec<Instruction> {
+    fn compile_scope(
+        &self,
+        continue_jstack: &mut Stack<NodeIndex>,
+        index: NodeIndex,
+    ) -> Vec<Instruction> {
         let root_node = self.nodes.get(&index).unwrap();
         let mut instructions = vec![];
         if let NodeData::Statement(Statement::Scope {

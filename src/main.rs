@@ -13,13 +13,12 @@ mod bytecode;
 mod generic_ds;
 mod c_backend;
 mod tests;
-// mod symbol_table;
 use anyhow::Result;
 use std::env;
 
 const ABOUT: &str = "loki compiler 0.2";
 const USAGE: &str =
-    "Usage: loki [filename] [flags]\n\t--emit-cpp: emits CPP code using C code backend.\n";
+    "Usage: loki [filename]\n";
 
 pub fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
