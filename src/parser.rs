@@ -96,6 +96,7 @@ impl Parser {
             exported_symbols: HashMap::new(),
             dependencies: vec![],
             type_checked: false,
+            continue_jstack: Stack::new(),
         };
         Ok(Self {
             filename,

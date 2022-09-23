@@ -147,6 +147,12 @@ fn emit_for_type(ty: &Type) -> String {
 
 fn emit_for_instruction(inst: &Instruction) -> String {
     match &inst.payload {
+        InstructionPayload::JumpTrue { cond, label } => {
+            return format!("if ({}) goto {};", emit_for_value(cond), label);
+        }
+        InstructionPayload::JumpFalse { cond, label } => {
+            return format!("if (!({})) goto {};", emit_for_value(cond), label);
+        }
         InstructionPayload::Host(ref path) => format!("#include <{}>", path),
         InstructionPayload::Definition { mutable, ref name, ref ty, ref value } => {
             if let ValuePayload::Expression(Expression::Function { ref args, ref ret, ref body }) = value.payload {

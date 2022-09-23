@@ -104,7 +104,6 @@ impl Compilation {
                     still_hope = true;
                 }
             }
-            println!("checking {} file.", file);
             let ir = compilation.irs.get_mut(file).unwrap();
             if ir.type_checked {
                 keys_index += 1;

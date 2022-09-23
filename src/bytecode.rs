@@ -40,6 +40,14 @@ pub enum InstructionPayload {
         args: Vec<Value>,
     },
     Label(String),
+    JumpTrue {
+        cond: Value,
+        label: String,
+    },
+    JumpFalse {
+        cond: Value,
+        label: String,
+    },
     Jump(String),
     Return(Value),
 }
@@ -516,7 +524,6 @@ impl IR {
                                     ty: expr_node.type_information.clone().unwrap(),
                                 }
                             });
-                            println!("def inst: {:?}", insts);
                             return insts
                         }
                     },
@@ -562,7 +569,39 @@ impl IR {
                         return insts;
                     },
                     Statement::If { ref cases } => {
-                        vec![]
+                        /*
+                            a := 2;
+                            if (a < 1) {
+                            } else if (a > 1) {
+                            } else {
+                            }
+                            JumpTrue(a<1, Case_1)
+                            JumpTrue(a>1, Case_2)
+                            Jump(Else)
+                        */
+                        let mut insts = vec![];
+                        for (cond, body) in cases {
+                            let cond_node = self.get_node(*cond).unwrap();
+                            let (mut cond_insts, cond_value) = self.compile_expression(*cond);
+                            insts.append(&mut cond_insts);
+                            insts.push(Instruction {
+                                source_line: cond_node.line,
+                                source_column: cond_node.col,
+                                payload: InstructionPayload::JumpTrue { cond: cond_value, label: format!("Case{}", cond) },
+                            })
+                        }
+
+                        for (cond, body) in cases {
+                            let cond_node = self.get_node(*cond).unwrap();
+                            insts.push(Instruction { source_line: cond_node.line, source_column: cond_node.col, payload: InstructionPayload::Label(format!("Case{}", cond)) });
+                            let mut body_insts = self.compile_scope(*body);
+                            insts.append(&mut body_insts);
+                            insts.push(Instruction { source_line: cond_node.line, source_column: cond_node.col, payload: InstructionPayload::Jump(format!("If{}", node.id)) });
+                        }
+
+                        insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Label(format!("If{}", node.id)) });
+
+                        return insts;
                     },
                     Statement::For { start, cond, cont, body } => {
                         vec![]

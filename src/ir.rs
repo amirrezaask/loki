@@ -4,6 +4,7 @@ use std::ops::Deref;
 
 use crate::compliation::Dependency;
 use crate::lexer::{Token, TokenType};
+use crate::stack::Stack;
 use super::typer::Type;
 use crate::utils;
 use crate::errors::Result;
@@ -227,7 +228,7 @@ pub enum Statement {
     Return(NodeIndex),
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct IR {
     pub filename: String,
     pub file_source: String,
@@ -239,6 +240,7 @@ pub struct IR {
     pub exported_symbols: HashMap<String, Type>,
     pub dependencies: Vec<Dependency>,
     pub type_checked: bool,
+    pub continue_jstack: Stack<String>,
 }
 
 impl IR {
