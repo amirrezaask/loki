@@ -27,9 +27,15 @@ pub fn main() -> Result<()> {
         return Ok(());
     }
     let args = args[1..].to_vec();
+    let mut verbose = false;
+    if args.contains(&"-v".to_string()) || args.contains(&"--verbose".to_string()) {
+        verbose = true;
+    }
+    let mut debug = false;
+    if args.contains(&"--debug".to_string()) {
+        debug = true;
+    }
     let filename = &args[0];
-    let mut c = compliation::Compilation::new(&filename)?;
-    // p.compile_file(filename, code_gen::Backend::CPP)?;
-    // Ok(())
+    let mut c = compliation::Compilation::new(&filename, verbose, debug)?;
     Ok(())
 }
