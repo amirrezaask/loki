@@ -1,0 +1,21 @@
+#load "print"
+
+main :: () int {
+    fib1 : s64 = 1;
+    fib2 : s64 = 1;
+    result : s64 = 0;
+    summed : s64 = 0;
+    
+    while (result < cast(4000000, s64)) {
+        if ((result % cast(2, s64)) == cast(0, s64)) {
+            summed += result;
+        }
+    
+        result = fib1 + fib2;
+        fib2 = fib1;
+        fib1 = result;
+    }
+
+    printf("result is %d\n", result);
+    return 0;
+}

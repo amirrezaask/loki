@@ -24,12 +24,17 @@ Loki compiler consists of multiple stages of compilation:
 
 ## Todos
 
-- if and while and for to not require parens in parser.
+- fix numbers:
+  - in type checker if a number is a literal in source code we should just pass the check.
+  - in code generator differentiate between bitsizes.
+  - check definitions with type hint to use correct types for defs.
+- loki main should wrap user main function so we handle return int and stuff.
 - default values for structs
 - defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - unions
 - definitions of #load that will make exported symbols accessible from a namespace.
 - LLVM
+- if and while and for to not require parens in parser. ( Parser has ambiguity due to expr { means initialize , so we should change initialize syntax if we want this.)
 
 
 ## Just Ideas to investigate
