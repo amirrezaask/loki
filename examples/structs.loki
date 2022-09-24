@@ -1,4 +1,3 @@
-// #host "string"
 #load "print.loki"
 
 main :: () int {

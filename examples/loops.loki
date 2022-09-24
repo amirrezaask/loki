@@ -1,5 +1,4 @@
 #load "print"
-// #host "string"
 
 main :: () int {
     counter := 0;
@@ -24,7 +23,6 @@ main :: () int {
     }
     
     amirreza := Human { age = 17 };
-    
     humans := [3]Human {Human { age = 17 }, Human { age = 17 }};
     for (humans) {
         printf("for each syntax: %d\n", it.age);

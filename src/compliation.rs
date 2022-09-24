@@ -210,6 +210,9 @@ impl Compilation {
                 String::from_utf8_lossy(&cpp_output.stderr)
             );
         }
+        if !compilation.debug {
+            std::fs::remove_file(out_file_name).unwrap();
+        }
         let whole_thing = whole_thing.elapsed();
         if compilation.verbose {
             println!("Compiler frontend took {}ns", frontend_elapsed.as_nanos());
