@@ -20,7 +20,8 @@ fn suite() -> Result<()> {
         "examples/module_load.loki",
         "examples/pointers.loki",
         "examples/sizeandcast.loki",
-        "examples/euler/01.loki"
+        "examples/euler/01.loki",
+        "examples/euler/02.loki"
     ];
     let mut results: Vec<Result<()>> = vec![];
     let mut has_error = false;

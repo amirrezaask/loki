@@ -26,7 +26,7 @@ dyanmic_array_add :: (array: *DynamicArray, element: *void) void {
         new_ptr := realloc(array.elements, array.cap * sizeof(*void))
         array.elements = cast(new_ptr, **void);
     }
-    dst := cast(array.elements, int) + cast((array.count * array.element_size), int);
+    dst := cast(array.elements, s64) + cast((array.count * array.element_size), s64);
     memcpy(cast(dst, *void), element, array.element_size);
     array.count+=cast(1, s64);
 }
