@@ -2,6 +2,8 @@
 #host "string.h"
 #host "stdint.h"
 
+
+// only some ffi defs
 malloc: (size: uint) *void #foreign;
 realloc: (mem_block: *void, size: uint) *void #foreign;
 free: (mem_block: *void) void #foreign;

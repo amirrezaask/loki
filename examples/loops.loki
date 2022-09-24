@@ -15,24 +15,20 @@ main :: () int {
         }
     }
 
-    // numbers := [10]uint{1, 2, 3, 4};
-    // numbers_len := sizeof(numbers) / sizeof(uint)
-    // for (i := 0; i < cast(numbers_len, u64); i ++) {
-    //     printf("number: %d\n", numbers[i]);
-    // }
-    // for (num: numbers) {
-    //     printf("for each syntax: %d\n", num);
-    // }
-    // for (numbers) {
-    //     printf("for each syntax: %d\n", it);
-    // }
+    numbers := [10]uint{1, 2, 3, 4};
+    for (num: numbers) {
+        printf("for each syntax: %d\n", num);
+    }
+    for (numbers) {
+        printf("for each syntax with implicit iterator: %d\n", it);
+    }
     
-    // amirreza := Human { age = 17 };
+    amirreza := Human { age = 17 };
     
-    // humans := [3]Human {Human { age = 17, name = "comrade" }, Human { age = 17, name = "comrade" }};
-    // for (humans) {
-    //     printf("for each syntax: %d\n", it.age);
-    // }
+    humans := [3]Human {Human { age = 17 }, Human { age = 17 }};
+    for (humans) {
+        printf("for each syntax: %d\n", it.age);
+    }
 
 }
 

@@ -17,19 +17,23 @@ Loki compiler consists of multiple stages of compilation:
 - Lexer: produce a stream of tokens for each input file.
 - Parser: produces an IR structure for each file.
 - Type checker and inference: type inference and checking of the IR happens here.
-- internal bytecode: lowering language features into simpler constructs happen here.
-- backend code generation: this will produce code that gets compiled or assembled using a third party toolchain.
+- Bytecode: lowering language features into simpler constructs happen here.
+- Backend code generation: this will produce code that gets compiled or assembled using a third party toolchain.
   * C: almost done.
   * LLVM IR: Comming soon!
 
 ## Todos
-
-- sizeof should be calculated during compile time.
+- finish ForIn byte code generation
+- fix if and while and for to not require parens.
 - default values for structs
 - defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - unions
 - definitions of #load that will make exported symbols accessible from a namespace.
-- generics: take a look into generics.loki.notyet
 - LLVM
-- load files into a namespace
-- memory allocators
+
+
+## Just Ideas to investigate
+- Implicit context system
+- Generics
+- Pattern matching
+

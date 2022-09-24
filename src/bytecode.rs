@@ -934,7 +934,141 @@ impl IR {
                         iterable,
                         body,
                     } => {
-                        vec![]
+                        let mut insts = vec![];
+                        let mut scope_insts = vec![];
+                        let mut loop_insts = vec![];
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Definition { name: format!("loop{}_iterator", node.id), ty: Type::UnsignedInt(64), mutable: true, value: Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Unsigned(0)) } },
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOP{}", node.id)),
+                        });
+
+                        loop_stack.push(node.id);
+                        // sizeof(iterable) / sizeof(elem_ty)
+                        let iterable_node = self.get_node(*iterable).unwrap();
+                        let elem_type = iterable_node.type_information.clone().unwrap().get_array_elem_ty();
+
+                        let (iterable_insts, iterable_expr) = self.compile_expression(loop_stack, *iterable);
+                        
+                        let sizeof_iterable = Value {
+                            ty: Type::UnsignedInt(64),
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(iterable_expr)))
+                        };
+                        
+                        let sizeof_iterable_elem_type = Value {
+                            ty: Type::UnsignedInt(64),
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(Value { ty: elem_type.clone(), payload: ValuePayload::Type(elem_type.clone()) })))
+
+                        };
+
+                        let cond = Value {
+                            ty: Type::Bool,
+                            payload: ValuePayload::Expression(Expression::BinaryOperation {
+                                operation: BinaryOperation::Less,
+                                left: Box::new(Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),
+                                }),
+                                right: Box::new(Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::BinaryOperation {
+                                        operation: BinaryOperation::Divide,
+                                        left: Box::new(sizeof_iterable),
+                                        right: Box::new(sizeof_iterable_elem_type),
+                                    }),
+                                })
+                            }),
+                        };
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::JumpFalse {
+                                cond,
+                                label: format!("LOOPEND{}", node.id),
+                            },
+                        });
+                        // loop body
+                        let iterator_node = self.get_node(*iterator).unwrap();
+                        let iterator_name = iterator_node.get_identifier().unwrap();
+                        let iterable_name = iterable_node.get_identifier().unwrap();
+                        loop_insts.push(Instruction { 
+                            source_line: node.line, 
+                            source_column: node.col, 
+                            payload: InstructionPayload::Definition { name: iterator_name, ty: elem_type.clone(), mutable: true, value: Value {
+                                ty: elem_type,
+                                payload: ValuePayload::Expression(Expression::ArrayIndex {
+                                    arr: Box::new(Value { 
+                                        ty: iterable_node.type_information.clone().unwrap(), 
+                                        payload: ValuePayload::Expression(Expression::Identifier(iterable_name.clone()))
+                                }), 
+                                idx: Box::new(Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id)))}) }),
+                            } } 
+                        });
+                        let mut body_insts = self.compile_scope(loop_stack, *body);
+                        loop_insts.append(&mut body_insts);
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id)),
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: loop_insts,
+                            },
+                        });
+
+                        // continue
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)),
+                        });
+                        let iterator_value = Value {
+                            ty: Type::UnsignedInt(64),
+                            payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),
+                        };
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Set { 
+                                lhs: iterator_value.clone(),
+                                rhs: Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::BinaryOperation { operation: BinaryOperation::Sum, left: Box::new(iterator_value), right: Box::new(Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Unsigned(1))}) }),
+                                } 
+                            }
+                        });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOP{}", node.id)),
+                        });
+
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: scope_insts,
+                            },
+                        });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPEND{}", node.id)),
+                        });
+                        loop_stack.pop();
+
+                        return insts;
                     }
                     Statement::While { cond, body } => {
                         let mut insts = vec![];

@@ -222,6 +222,7 @@ impl Compilation {
                 "Backend code generation took {}ns",
                 backend_code_generation_elapsed.as_nanos()
             );
+            println!("Our side took {}millis", (frontend_elapsed + type_check_elapsed + byte_code_generation_elapsed + backend_code_generation_elapsed).as_millis());
             println!(
                 "Writing generated code to disk {}ns",
                 writing_generated_code_into_disk.as_nanos()
@@ -231,6 +232,7 @@ impl Compilation {
                 calling_backend_compiler.as_nanos()
             );
             println!("Whole compilation took {}milis", whole_thing.as_millis());
+            println!("Total lines processed {}", compilation.total_lines);
         }
 
         Ok(())

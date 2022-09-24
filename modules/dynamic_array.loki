@@ -40,6 +40,6 @@ dynamic_array_free :: (a: *DynamicArray) {
 
 dynamic_array_get :: (a: *DynamicArray, idx: uint) *void {
     elements_ptr := cast(a.elements, s64);
-    elements_ptr = elements_ptr + (a.element_size * cast(0, s64));
-    return cast(elements_ptr, **void);
+    elements_ptr = elements_ptr + (a.element_size * cast(idx, s64));
+    return cast(elements_ptr, *void);
 }

@@ -17,7 +17,7 @@ fn type_checker() -> Result<()> {
         let file = file.unwrap();
         if file.file_type().unwrap().is_file() && Path::new(file.path().to_str().unwrap()).extension().unwrap() == "loki" {
             counter += 1;
-            match compliation::Compilation::new(file.path().to_str().unwrap()) {
+            match compliation::Compilation::new(file.path().to_str().unwrap(), false, false) {
                 Ok(_) => {
                     success += 1;
                     let os = std::env::consts::OS;
