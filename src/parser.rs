@@ -1097,7 +1097,7 @@ impl Parser {
                 self.forward_token();
                 Ok(self.new_node(
                     self.new_index(),
-                    NodeData::TypeDefinition(TypeDefinition::Int(64)),
+                    NodeData::TypeDefinition(TypeDefinition::Int(32)),
                     self.current_line(),
                     self.current_col(),
                 ))
@@ -1151,7 +1151,7 @@ impl Parser {
                 self.forward_token();
                 Ok(self.new_node(
                     self.new_index(),
-                    NodeData::TypeDefinition(TypeDefinition::Uint(64)),
+                    NodeData::TypeDefinition(TypeDefinition::Uint(32)),
                     self.current_line(),
                     self.current_col(),
                 ))

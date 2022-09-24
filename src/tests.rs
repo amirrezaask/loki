@@ -28,7 +28,6 @@ fn suite() -> Result<()> {
     let mut success = 0;
     let mut failed = 0;
     for file in files {
-        println!("============================================================");
         counter += 1;
         match compliation::Compilation::new(file, false, false) {
             Ok(_) => {

@@ -3,19 +3,17 @@
 main :: () int {
     fib1 : s64 = 1;
     fib2 : s64 = 1;
-    result : s64 = 0;
-    summed : s64 = 0;
+    sum : s64 = 0;
     
-    while (result < cast(4000000, s64)) {
-        if ((result % cast(2, s64)) == cast(0, s64)) {
-            summed += result;
+    while (fib1 < 4000000) {
+        if (fib1 % 2 == 0) {
+            sum += fib1;
         }
-    
-        result = fib1 + fib2;
-        fib2 = fib1;
-        fib1 = result;
+        temp := fib1 + fib2;
+        fib1 = fib2;
+        fib2 = temp;
     }
 
-    printf("result is %d\n", result);
+    printf("result is %d\n", sum);
     return 0;
 }

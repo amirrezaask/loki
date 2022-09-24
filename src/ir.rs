@@ -57,6 +57,14 @@ impl Node {
             }
         }
     }
+    pub fn is_literal(&self) -> bool {
+        match self.data {
+            NodeData::Expression(Expression::Unsigned(_)) => true,
+            NodeData::Expression(Expression::Signed(_)) => true,
+            NodeData::Expression(Expression::Float(_)) => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
