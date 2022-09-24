@@ -742,6 +742,7 @@ impl IR {
                             let mut insts = vec![];
                             let (mut value_insts, value) =
                                 self.compile_expression(loop_stack, expr.clone());
+                            // TODO: check if ty is not none we should first check two sides and then use that as the type.
                             insts.append(&mut value_insts);
                             insts.push(Instruction {
                                 source_line: node.line,

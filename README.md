@@ -29,6 +29,7 @@ Loki compiler consists of multiple stages of compilation:
 - default values for structs
 - defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - unions
+- type table in output binary + access through #type() directive that will result in the type of the expression.
 - definitions of #load that will make exported symbols accessible from a namespace.
 - LLVM
 - if and while and for to not require parens in parser. ( Parser has ambiguity due to expr { means initialize , so we should change initialize syntax if we want this.)

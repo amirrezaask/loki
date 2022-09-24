@@ -85,12 +85,12 @@ impl Type {
     pub fn get_kind(&self) -> TypeKind {
         match self {
             Type::Type(_) => TypeKind::Type,
-            Type::SignedInt(_) => TypeKind::Signed,
-            Type::UnsignedInt(_) => TypeKind::Unsigned,
+            Type::SignedInt(_) => TypeKind::Int,
+            Type::UnsignedInt(_) => TypeKind::Int,
             Type::Float(_) => TypeKind::Float,
             Type::Bool => TypeKind::Bool,
-            Type::CIntPtr => TypeKind::Signed,
-            Type::CUintPtr => TypeKind::Unsigned,
+            Type::CIntPtr => TypeKind::Int,
+            Type::CUintPtr => TypeKind::Int,
             Type::CString => TypeKind::String,
             Type::Char => TypeKind::Char,
             Type::String => TypeKind::String,
@@ -129,12 +129,11 @@ impl Type {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 enum TypeKind {
+    Int,
     Void,
     Type,
     Function,
     Array,
-    Unsigned,
-    Signed,
     Float,
     String,
     Char,
@@ -144,13 +143,12 @@ enum TypeKind {
 
 
 impl IR {
-    fn two_sides_can_do_binary_operation(&self, left: NodeIndex, right: NodeIndex) -> bool {
+    pub fn two_sides_can_do_binary_operation(&self, left: NodeIndex, right: NodeIndex) -> bool {
         let left_node = self.get_node(left).unwrap();
         let right_node = self.get_node(right).unwrap();
         if left_node.type_information.clone().unwrap() == right_node.type_information.clone().unwrap() {
             return true;
         }
-
         if (left_node.is_literal() || right_node.is_literal()) && (left_node.type_information.clone().unwrap().get_kind() == right_node.type_information.clone().unwrap().get_kind()) {
             return true;
         }
@@ -413,6 +411,8 @@ impl IR {
                                     self.add_type(expression_index, left_type.clone().unwrap());
                                     return Ok(left_type);
                                 } else {
+                                    println!("left_node: {:?}", self.get_node(*left));
+                                    println!("right_node: {:?}", self.get_node(*right));
                                     return Err(CompilerError {
                                         file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
@@ -433,6 +433,8 @@ impl IR {
                                     self.add_type(expression_index, Type::Bool);
                                     return Ok(Some(Type::Bool));
                                 } else {
+                                    println!("left_node: {:?}", self.get_node(*left));
+                                    println!("right_node: {:?}", self.get_node(*right));
                                     return Err(CompilerError {
                                         file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),

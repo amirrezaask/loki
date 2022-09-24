@@ -4,6 +4,8 @@
         "*.one": "ocaml",
         "cstdio": "cpp",
         "cstdlib": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "vcruntime.h": "c",
+        "math.h": "c"
     }
 }
