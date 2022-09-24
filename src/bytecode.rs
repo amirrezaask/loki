@@ -952,6 +952,7 @@ impl IR {
 
                         loop_stack.push(node.id);
                         // sizeof(iterable) / sizeof(elem_ty)
+                        // TODO: iterable if is not an identifier we should first store it in some variable then use it.
                         let iterable_node = self.get_node(*iterable).unwrap();
                         let elem_type = iterable_node.type_information.clone().unwrap().get_array_elem_ty();
 
