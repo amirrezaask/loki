@@ -23,8 +23,8 @@ Loki compiler consists of multiple stages of compilation:
   * LLVM IR: Comming soon!
 
 ## Todos
-- finish ForIn byte code generation
-- fix if and while and for to not require parens.
+
+- if and while and for to not require parens in parser.
 - default values for structs
 - defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
 - unions
