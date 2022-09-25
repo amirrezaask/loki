@@ -497,6 +497,7 @@ impl IR {
                         return Ok(Some(initialize_type.clone()));
                     },
                     Expression::InitializeArray { ty, ref elements } => {
+                        
                         let array_type = self.get_node(*ty)?;
                         if let NodeData::TypeDefinition(TypeDefinition::Array { length, elem_ty }) = array_type.data {
                             let len_type = self.type_expression(other_files_exports, length)?;

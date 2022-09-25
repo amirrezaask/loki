@@ -18,7 +18,7 @@ use std::env;
 
 const ABOUT: &str = "loki compiler 0.2";
 const USAGE: &str =
-    "Usage: loki [filename]\n";
+    "Usage: loki [filename]\n\n--debug: enables debug output of the bytecode in the terminal and also preserves the generated backend code.\n-v|--verbose: Show compiler timings";
 
 pub fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
