@@ -1,8 +1,12 @@
-use std::{vec, collections::HashMap, ops::Deref};
+use std::{collections::HashMap, ops::Deref, vec};
 
 use serde::Serialize;
 
-use crate::{typer::Type, ir::{UnaryOperation, BinaryOperation, IR, NodeData, Statement, NodeIndex, AstTag, self}};
+use crate::{
+    ir::{self, AstTag, BinaryOperation, NodeData, NodeIndex, Statement, UnaryOperation, IR},
+    stack::Stack,
+    typer::Type,
+};
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Instruction {
@@ -10,45 +14,45 @@ pub struct Instruction {
     pub source_column: usize,
     pub payload: InstructionPayload,
 }
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum InstructionPayload {
-    Load(String),
     Host(String),
     Definition {
-        mutable: bool,
         name: String,
         ty: Type,
+        mutable: bool,
         value: Value,
     },
     Declaration {
         name: String,
         ty: Type,
     },
-    Assign {
+    Set {
         lhs: Value,
         rhs: Value,
     },
-
-    Scope(Scope),
-
-    Branch {
-        cases: Vec<(Value, Vec<Instruction>)>,
+    Block {
+        instructions: Vec<Instruction>,
     },
-
-    While {
-        cond: Value,
-        body: Vec<Instruction>,
+    Call {
+        function: Value,
+        args: Vec<Value>,
     },
-
-    Break,
-    Continue,
-
-    Call { function: Value, args: Vec<Value> },
-
-    Goto(String),
-    Return(Value),
     Label(String),
+    JumpTrueOrElse {
+        cond: Value,
+        then_label: String,
+        else_label: String,
+    },
+    JumpFalse {
+        cond: Value,
+        label: String,
+    },
+    Jump(String),
+    Return(Value),
 }
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Value {
     pub ty: Type,
@@ -71,7 +75,7 @@ pub enum Expression {
     Bool(bool),
     Char(char),
     Identifier(String),
-    
+
     Paren(Box<Value>),
 
     UnaryOperation {
@@ -84,7 +88,7 @@ pub enum Expression {
         left: Box<Value>,
         right: Box<Value>,
     },
-    
+
     ArrayIndex {
         arr: Box<Value>,
         idx: Box<Value>,
@@ -120,513 +124,1103 @@ pub enum Expression {
     SizeOf(Box<Value>),
 }
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct Scope {
-    pub instructions: Vec<Instruction>
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Module {
     pub instructions: Vec<Instruction>,
 }
+
 impl IR {
-    fn compile_expression(&self, current_scope_instructions: &mut Vec<Instruction>, expression_index: NodeIndex) -> Value {
+    fn compile_expression(
+        &self,
+        continue_jstack: &mut Stack<NodeIndex>,
+        expression_index: NodeIndex,
+    ) -> (Vec<Instruction>, Value) {
         let expr_node = self.nodes.get(&expression_index).unwrap();
         match expr_node.data {
             NodeData::Expression(ref expr) => {
                 match expr {
                     crate::ir::Expression::Cast(cast_expr, cast_type) => {
-                        let cast_value = self.compile_expression(current_scope_instructions, *cast_expr);
-                        let cast_type = self.compile_expression(current_scope_instructions, *cast_type);
-                        return Value {
-                            ty: cast_type.ty.clone(),
-                            payload: ValuePayload::Expression(Expression::Cast { expr: Box::new(cast_value), ty: cast_type.ty }),
-                        };
+                        let (_, cast_value) = self.compile_expression(continue_jstack, *cast_expr);
+                        let (_, cast_type) = self.compile_expression(continue_jstack, *cast_type);
+                        return (
+                            vec![],
+                            Value {
+                                ty: cast_type.ty.clone(),
+                                payload: ValuePayload::Expression(Expression::Cast {
+                                    expr: Box::new(cast_value),
+                                    ty: cast_type.ty,
+                                }),
+                            },
+                        );
                     }
                     crate::ir::Expression::SizeOf(sizeof_expr) => {
-                        let sizeof_value = self.compile_expression(current_scope_instructions, *sizeof_expr);
-                        return Value {
-                            ty: Type::SignedInt(64),
-                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(sizeof_value))),
-                        };
+                        let (insts, sizeof_value) =
+                            self.compile_expression(continue_jstack, *sizeof_expr);
+                        return (
+                            insts,
+                            Value {
+                                ty: Type::SignedInt(64),
+                                payload: ValuePayload::Expression(Expression::SizeOf(Box::new(
+                                    sizeof_value,
+                                ))),
+                            },
+                        );
                     }
                     crate::ir::Expression::Unsigned(number) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Unsigned(*number)),
-                        };
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Unsigned(*number)),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Signed(number) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Signed(*number)),
-                        };
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Signed(*number)),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Float(number) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Float(*number)),
-                        };
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Float(*number)),
+                            },
+                        );
+                    }
 
                     crate::ir::Expression::StringLiteral(s) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::StringLiteral(s.clone())),
-                        };
-
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::StringLiteral(
+                                    s.clone(),
+                                )),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Bool(b) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Bool(b.clone())),
-                        };
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Bool(b.clone())),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Char(c) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Char(c.clone())),
-                        };
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Char(c.clone())),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Identifier(ident) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Identifier(ident.clone())),
-                        };
-                    },
+                        return (
+                            vec![],
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Identifier(
+                                    ident.clone(),
+                                )),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Paren(inner) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Paren(Box::new(self.compile_expression(current_scope_instructions,*inner)))),
-                        };
-                    },
+                        let (insts, expr) = self.compile_expression(continue_jstack, *inner);
+                        return (
+                            insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Paren(Box::new(
+                                    expr,
+                                ))),
+                            },
+                        );
+                    }
                     crate::ir::Expression::UnaryOperation { operator, expr } => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::UnaryOperation{ operator: operator.clone(), expr: Box::new(self.compile_expression(current_scope_instructions,expr.clone())) }),
-                        };
-                    },
+                        let (insts, expr) = self.compile_expression(continue_jstack, expr.clone());
+                        return (
+                            insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::UnaryOperation {
+                                    operator: operator.clone(),
+                                    expr: Box::new(expr),
+                                }),
+                            },
+                        );
+                    }
                     crate::ir::Expression::ArrayIndex { arr, idx } => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::ArrayIndex { arr: Box::new(self.compile_expression(current_scope_instructions,arr.clone())), idx: Box::new(self.compile_expression(current_scope_instructions,idx.clone())) }),
-                        };
-                    },
-                    crate::ir::Expression::BinaryOperation { operation, left, right } => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::BinaryOperation { 
-                                operation: operation.clone(), 
-                                left: Box::new(self.compile_expression(current_scope_instructions,left.clone())),
-                                right: Box::new(self.compile_expression(current_scope_instructions,right.clone())) }),
-                        };
-                    },
+                        let (mut arr_insts, arr) =
+                            self.compile_expression(continue_jstack, arr.clone());
+                        let (mut idx_insts, idx) =
+                            self.compile_expression(continue_jstack, idx.clone());
+                        arr_insts.append(&mut idx_insts);
+                        return (
+                            arr_insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::ArrayIndex {
+                                    arr: Box::new(arr),
+                                    idx: Box::new(idx),
+                                }),
+                            },
+                        );
+                    }
+                    crate::ir::Expression::BinaryOperation {
+                        operation,
+                        left,
+                        right,
+                    } => {
+                        let (mut left_insts, left) =
+                            self.compile_expression(continue_jstack, left.clone());
+                        let (mut right_insts, right) =
+                            self.compile_expression(continue_jstack, right.clone());
+                        left_insts.append(&mut right_insts);
+                        return (
+                            left_insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::BinaryOperation {
+                                    operation: operation.clone(),
+                                    left: Box::new(left),
+                                    right: Box::new(right),
+                                }),
+                            },
+                        );
+                    }
                     crate::ir::Expression::NamespaceAccess { namespace, field } => {
                         let namespace_node = self.get_node(namespace.clone()).unwrap();
-                        println!("namespace byte code gen: {:?}", namespace_node);
-                        if let Type::TypeRef {name: enum_name, actual_ty: actual } = namespace_node.type_information.clone().unwrap() {
+                        if let Type::TypeRef {
+                            name: enum_name,
+                            actual_ty: actual,
+                        } = namespace_node.type_information.clone().unwrap()
+                        {
                             match *actual {
                                 Type::Enum { variants } => {
                                     let field_node = self.get_node(field.clone()).unwrap();
-                                    return Value {
-                                        ty: Type::UnsignedInt(64),
-                                        payload: ValuePayload::Expression(Expression::Identifier(format!("___LOKI_GENERATED__Enum__{}_{}", namespace_node.get_identifier().unwrap(), field_node.get_identifier().unwrap()))),
-                                    }
-                                },
+                                    return (
+                                        vec![],
+                                        Value {
+                                            ty: Type::UnsignedInt(64),
+                                            payload: ValuePayload::Expression(
+                                                Expression::Identifier(format!(
+                                                    "___LOKI_GENERATED__Enum__{}_{}",
+                                                    namespace_node.get_identifier().unwrap(),
+                                                    field_node.get_identifier().unwrap()
+                                                )),
+                                            ),
+                                        },
+                                    );
+                                }
                                 _ => {}
                             }
-                            
                         }
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::NamespaceAccess { namespace: Box::new(self.compile_expression(current_scope_instructions,namespace.clone())), field: Box::new(self.compile_expression(current_scope_instructions,field.clone())) })
-                        };
-                    },
+                        let (mut namespace_insts, namespace) =
+                            self.compile_expression(continue_jstack, namespace.clone());
+                        let (mut field_insts, field) =
+                            self.compile_expression(continue_jstack, field.clone());
+                        namespace_insts.append(&mut field_insts);
+                        return (
+                            namespace_insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::NamespaceAccess {
+                                    namespace: Box::new(namespace),
+                                    field: Box::new(field),
+                                }),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Initialize { ty, fields } => {
                         let name = format!("___LOKI_GENERATED__{}", expression_index);
-                       
-                        current_scope_instructions.push(Instruction { 
+                        let mut insts = vec![Instruction {
                             source_line: expr_node.line,
                             source_column: expr_node.col,
-                            payload: InstructionPayload::Declaration { name: name.clone(), ty: expr_node.type_information.clone().unwrap() } 
-                        });
+                            payload: InstructionPayload::Declaration {
+                                name: name.clone(),
+                                ty: expr_node.type_information.clone().unwrap(),
+                            },
+                        }];
                         // for each field add a assign instruction
                         for (field, value) in fields {
                             let value_expr = self.get_node(*value).unwrap();
-                            let value_compiled = self.compile_expression(current_scope_instructions, *value);
-                            current_scope_instructions.push(Instruction { 
+                            let (mut more_insts, value_compiled) =
+                                self.compile_expression(continue_jstack, *value);
+                            insts.append(&mut more_insts);
+                            insts.push(Instruction {
                                 source_line: expr_node.line,
                                 source_column: expr_node.col,
-                                payload: InstructionPayload::Assign { 
-                                    lhs: Value { // is the namespace access to that field of the struct.
+                                payload: InstructionPayload::Set {
+                                    lhs: Value {
+                                        // is the namespace access to that field of the struct.
                                         ty: value_expr.type_information.clone().unwrap(),
-                                        payload: ValuePayload::Expression(Expression::NamespaceAccess { 
-                                            namespace: Box::new(Value {
-                                                ty: expr_node.type_information.clone().unwrap(),
-                                                payload: ValuePayload::Expression(Expression::Identifier(name.clone())),
-                                            }),
-                                            field: Box::new(Value {
-                                                ty: expr_node.type_information.clone().unwrap(),
-                                                payload: ValuePayload::Expression(Expression::Identifier(self.get_identifier_as_string(field.clone()))),
-                                            })
-                                        }),
+                                        payload: ValuePayload::Expression(
+                                            Expression::NamespaceAccess {
+                                                namespace: Box::new(Value {
+                                                    ty: expr_node.type_information.clone().unwrap(),
+                                                    payload: ValuePayload::Expression(
+                                                        Expression::Identifier(name.clone()),
+                                                    ),
+                                                }),
+                                                field: Box::new(Value {
+                                                    ty: expr_node.type_information.clone().unwrap(),
+                                                    payload: ValuePayload::Expression(
+                                                        Expression::Identifier(
+                                                            self.get_identifier_as_string(
+                                                                field.clone(),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                }),
+                                            },
+                                        ),
                                     },
                                     rhs: value_compiled,
-                                }
+                                },
                             });
                         }
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Identifier(name)),
-                        };
-
-                    },
+                        return (
+                            insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Identifier(name)),
+                            },
+                        );
+                    }
                     crate::ir::Expression::InitializeArray { ty, elements } => {
                         let name = format!("___LOKI_GENERATED__{}", expression_index);
-                        current_scope_instructions.push(Instruction { 
+                        let mut insts = vec![];
+
+                        insts.push(Instruction {
                             source_line: expr_node.line,
                             source_column: expr_node.col,
-                            payload: InstructionPayload::Declaration { name: name.clone(), ty: expr_node.type_information.clone().unwrap() } 
+                            payload: InstructionPayload::Declaration {
+                                name: name.clone(),
+                                ty: expr_node.type_information.clone().unwrap(),
+                            },
                         });
 
                         // for each field add a assign instruction
                         for (array_index, element) in elements.iter().enumerate() {
                             let element_expr = self.get_node(*element).unwrap();
-                            let element_compiled = self.compile_expression(current_scope_instructions, *element);
-                            current_scope_instructions.push(Instruction { 
+                            let (mut element_insts, element_compiled) =
+                                self.compile_expression(continue_jstack, *element);
+                            insts.append(&mut element_insts);
+                            insts.push(Instruction {
                                 source_line: expr_node.line,
                                 source_column: expr_node.col,
-                                payload: InstructionPayload::Assign { 
-                                    lhs: Value { // is the namespace access to that field of the struct.
+                                payload: InstructionPayload::Set {
+                                    lhs: Value {
+                                        // is the namespace access to that field of the struct.
                                         ty: element_expr.type_information.clone().unwrap(),
-                                        payload: ValuePayload::Expression(Expression::ArrayIndex { 
+                                        payload: ValuePayload::Expression(Expression::ArrayIndex {
                                             arr: Box::new(Value {
                                                 ty: expr_node.type_information.clone().unwrap(),
-                                                payload: ValuePayload::Expression(Expression::Identifier(name.clone())),
+                                                payload: ValuePayload::Expression(
+                                                    Expression::Identifier(name.clone()),
+                                                ),
                                             }),
                                             idx: Box::new(Value {
                                                 ty: expr_node.type_information.clone().unwrap(),
-                                                payload: ValuePayload::Expression(Expression::Unsigned(array_index as u64)),
-                                            })
-                                        })
+                                                payload: ValuePayload::Expression(
+                                                    Expression::Unsigned(array_index as u64),
+                                                ),
+                                            }),
+                                        }),
                                     },
                                     rhs: element_compiled,
-                                }
+                                },
                             });
                         }
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Identifier(format!("___LOKI_GENERATED__{}", expression_index))),
-                        };
-                    },
+                        return (
+                            insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Identifier(format!(
+                                    "___LOKI_GENERATED__{}",
+                                    expression_index
+                                ))),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Function { args, ret_ty, body } => {
                         let mut compiled_args = vec![];
                         for arg in args {
                             let arg_node = self.get_node(*arg).unwrap();
-                            if let NodeData::Statement(Statement::Decl { name, ty }) = arg_node.data {
-                                compiled_args.push((self.get_identifier_as_string(name), arg_node.type_information.unwrap()));
+                            if let NodeData::Statement(Statement::Decl { name, ty }) = arg_node.data
+                            {
+                                compiled_args.push((
+                                    self.get_identifier_as_string(name),
+                                    arg_node.type_information.unwrap(),
+                                ));
                             }
                         }
                         if let Type::FnType(_, ret) = expr_node.type_information.clone().unwrap() {
-                            return Value {
-                                ty: expr_node.type_information.clone().unwrap(),
-                                payload: ValuePayload::Expression(Expression::Function { args: compiled_args, ret: *ret.clone(), body: self.compile_scope(*body) })
-                            };
+                            return (
+                                vec![],
+                                Value {
+                                    ty: expr_node.type_information.clone().unwrap(),
+                                    payload: ValuePayload::Expression(Expression::Function {
+                                        args: compiled_args,
+                                        ret: *ret.clone(),
+                                        body: self.compile_scope(continue_jstack, *body),
+                                    }),
+                                },
+                            );
                         } else {
                             unreachable!()
                         }
-                        
-                    },
+                    }
                     crate::ir::Expression::FunctionCall { fn_name, args } => {
                         let mut compiled_args = vec![];
+                        let mut insts = vec![];
                         for arg in args {
-                            compiled_args.push(self.compile_expression(current_scope_instructions,*arg));
+                            let (mut arg_insts, arg) =
+                                self.compile_expression(continue_jstack, *arg);
+                            insts.append(&mut arg_insts);
+                            compiled_args.push(arg);
                         }
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Call { fn_name: Box::new(self.compile_expression(current_scope_instructions,fn_name.clone())), args: compiled_args })
-                        };
-                    },
+                        let (mut fn_name_insts, fn_name) =
+                            self.compile_expression(continue_jstack, fn_name.clone());
+                        insts.append(&mut fn_name_insts);
+                        return (
+                            insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Call {
+                                    fn_name: Box::new(fn_name),
+                                    args: compiled_args,
+                                }),
+                            },
+                        );
+                    }
                     crate::ir::Expression::PointerOf(pointee) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::PointerOf(Box::new(self.compile_expression(current_scope_instructions,pointee.clone())))),
-                        };
-                    },
+                        let (pointer_insts, pointer) =
+                            self.compile_expression(continue_jstack, pointee.clone());
+                        return (
+                            pointer_insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::PointerOf(Box::new(
+                                    pointer,
+                                ))),
+                            },
+                        );
+                    }
                     crate::ir::Expression::Deref(pointer) => {
-                        return Value {
-                            ty: expr_node.type_information.clone().unwrap(),
-                            payload: ValuePayload::Expression(Expression::Deref(Box::new(self.compile_expression(current_scope_instructions,pointer.clone())))),
-                        };
-                    },
+                        let (deref_insts, deref) =
+                            self.compile_expression(continue_jstack, pointer.clone());
+                        return (
+                            deref_insts,
+                            Value {
+                                ty: expr_node.type_information.clone().unwrap(),
+                                payload: ValuePayload::Expression(Expression::Deref(Box::new(
+                                    deref,
+                                ))),
+                            },
+                        );
+                    }
                 }
-            },
+            }
             NodeData::TypeDefinition(ref td) => {
-                return Value {
-                    ty: expr_node.type_information.clone().unwrap(),
-                    payload: ValuePayload::Type(expr_node.type_information.clone().unwrap()),
-                }
-            },
+                return (
+                    vec![],
+                    Value {
+                        ty: expr_node.type_information.clone().unwrap(),
+                        payload: ValuePayload::Type(expr_node.type_information.clone().unwrap()),
+                    },
+                )
+            }
 
             NodeData::Statement(_) => unreachable!(),
         }
     }
     fn get_identifier_as_string(&self, ident_index: NodeIndex) -> String {
-        return self.nodes.get(&ident_index).unwrap().get_identifier().unwrap();
+        return self
+            .nodes
+            .get(&ident_index)
+            .unwrap()
+            .get_identifier()
+            .unwrap();
     }
-    fn compile_statement(&self, mut current_scope_instructions: &mut Vec<Instruction>, index: NodeIndex) {
+    fn compile_statement(
+        &self,
+        loop_stack: &mut Stack<NodeIndex>,
+        index: NodeIndex,
+    ) -> Vec<Instruction> {
         let node = self.get_node(index).unwrap();
         match node.data {
             NodeData::Statement(ref statement) => {
                 match statement {
-                    Statement::Load(path) => {
-                        current_scope_instructions.push(Instruction {
-                            source_line: node.line,
-                            source_column: node.col,
-                            payload: InstructionPayload::Load(path.clone()) 
-                        });
-                    },
+                    Statement::Load(path) => return vec![],
                     Statement::Host(path) => {
-                        current_scope_instructions.push(Instruction {
+                        return vec![Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Host(path.clone()) 
-                        });
-                    },
-                    
+                            payload: InstructionPayload::Host(path.clone()),
+                        }];
+                    }
+
                     /*
                         for initialize/initialize array lowering
                         - if in a definition node -> we do exception in our system and use seperate function to generate a series of instructions for that def.
                         - if in expression we go normal way and add the def and assigments before returning the expression instruction which will be just a reference to that identifier we used.
                     */
-                    Statement::Def { ref mutable, ref name, ref ty, ref expr } => {
+                    Statement::Def {
+                        ref mutable,
+                        ref name,
+                        ref ty,
+                        ref expr,
+                    } => {
                         let expr_node = self.nodes.get(expr).unwrap();
-                        if let NodeData::Expression(crate::ir::Expression::Initialize { ty, ref fields }) = expr_node.data {
-                            current_scope_instructions.push(Instruction { 
+                        let mut insts = vec![];
+                        if let NodeData::Expression(crate::ir::Expression::Initialize {
+                            ty,
+                            ref fields,
+                        }) = expr_node.data
+                        {
+                            insts.push(Instruction {
                                 source_line: node.line,
                                 source_column: node.col,
-                                payload: InstructionPayload::Declaration { name: self.get_identifier_as_string(name.clone()), ty: expr_node.type_information.clone().unwrap() } 
+                                payload: InstructionPayload::Declaration {
+                                    name: self.get_identifier_as_string(name.clone()),
+                                    ty: expr_node.type_information.clone().unwrap(),
+                                },
                             });
                             for (field, value) in fields {
                                 let value_expr = self.get_node(*value).unwrap();
-                                let value_compiled = self.compile_expression(current_scope_instructions, *value);
-                                current_scope_instructions.push(Instruction { 
+                                let (mut value_insts, value_compiled) =
+                                    self.compile_expression(loop_stack, *value);
+                                insts.append(&mut value_insts);
+                                insts.push(Instruction {
                                     source_line: node.line,
                                     source_column: node.col,
-                                    payload: InstructionPayload::Assign { 
-                                        lhs: Value { // is the namespace access to that field of the struct.
+                                    payload: InstructionPayload::Set {
+                                        lhs: Value {
+                                            // is the namespace access to that field of the struct.
                                             ty: value_expr.type_information.clone().unwrap(),
-                                            payload: ValuePayload::Expression(Expression::NamespaceAccess { 
-                                                namespace: Box::new(Value {
-                                                    ty: expr_node.type_information.clone().unwrap(),
-                                                    payload: ValuePayload::Expression(Expression::Identifier(self.get_identifier_as_string(name.clone()))),
-                                                }),
-                                                field: Box::new(Value {
-                                                    ty: expr_node.type_information.clone().unwrap(),
-                                                    payload: ValuePayload::Expression(Expression::Identifier(self.get_identifier_as_string(field.clone()))),
-                                                })
-                                            }),
+                                            payload: ValuePayload::Expression(
+                                                Expression::NamespaceAccess {
+                                                    namespace: Box::new(Value {
+                                                        ty: expr_node
+                                                            .type_information
+                                                            .clone()
+                                                            .unwrap(),
+                                                        payload: ValuePayload::Expression(
+                                                            Expression::Identifier(
+                                                                self.get_identifier_as_string(
+                                                                    name.clone(),
+                                                                ),
+                                                            ),
+                                                        ),
+                                                    }),
+                                                    field: Box::new(Value {
+                                                        ty: expr_node
+                                                            .type_information
+                                                            .clone()
+                                                            .unwrap(),
+                                                        payload: ValuePayload::Expression(
+                                                            Expression::Identifier(
+                                                                self.get_identifier_as_string(
+                                                                    field.clone(),
+                                                                ),
+                                                            ),
+                                                        ),
+                                                    }),
+                                                },
+                                            ),
                                         },
                                         rhs: value_compiled,
-                                    }
+                                    },
                                 });
                             }
+                            return insts;
                             // for each field add assign instruction.
-                        } else if let NodeData::Expression(crate::ir::Expression::InitializeArray { ty, ref elements }) = expr_node.data {
-                            current_scope_instructions.push(Instruction { 
+                        } else if let NodeData::Expression(
+                            crate::ir::Expression::InitializeArray { ty, ref elements },
+                        ) = expr_node.data
+                        {
+                            let mut insts = vec![];
+                            insts.push(Instruction {
                                 source_line: node.line,
                                 source_column: node.col,
-                                payload: InstructionPayload::Declaration { name: self.get_identifier_as_string(name.clone()), ty: expr_node.type_information.clone().unwrap() } 
+                                payload: InstructionPayload::Declaration {
+                                    name: self.get_identifier_as_string(name.clone()),
+                                    ty: expr_node.type_information.clone().unwrap(),
+                                },
                             });
                             for (array_index, element) in elements.iter().enumerate() {
                                 let element_expr = self.get_node(*element).unwrap();
-                                let element_compiled = self.compile_expression(current_scope_instructions, *element);
-                                current_scope_instructions.push(Instruction { 
+                                let (mut element_insts, element_compiled) =
+                                    self.compile_expression(loop_stack, *element);
+                                insts.append(&mut element_insts);
+                                insts.push(Instruction {
                                     source_line: node.line,
                                     source_column: node.col,
-                                    payload: InstructionPayload::Assign { 
-                                        lhs: Value { // is the namespace access to that field of the struct.
+                                    payload: InstructionPayload::Set {
+                                        lhs: Value {
+                                            // is the namespace access to that field of the struct.
                                             ty: element_expr.type_information.clone().unwrap(),
-                                            payload: ValuePayload::Expression(Expression::ArrayIndex { 
-                                                arr: Box::new(Value {
-                                                    ty: expr_node.type_information.clone().unwrap(),
-                                                    payload: ValuePayload::Expression(Expression::Identifier(self.get_identifier_as_string(name.clone()))),
-                                                }),
-                                                idx: Box::new(Value {
-                                                    ty: expr_node.type_information.clone().unwrap(),
-                                                    payload: ValuePayload::Expression(Expression::Unsigned(array_index as u64)),
-                                                })
-                                            })
+                                            payload: ValuePayload::Expression(
+                                                Expression::ArrayIndex {
+                                                    arr: Box::new(Value {
+                                                        ty: expr_node
+                                                            .type_information
+                                                            .clone()
+                                                            .unwrap(),
+                                                        payload: ValuePayload::Expression(
+                                                            Expression::Identifier(
+                                                                self.get_identifier_as_string(
+                                                                    name.clone(),
+                                                                ),
+                                                            ),
+                                                        ),
+                                                    }),
+                                                    idx: Box::new(Value {
+                                                        ty: expr_node
+                                                            .type_information
+                                                            .clone()
+                                                            .unwrap(),
+                                                        payload: ValuePayload::Expression(
+                                                            Expression::Unsigned(
+                                                                array_index as u64,
+                                                            ),
+                                                        ),
+                                                    }),
+                                                },
+                                            ),
                                         },
                                         rhs: element_compiled,
-                                    }
+                                    },
                                 });
                             }
-                        } else if let NodeData::TypeDefinition(crate::ir::TypeDefinition::Enum(ref variants)) = &expr_node.data  {
+                            return insts;
+                        } else if let NodeData::TypeDefinition(crate::ir::TypeDefinition::Enum(
+                            ref variants,
+                        )) = &expr_node.data
+                        {
+                            let mut insts = vec![];
                             for (index, variant) in variants.iter().enumerate() {
                                 let decl_node = self.nodes.get(&variant).unwrap();
-                                if let NodeData::Statement(Statement::Decl { name: ref variant_name, ref ty }) = decl_node.data {
-                                    current_scope_instructions.push(Instruction {
+                                if let NodeData::Statement(Statement::Decl {
+                                    name: ref variant_name,
+                                    ref ty,
+                                }) = decl_node.data
+                                {
+                                    insts.push(Instruction {
                                         source_line: node.line,
                                         source_column: node.col,
-                                        payload: InstructionPayload::Definition { 
-                                            mutable: false, 
-                                            name: format!("___LOKI_GENERATED__Enum__{}_{}", self.get_identifier_as_string(name.clone()), self.get_identifier_as_string(variant_name.clone())) ,
-                                            value: Value { 
+                                        payload: InstructionPayload::Definition {
+                                            mutable: *mutable,
+                                            name: format!(
+                                                "___LOKI_GENERATED__Enum__{}_{}",
+                                                self.get_identifier_as_string(name.clone()),
+                                                self.get_identifier_as_string(variant_name.clone())
+                                            ),
+                                            value: Value {
                                                 ty: Type::UnsignedInt(64),
-                                                payload: ValuePayload::Expression(Expression::Unsigned(index as u64))
+                                                payload: ValuePayload::Expression(
+                                                    Expression::Unsigned(index as u64),
+                                                ),
                                             },
                                             ty: Type::UnsignedInt(64),
-                                        }
+                                        },
                                     });
                                 }
                             }
+                            return insts;
                         } else {
-                            let value = self.compile_expression(current_scope_instructions,expr.clone());
-                            current_scope_instructions.push(Instruction {
+                            let mut insts = vec![];
+                            let (mut value_insts, value) =
+                                self.compile_expression(loop_stack, expr.clone());
+                            // TODO: check if ty is not none we should first check two sides and then use that as the type.
+                            insts.append(&mut value_insts);
+                            insts.push(Instruction {
                                 source_line: node.line,
                                 source_column: node.col,
-                                payload: InstructionPayload::Definition { 
-                                    mutable: *mutable, 
+                                payload: InstructionPayload::Definition {
+                                    mutable: *mutable,
                                     name: self.get_identifier_as_string(name.clone()),
                                     value,
                                     ty: expr_node.type_information.clone().unwrap(),
-                                }
+                                },
                             });
+                            return insts;
                         }
-                        
-                    },
+                    }
                     Statement::Decl { name, ty } => {
+                        let mut insts = vec![];
                         if node.tags.contains(&AstTag::Foreign) {
-                            return;
+                            return vec![];
                         }
-                        current_scope_instructions.push(Instruction {
+                        insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Declaration { 
+                            payload: InstructionPayload::Declaration {
                                 name: self.get_identifier_as_string(name.clone()),
                                 ty: node.type_information.clone().unwrap(),
-                            }
+                            },
                         });
-                    },
+                        return insts;
+                    }
                     Statement::Assign { lhs, rhs } => {
-                        let lhs = self.compile_expression(current_scope_instructions,lhs.clone());
-                        let rhs = self.compile_expression(current_scope_instructions,rhs.clone());
-                        current_scope_instructions.push(Instruction {
+                        let mut insts = vec![];
+                        let (mut lhs_insts, lhs) = self.compile_expression(loop_stack, lhs.clone());
+                        let (mut rhs_insts, rhs) = self.compile_expression(loop_stack, rhs.clone());
+                        insts.append(&mut lhs_insts);
+                        insts.append(&mut rhs_insts);
+                        insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
 
-                            payload: InstructionPayload::Assign {
-                               lhs, rhs
-                            }
+                            payload: InstructionPayload::Set { lhs, rhs },
                         });
-                    },
-                    Statement::Scope { owner, is_file_root, ref stmts } => {
-                        current_scope_instructions.push(Instruction {
+                        return insts;
+                    }
+                    Statement::Scope {
+                        owner,
+                        is_file_root,
+                        ref stmts,
+                    } => {
+                        let mut insts = vec![];
+                        let scope = self.compile_scope(loop_stack, index);
+                        insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Scope(Scope { instructions: self.compile_scope(index) })
-                        });     
-                    },
+                            payload: InstructionPayload::Block {
+                                instructions: scope,
+                            },
+                        });
+                        return insts;
+                    }
                     Statement::If { ref cases } => {
-                        let mut compiled_cases = vec![];
-                        for case in cases {
-                            compiled_cases.push((self.compile_expression(current_scope_instructions,case.0), self.compile_scope(case.1)));
+                        /*
+                            a := 2;
+                            if (a < 1) {
+                            } else if (a > 1) {
+                            } else {
+                            }
+                            JumpTrue(a<1, Case_1)
+                            JumpTrue(a>1, Case_2)
+                            Jump(Else)
+                        */
+                        let mut insts = vec![];
+                        for (cond, body) in cases {
+                            let cond_node = self.get_node(*cond).unwrap();
+                            let (mut cond_insts, cond_value) =
+                                self.compile_expression(loop_stack, *cond);
+                            insts.append(&mut cond_insts);
+                            insts.push(Instruction {
+                                source_line: cond_node.line,
+                                source_column: cond_node.col,
+                                payload: InstructionPayload::JumpTrueOrElse {
+                                    cond: cond_value,
+                                    then_label: format!("Case{}", cond),
+                                    else_label: format!("IfEnd{}", node.id),
+                                },
+                            })
                         }
 
-                        current_scope_instructions.push(Instruction {
-                            source_line: node.line,
-                            source_column: node.col,
-                            payload: InstructionPayload::Branch { cases: compiled_cases }
-                        });
-                    },
-                    Statement::For { start, cond, cont, body } => {
-                        let cond = self.compile_expression(current_scope_instructions,cond.clone());
-                        self.compile_statement(current_scope_instructions, *start);
-                        if let NodeData::Statement(Statement::Scope { owner, is_file_root, ref stmts } ) = self.get_node(*body).unwrap().data {
-                            let mut instructions = vec![];
-                            for stmt in stmts {
-                                self.compile_statement(&mut instructions, *stmt);
-                            }
-                            instructions.push(Instruction { source_line: 0, source_column: 0, payload: InstructionPayload::Goto("CONTINUE".to_string())});
-                            instructions.push(Instruction { source_line: 0, source_column: 0, payload: InstructionPayload::Label("CONTINUE".to_string())});
-                            self.compile_statement(&mut instructions, *cont);
-                            current_scope_instructions.push(Instruction {
-                                source_line: node.line,
-                                source_column: node.col,
-                                payload: InstructionPayload::While { cond: cond, body: instructions }
+                        for (cond, body) in cases {
+                            let cond_node = self.get_node(*cond).unwrap();
+                            insts.push(Instruction {
+                                source_line: cond_node.line,
+                                source_column: cond_node.col,
+                                payload: InstructionPayload::Label(format!("Case{}", cond)),
                             });
+                            let mut body_insts = self.compile_scope(loop_stack, *body);
+                            body_insts.push(Instruction {
+                                source_line: cond_node.line,
+                                source_column: cond_node.col,
+                                payload: InstructionPayload::Jump(format!("IfEnd{}", node.id)),
+                            });
+                            insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: body_insts } })
                         }
-                    },
-                    Statement::ForIn { iterator, iterable, body } => {
-                        panic!("for in transformation still not supported in bytecode.")
-                    },
+
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("IfEnd{}", node.id)),
+                        });
+
+                        return insts;
+                    }
+                    Statement::For {
+                        start,
+                        cond,
+                        cont,
+                        body,
+                    } => {
+                        let mut insts = vec![];
+                        let mut scope_insts = vec![];
+                        let mut loop_insts = vec![];
+
+                        let mut start_insts = self.compile_statement(loop_stack, *start);
+                        scope_insts.append(&mut start_insts);
+
+                        let (cond_insts, cond) = self.compile_expression(loop_stack, *cond);
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOP{}", node.id)),
+                        });
+
+                        loop_stack.push(node.id);
+
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::JumpFalse {
+                                cond,
+                                label: format!("LOOPEND{}", node.id),
+                            },
+                        });
+
+                        let mut body_insts = self.compile_scope(loop_stack, *body);
+                        loop_insts.append(&mut body_insts);
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id)),
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: loop_insts,
+                            },
+                        });
+
+                        let mut cont_insts = self.compile_statement(loop_stack, *cont);
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)),
+                        });
+                        scope_insts.append(&mut cont_insts);
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOP{}", node.id)),
+                        });
+
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: scope_insts,
+                            },
+                        });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPEND{}", node.id)),
+                        });
+                        loop_stack.pop();
+                        return insts;
+                    }
+                    Statement::ForIn {
+                        iterator,
+                        iterable,
+                        body,
+                    } => {
+                        let mut insts = vec![];
+                        let mut scope_insts = vec![];
+                        let mut loop_insts = vec![];
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Definition { name: format!("loop{}_iterator", node.id), ty: Type::UnsignedInt(64), mutable: true, value: Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Unsigned(0)) } },
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOP{}", node.id)),
+                        });
+
+                        loop_stack.push(node.id);
+                        // sizeof(iterable) / sizeof(elem_ty)
+                        // TODO: iterable if is not an identifier we should first store it in some variable then use it.
+                        let iterable_node = self.get_node(*iterable).unwrap();
+                        let elem_type = iterable_node.type_information.clone().unwrap().get_array_elem_ty();
+
+                        let (iterable_insts, iterable_expr) = self.compile_expression(loop_stack, *iterable);
+                        
+                        let sizeof_iterable = Value {
+                            ty: Type::UnsignedInt(64),
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(iterable_expr)))
+                        };
+                        
+                        let sizeof_iterable_elem_type = Value {
+                            ty: Type::UnsignedInt(64),
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(Value { ty: elem_type.clone(), payload: ValuePayload::Type(elem_type.clone()) })))
+
+                        };
+
+                        let cond = Value {
+                            ty: Type::Bool,
+                            payload: ValuePayload::Expression(Expression::BinaryOperation {
+                                operation: BinaryOperation::Less,
+                                left: Box::new(Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),
+                                }),
+                                right: Box::new(Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::BinaryOperation {
+                                        operation: BinaryOperation::Divide,
+                                        left: Box::new(sizeof_iterable),
+                                        right: Box::new(sizeof_iterable_elem_type),
+                                    }),
+                                })
+                            }),
+                        };
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::JumpFalse {
+                                cond,
+                                label: format!("LOOPEND{}", node.id),
+                            },
+                        });
+                        // loop body
+                        let iterator_node = self.get_node(*iterator).unwrap();
+                        let iterator_name = iterator_node.get_identifier().unwrap();
+                        let iterable_name = iterable_node.get_identifier().unwrap();
+                        loop_insts.push(Instruction { 
+                            source_line: node.line, 
+                            source_column: node.col, 
+                            payload: InstructionPayload::Definition { name: iterator_name, ty: elem_type.clone(), mutable: true, value: Value {
+                                ty: elem_type,
+                                payload: ValuePayload::Expression(Expression::ArrayIndex {
+                                    arr: Box::new(Value { 
+                                        ty: iterable_node.type_information.clone().unwrap(), 
+                                        payload: ValuePayload::Expression(Expression::Identifier(iterable_name.clone()))
+                                }), 
+                                idx: Box::new(Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id)))}) }),
+                            } } 
+                        });
+                        let mut body_insts = self.compile_scope(loop_stack, *body);
+                        loop_insts.append(&mut body_insts);
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id)),
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: loop_insts,
+                            },
+                        });
+
+                        // continue
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)),
+                        });
+                        let iterator_value = Value {
+                            ty: Type::UnsignedInt(64),
+                            payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),
+                        };
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Set { 
+                                lhs: iterator_value.clone(),
+                                rhs: Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::BinaryOperation { operation: BinaryOperation::Sum, left: Box::new(iterator_value), right: Box::new(Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Unsigned(1))}) }),
+                                } 
+                            }
+                        });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOP{}", node.id)),
+                        });
+
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: scope_insts,
+                            },
+                        });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPEND{}", node.id)),
+                        });
+                        loop_stack.pop();
+
+                        return insts;
+                    }
                     Statement::While { cond, body } => {
-                        let cond = self.compile_expression(current_scope_instructions,cond.clone());
-                        current_scope_instructions.push(Instruction {
+                        let mut insts = vec![];
+                        let mut scope_insts = vec![];
+                        let mut loop_insts = vec![];
+
+                        let (cond_insts, cond) = self.compile_expression(loop_stack, *cond);
+
+                        scope_insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::While { cond: cond, body: self.compile_scope(body.clone()) }
+                            payload: InstructionPayload::Label(format!("LOOP{}", node.id)),
                         });
-                    },
+
+                        loop_stack.push(node.id);
+
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::JumpFalse {
+                                cond,
+                                label: format!("LOOPEND{}", node.id),
+                            },
+                        });
+
+                        let mut body_insts = self.compile_scope(loop_stack, *body);
+                        loop_insts.append(&mut body_insts);
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOPCONT{}", node.id)),
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: loop_insts,
+                            },
+                        });
+
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPCONT{}", node.id)),
+                        });
+                        scope_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Jump(format!("LOOP{}", node.id)),
+                        });
+
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Block {
+                                instructions: scope_insts,
+                            },
+                        });
+                        insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Label(format!("LOOPEND{}", node.id)),
+                        });
+                        loop_stack.pop();
+                        return insts;
+                    }
                     Statement::Break => {
-                        current_scope_instructions.push(Instruction {
+                        vec![Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Break
-                        });
-                    },
+                            payload: InstructionPayload::Jump(format!(
+                                "LOOPEND{}",
+                                loop_stack.top().unwrap()
+                            )),
+                        }]
+                    }
                     Statement::Continue => {
-                        current_scope_instructions.push(Instruction {
+                        let mut insts = vec![];
+                        insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Continue
+                            payload: InstructionPayload::Jump(format!(
+                                "LOOPCONT{}",
+                                loop_stack.top().unwrap()
+                            )),
                         });
-                    },
+                        return insts;
+                    }
                     Statement::Goto(expr) => {
-                        // let label = self.get_node(expr).unwrap();
-                        // if Expression::
-                        // current_scope_instructions.push(Instruction {
-                        //     source_line: node.line,
-                        //     source_column: node.col,
-                        //     payload: InstructionPayload::Goto(goto)
-                        // });
-                        unreachable!()
+                        vec![]
                     }
                     Statement::Return(expr) => {
-                        let ret = self.compile_expression(current_scope_instructions, expr.clone());
-                        current_scope_instructions.push(Instruction {
+                        let mut insts = vec![];
+                        let (mut ret_insts, ret) =
+                            self.compile_expression(loop_stack, expr.clone());
+                        insts.append(&mut ret_insts);
+                        insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Return(ret)
+                            payload: InstructionPayload::Return(ret),
                         });
-                    },
+                        return insts;
+                    }
                 }
-            },
+            }
             NodeData::TypeDefinition(_) => unreachable!(),
-            NodeData::Expression(crate::ir::Expression::FunctionCall { ref fn_name, ref args }) => {
+            NodeData::Expression(crate::ir::Expression::FunctionCall {
+                ref fn_name,
+                ref args,
+            }) => {
+                let mut insts = vec![];
                 let mut compiled_args = vec![];
                 for arg in args {
-                    compiled_args.push(self.compile_expression(current_scope_instructions,*arg));
+                    let (mut arg_insts, arg) = self.compile_expression(loop_stack, *arg);
+                    insts.append(&mut arg_insts);
+                    compiled_args.push(arg);
                 }
-                let function = self.compile_expression(current_scope_instructions,fn_name.clone());
-                current_scope_instructions.push(Instruction { 
+                let (mut function_insts, function) =
+                    self.compile_expression(loop_stack, fn_name.clone());
+                insts.append(&mut function_insts);
+                insts.push(Instruction {
                     source_line: node.line,
                     source_column: node.col,
-                    payload: InstructionPayload::Call { 
+                    payload: InstructionPayload::Call {
                         function,
                         args: compiled_args,
-                    } 
+                    },
                 });
-            },
+                return insts;
+            }
             NodeData::Expression(_) => panic!("unexpected {:?}", node),
         }
     }
-    fn compile_scope(&self, index: NodeIndex) -> Vec<Instruction> {
+    fn compile_scope(
+        &self,
+        continue_jstack: &mut Stack<NodeIndex>,
+        index: NodeIndex,
+    ) -> Vec<Instruction> {
         let root_node = self.nodes.get(&index).unwrap();
         let mut instructions = vec![];
-        if let NodeData::Statement(Statement::Scope { owner, is_file_root, ref stmts } ) = root_node.data {
+        if let NodeData::Statement(Statement::Scope {
+            owner,
+            is_file_root,
+            ref stmts,
+        }) = root_node.data
+        {
             for stmt in stmts {
-                self.compile_statement(&mut instructions, *stmt);
+                let mut insts = self.compile_statement(continue_jstack, *stmt);
+                instructions.append(&mut insts);
             }
         }
 
@@ -634,57 +1228,13 @@ impl IR {
     }
 }
 
-fn analyze_instruction_dependencies(inst: &Instruction) -> Vec<String> {
-
-    unreachable!()
-}
-fn analyze_type_dependencies(ty: &Type) -> Vec<String> {
-    match ty {
-        Type::Type(inner) => return analyze_type_dependencies(inner),
-        Type::Array(_, inner) => return analyze_type_dependencies(inner),
-        Type::Struct { ref fields } => {
-            let mut deps = vec![];
-            for field in fields {
-                deps.append(&mut analyze_type_dependencies(&field.1));
-            }
-
-            deps
-        },
-        Type::TypeRef { name, actual_ty } => {
-            vec![name.clone()]
-        },
-        Type::Pointer(inner) => return analyze_type_dependencies(inner),
-        _ => vec![],
-    }
-}
-
-// returns a list of identifiers that a function needs.
-fn analyze_function_dependencies(function: &Expression) -> Vec<String> {
-    let mut deps: Vec<String> = vec![];
-    match function {
-        Expression::Function { ref args, ref ret, ref body } => {
-            for (_, ty) in args {
-                deps.append(&mut analyze_type_dependencies(ty));
-            }
-            deps.append(&mut analyze_type_dependencies(ret));
-            for inst in body {
-                deps.append(&mut analyze_instruction_dependencies(inst));
-            }
-        },
-        _ => {}
-    }
-
-    return deps;
-}
-
-
 pub fn make_module(irs: &mut HashMap<String, IR>) -> Module {
     let mut module = Module {
         instructions: vec![],
     };
     let mut root_instructions = vec![];
     for (file, ir) in irs {
-        let mut stmts = ir.compile_scope(ir.root);
+        let mut stmts = ir.compile_scope(&mut Stack::new(), ir.root);
         root_instructions.append(&mut stmts);
     }
 
@@ -693,5 +1243,4 @@ pub fn make_module(irs: &mut HashMap<String, IR>) -> Module {
     }
 
     module
-
 }

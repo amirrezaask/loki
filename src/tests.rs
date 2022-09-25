@@ -5,33 +5,45 @@ use std::path::Path;
 use crate::compliation;
 
 #[test]
-fn type_checker() -> Result<()> {
-    let files = fs::read_dir("./examples").unwrap();
+fn suite() -> Result<()> {
+    let files = vec![
+        "examples/variables_constants.loki",
+        "examples/assignments.loki",
+        "examples/arrays.loki",
+        "examples/comparisons.loki",
+        "examples/conditionals.loki",
+        "examples/dynamic_array.loki",
+        "examples/enums.loki",
+        "examples/structs.loki",
+        "examples/functions.loki",
+        "examples/loops.loki",
+        "examples/module_load.loki",
+        "examples/pointers.loki",
+        "examples/sizeandcast.loki",
+        "examples/euler/01.loki",
+        "examples/euler/02.loki"
+    ];
     let mut results: Vec<Result<()>> = vec![];
     let mut has_error = false;
     let mut counter = 0;
     let mut success = 0;
     let mut failed = 0;
     for file in files {
-        println!("============================================================");
-        let file = file.unwrap();
-        if file.file_type().unwrap().is_file() && Path::new(file.path().to_str().unwrap()).extension().unwrap() == "loki" {
-            counter += 1;
-            match compliation::Compilation::new(file.path().to_str().unwrap()) {
-                Ok(_) => {
-                    success += 1;
-                    let os = std::env::consts::OS;
-                    if os == "windows" {
-                        std::fs::remove_file(format!("{}.exe", file.path().file_stem().unwrap().to_str().unwrap()));
-                    } else {
-                        std::fs::remove_file(file.path().file_stem().unwrap());
-                    }
-                },
-                Err(e) => {
-                    has_error = true;
-                    failed+=1;
-                    println!("Error: test file {:?} error:\n {:?}", file.path().to_str().unwrap(), e);
+        counter += 1;
+        match compliation::Compilation::new(file, false, false) {
+            Ok(_) => {
+                success += 1;
+                let os = std::env::consts::OS;
+                if os == "windows" {
+                    std::fs::remove_file(format!("{}.exe", file));
+                } else {
+                    std::fs::remove_file(file);
                 }
+            },
+            Err(e) => {
+                has_error = true;
+                failed+=1;
+                println!("Error: test file {:?} error:\n {:?}", file, e);
             }
         }
     }

@@ -1,5 +1,4 @@
 #load "print.loki"
-// #host "string"
 
 Human :: struct {
     name: string,
@@ -9,7 +8,7 @@ Human :: struct {
 main :: () int {
     value := 2;
 
-    ptr_to_value := >>value;
+    ptr_to_value := &value;
 
     printf("value is %d\n", value);
 

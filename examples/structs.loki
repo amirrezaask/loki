@@ -1,5 +1,4 @@
-// #host "string"
-#load "print.loki"
+#load "print"
 
 main :: () int {
     amirreza := Human {

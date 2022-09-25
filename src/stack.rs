@@ -1,5 +1,5 @@
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Stack<T: Clone + Default> {
     data: Vec<T>
 }

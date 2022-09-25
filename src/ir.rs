@@ -4,6 +4,7 @@ use std::ops::Deref;
 
 use crate::compliation::Dependency;
 use crate::lexer::{Token, TokenType};
+use crate::stack::Stack;
 use super::typer::Type;
 use crate::utils;
 use crate::errors::Result;
@@ -54,6 +55,14 @@ impl Node {
             _ => {
                 unreachable!()
             }
+        }
+    }
+    pub fn is_literal(&self) -> bool {
+        match self.data {
+            NodeData::Expression(Expression::Unsigned(_)) => true,
+            NodeData::Expression(Expression::Signed(_)) => true,
+            NodeData::Expression(Expression::Float(_)) => true,
+            _ => false
         }
     }
 }
@@ -227,7 +236,7 @@ pub enum Statement {
     Return(NodeIndex),
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct IR {
     pub filename: String,
     pub file_source: String,

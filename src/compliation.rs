@@ -29,6 +29,8 @@ pub struct Compilation {
     exported_symbols: HashMap<String, HashMap<String, Type>>,
     dependencies: Vec<Dependency>,
     modules: HashMap<String, Module>,
+    verbose: bool,
+    debug: bool,
 }
 
 impl Compilation {
@@ -69,13 +71,15 @@ impl Compilation {
             println!("{:?}", elem);
         }
     }
-    pub fn new(main_file: &str) -> Result<()> {
+    pub fn new(main_file: &str, verbose: bool, debug: bool) -> Result<()> {
         let mut compilation = Compilation {
             total_lines: 0,
             irs: HashMap::new(),
             dependencies: vec![],
             exported_symbols: HashMap::new(),
             modules: HashMap::new(),
+            verbose,
+            debug,
         };
         let whole_thing = Instant::now();
         let frontend_time_start = Instant::now();
@@ -104,7 +108,6 @@ impl Compilation {
                     still_hope = true;
                 }
             }
-            println!("checking {} file.", file);
             let ir = compilation.irs.get_mut(file).unwrap();
             if ir.type_checked {
                 keys_index += 1;
@@ -163,6 +166,13 @@ impl Compilation {
 
         let byte_code_generation_start = Instant::now();
         let module = make_module(&mut compilation.irs);
+        if compilation.debug {
+            println!("=== DEBUG MODE ===");
+            for inst in &module.instructions {
+                println!("{:#?}", inst)
+            }
+            println!("=== DEBUG MODE ===");
+        }
         let byte_code_generation_elapsed = byte_code_generation_start.elapsed();
 
         let backend_code_generation_start = Instant::now();
@@ -200,26 +210,34 @@ impl Compilation {
                 String::from_utf8_lossy(&cpp_output.stderr)
             );
         }
+        if !compilation.debug {
+            std::fs::remove_file(out_file_name).unwrap();
+        }
         let whole_thing = whole_thing.elapsed();
-        println!("Compiler frontend took {}ns", frontend_elapsed.as_nanos());
-        println!("Type checker took {}ns", type_check_elapsed.as_nanos());
-        println!(
-            "Bytecode generation took {}ns",
-            byte_code_generation_elapsed.as_nanos()
-        );
-        println!(
-            "Backend code generation took {}ns",
-            backend_code_generation_elapsed.as_nanos()
-        );
-        println!(
-            "Writing generated code to disk {}ns",
-            writing_generated_code_into_disk.as_nanos()
-        );
-        println!(
-            "Calling backend compiler took {}ns",
-            calling_backend_compiler.as_nanos()
-        );
-        println!("Whole compilation took {}milis", whole_thing.as_millis());
+        if compilation.verbose {
+            println!("Compiler frontend took {}ns", frontend_elapsed.as_nanos());
+            println!("Type checker took {}ns", type_check_elapsed.as_nanos());
+            println!(
+                "Bytecode generation took {}ns",
+                byte_code_generation_elapsed.as_nanos()
+            );
+            println!(
+                "Backend code generation took {}ns",
+                backend_code_generation_elapsed.as_nanos()
+            );
+            println!("Our side took {}millis", (frontend_elapsed + type_check_elapsed + byte_code_generation_elapsed + backend_code_generation_elapsed).as_millis());
+            println!(
+                "Writing generated code to disk {}ns",
+                writing_generated_code_into_disk.as_nanos()
+            );
+            println!(
+                "Calling backend compiler took {}ns",
+                calling_backend_compiler.as_nanos()
+            );
+            println!("Whole compilation took {}milis", whole_thing.as_millis());
+            println!("Total lines processed {}", compilation.total_lines);
+        }
+
         Ok(())
     }
 }

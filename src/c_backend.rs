@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::bytecode::{Module, Instruction, InstructionPayload, Value, ValuePayload, Expression, Scope};
+use crate::bytecode::{Module, Instruction, InstructionPayload, Value, ValuePayload, Expression};
 use crate::errors::Result;
 use crate::ir::{UnaryOperation, BinaryOperation};
 use crate::typer::Type;
@@ -115,8 +115,18 @@ fn emit_for_type(ty: &Type) -> String {
         Type::Label => unreachable!(),
         Type::NoType => "".to_string(),
         Type::Type(inner) => return emit_for_type(inner),
-        Type::SignedInt(_) => "int".to_string(),
-        Type::UnsignedInt(_) => "unsigned int".to_string(),
+        Type::SignedInt(8) => "int8_t".to_string(),
+        Type::SignedInt(16) => "int16_t".to_string(),
+        Type::SignedInt(32) => "int32_t".to_string(),
+        Type::SignedInt(64) => "int64_t".to_string(),
+        Type::SignedInt(_) => unreachable!(),
+
+        Type::UnsignedInt(8) => "uint8_t".to_string(),
+        Type::UnsignedInt(16) => "uint16_t".to_string(),
+        Type::UnsignedInt(32) => "uint32_t".to_string(),
+        Type::UnsignedInt(64) => "uint64_t".to_string(),
+        Type::UnsignedInt(_) => unreachable!(),
+        
         Type::Float(_) => "double".to_string(),
         Type::Bool => "bool".to_string(),
         Type::CIntPtr => "intptr_t".to_string(),
@@ -147,7 +157,12 @@ fn emit_for_type(ty: &Type) -> String {
 
 fn emit_for_instruction(inst: &Instruction) -> String {
     match &inst.payload {
-        InstructionPayload::Load(ref path) => "".to_string(),
+        InstructionPayload::JumpTrueOrElse { cond, then_label, else_label } => {
+            return format!("if ({}) {{ goto {}; }} else {{ goto {}; }}", emit_for_value(cond), then_label, else_label);
+        }
+        InstructionPayload::JumpFalse { cond, label } => {
+            return format!("if (!({})) goto {};", emit_for_value(cond), label);
+        }
         InstructionPayload::Host(ref path) => format!("#include <{}>", path),
         InstructionPayload::Definition { mutable, ref name, ref ty, ref value } => {
             if let ValuePayload::Expression(Expression::Function { ref args, ref ret, ref body }) = value.payload {
@@ -192,40 +207,16 @@ fn emit_for_instruction(inst: &Instruction) -> String {
             }
             return format!("{} {};", emit_for_type(ty), name);
         },
-        InstructionPayload::Assign { lhs, rhs } => format!("{} = {};", emit_for_value(lhs), emit_for_value(rhs)),
-        InstructionPayload::Scope(Scope {ref instructions}) => {
+        InstructionPayload::Set { lhs, rhs } => format!("{} = {};", emit_for_value(lhs), emit_for_value(rhs)),
+        InstructionPayload::Block {instructions: ref instructions } => {
             let mut code: Vec<String> = vec![];
             for instruction in instructions {
                 code.push(emit_for_instruction(instruction));
             }
         
-            return code.join("\n");
+            return format!("{{\n{}\n}}", code.join("\n"));
         },
-        InstructionPayload::Branch { ref cases } => {
-            let first_case = &cases[0];
-            let mut elifs: Vec<String> = vec![];
-            for (cond, insts) in &cases[1..] {
-                let mut instructions_strings: Vec<String> = vec![];
-                for inst in insts {
-                    instructions_strings.push(emit_for_instruction(inst));
-                }
-                elifs.push(format!("else if ({}) {{\n{}\n}}", emit_for_value(cond), instructions_strings.join("\n")));
-            }
-            let mut instructions_strings: Vec<String> = vec![];
-            for inst in &first_case.1 {
-                instructions_strings.push(emit_for_instruction(inst));
-            } 
-            return format!("if ({}) {{\n{}\n}}\n{}", emit_for_value(&first_case.0), instructions_strings.join("\n"), elifs.join("\n"));
-        },
-        InstructionPayload::While { cond, body } => {
-            let mut code: Vec<String> = vec![];
-            for instruction in body {
-                code.push(format!("{}", emit_for_instruction(instruction)));
-            }
-            return format!("while({}) {{\n\t{}\n\t}}", emit_for_value(cond), code.join("\n\t"));
-        },
-        InstructionPayload::Break => "break;".to_string(),
-        InstructionPayload::Continue => "goto CONTINUE;".to_string(),
+       
         InstructionPayload::Call { function, args } => {
             let mut argss = vec![];
             for arg in args {
@@ -233,7 +224,7 @@ fn emit_for_instruction(inst: &Instruction) -> String {
             }
             format!("{}({});", emit_for_value(function), argss.join(", "))
         },
-        InstructionPayload::Goto(label) => format!("goto {};", label),
+        InstructionPayload::Jump(label) => format!("goto {};", label),
         InstructionPayload::Label(label) => format!("{}:;", label),
         InstructionPayload::Return(ref thing) => {
             format!("return ({});", emit_for_value(thing))
@@ -242,7 +233,13 @@ fn emit_for_instruction(inst: &Instruction) -> String {
 }
 
 pub fn emit_for_module(module: Module) -> String {
+    let prelude = vec![
+        "#include <stdint.h>" // for all int types we use
+    ];
     let mut code: Vec<String> = vec![];
+    for inst in &prelude {
+        code.push(inst.to_string());
+    }
     for instruction in &module.instructions {
         if let InstructionPayload::Host(_) = instruction.payload {
             code.push(emit_for_instruction(instruction));

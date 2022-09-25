@@ -6,7 +6,7 @@ Human :: struct {
 }
 
 main :: () int {
-	array := dynamic_array_new(sizeof(Human));
+    array := dynamic_array_new(sizeof(Human));
     amirreza := Human {
         age = 25
     };
@@ -14,5 +14,5 @@ main :: () int {
     printf("array cap: %d\n", array.cap);
     printf("array size: %d\n", array.count);
     first_idx := cast(dynamic_array_get(array, 0), *Human);
-    printf("amirreza age : %d\n", *first_idx);
+    printf("amirreza age : %d\n", (*first_idx).age);
 }

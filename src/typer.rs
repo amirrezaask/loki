@@ -82,6 +82,35 @@ impl Type {
 }
 
 impl Type {
+    pub fn get_kind(&self) -> TypeKind {
+        match self {
+            Type::Type(_) => TypeKind::Type,
+            Type::SignedInt(_) => TypeKind::Int,
+            Type::UnsignedInt(_) => TypeKind::Int,
+            Type::Float(_) => TypeKind::Float,
+            Type::Bool => TypeKind::Bool,
+            Type::CIntPtr => TypeKind::Int,
+            Type::CUintPtr => TypeKind::Int,
+            Type::CString => TypeKind::String,
+            Type::Char => TypeKind::Char,
+            Type::String => TypeKind::String,
+            Type::Array(_, _) => TypeKind::Array,
+            Type::Struct { fields } => TypeKind::Type,
+            Type::Enum { variants } => TypeKind::Type,
+            Type::TypeRef { name, actual_ty } => TypeKind::Type,
+            Type::Pointer(_) => TypeKind::Pointer,
+            Type::FnType(_, _) => TypeKind::Function,
+            Type::Void => TypeKind::Void,
+            _ => TypeKind::Void,
+        }
+    }
+    pub fn get_array_elem_ty(&self) -> Type {
+        match self {
+            Type::Type(ty) => return ty.get_array_elem_ty(),
+            Type::Array(_, elem_ty) => return *elem_ty.clone(),
+            _ => unreachable!()
+        }
+    }
     pub fn is_type_definition(&self) -> bool {
         match self {
             Type::Type(ref t) => {
@@ -98,8 +127,35 @@ impl Type {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize)]
+enum TypeKind {
+    Int,
+    Void,
+    Type,
+    Function,
+    Array,
+    Float,
+    String,
+    Char,
+    Bool,
+    Pointer,
+}
+
 
 impl IR {
+    pub fn two_sides_can_do_binary_operation(&self, left: NodeIndex, right: NodeIndex) -> bool {
+        let left_node = self.get_node(left).unwrap();
+        let right_node = self.get_node(right).unwrap();
+        if left_node.type_information.clone().unwrap() == right_node.type_information.clone().unwrap() {
+            return true;
+        }
+        if (left_node.is_literal() || right_node.is_literal()) && (left_node.type_information.clone().unwrap().get_kind() == right_node.type_information.clone().unwrap().get_kind()) {
+            return true;
+        }
+
+        return false;
+
+    }
     fn add_type(&mut self, index: NodeIndex, ty: Type) {
         let node = self.nodes.get_mut(&index).unwrap();
         node.type_information = Some(ty);
@@ -233,6 +289,7 @@ impl IR {
 
                         return Ok(Some(Type::UnsignedInt(64)));
                     },
+
                     Expression::Signed(_) => {
                         self.add_type(expression_index, Type::SignedInt(64));
                         return Ok(Some(Type::SignedInt(64)));
@@ -350,10 +407,12 @@ impl IR {
                             BinaryOperation::Modulu |
                             BinaryOperation::Multiply 
                             => {
-                                if left_type == right_type {
+                                if self.two_sides_can_do_binary_operation(*left, *right) {
                                     self.add_type(expression_index, left_type.clone().unwrap());
                                     return Ok(left_type);
                                 } else {
+                                    println!("left_node: {:?}", self.get_node(*left));
+                                    println!("right_node: {:?}", self.get_node(*right));
                                     return Err(CompilerError {
                                         file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
@@ -370,10 +429,12 @@ impl IR {
                             BinaryOperation::Equal |
                             BinaryOperation::NotEqual 
                             => {
-                                if left_type == right_type {
+                                if self.two_sides_can_do_binary_operation(*left, *right) {
                                     self.add_type(expression_index, Type::Bool);
                                     return Ok(Some(Type::Bool));
                                 } else {
+                                    println!("left_node: {:?}", self.get_node(*left));
+                                    println!("right_node: {:?}", self.get_node(*right));
                                     return Err(CompilerError {
                                         file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
@@ -436,6 +497,7 @@ impl IR {
                         return Ok(Some(initialize_type.clone()));
                     },
                     Expression::InitializeArray { ty, ref elements } => {
+                        
                         let array_type = self.get_node(*ty)?;
                         if let NodeData::TypeDefinition(TypeDefinition::Array { length, elem_ty }) = array_type.data {
                             let len_type = self.type_expression(other_files_exports, length)?;

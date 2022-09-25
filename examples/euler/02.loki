@@ -1,0 +1,19 @@
+#load "print"
+
+main :: () int {
+    fib1 : s64 = 1;
+    fib2 : s64 = 1;
+    sum : s64 = 0;
+    
+    while (fib1 < 4000000) {
+        if (fib1 % 2 == 0) {
+            sum += fib1;
+        }
+        temp := fib1 + fib2;
+        fib1 = fib2;
+        fib2 = temp;
+    }
+
+    printf("result is %d\n", sum);
+    return 0;
+}

@@ -1,13 +1,11 @@
 #load "print"
-// #host "string"
 
 main :: () int {
     counter := 0;
-
-    // while (counter <= 10) {
-    //     printf("counter : %d\n", counter);
-    //     counter++;
-    // }
+    while (counter <= 10) {
+        printf("counter : %d\n", counter);
+        counter++;
+    }
     
     for (i:=0;i<10;i++) {
         printf("for c syntax: %d\n", i);
@@ -16,21 +14,19 @@ main :: () int {
         }
     }
 
-    // numbers := [10]uint{1, 2, 3, 4};
-
-    // for (num: numbers) {
-    //     printf("for each syntax: %d\n", num);
-    // }
-    // for (numbers) {
-    //     printf("for each syntax: %d\n", it);
-    // }
+    numbers := [10]uint{1, 2, 3, 4};
+    for (num: numbers) {
+        printf("for each syntax: %d\n", num);
+    }
+    for (numbers) {
+        printf("for each syntax with implicit iterator: %d\n", it);
+    }
     
-    // amirreza := Human { age = 17 };
-    
-    // humans := [3]Human {Human { age = 17, name = "comrade" }, Human { age = 17, name = "comrade" }};
-    // for (humans) {
-    //     printf("for each syntax: %d\n", it.age);
-    // }
+    amirreza := Human { age = 17 };
+    humans := [3]Human {Human { age = 17 }, Human { age = 17 }};
+    for (humans) {
+        printf("for each syntax: %d\n", it.age);
+    }
 
 }
 
