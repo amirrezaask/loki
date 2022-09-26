@@ -19,7 +19,7 @@ Loki compiler consists of multiple stages of compilation:
 - Type checker and inference: type inference and checking of the IR happens here.
 - Bytecode: lowering language features into simpler constructs happen here.
 - Backend code generation: this will produce code that gets compiled or assembled using a third party toolchain.
-  * C: almost done.
+  * C: Done.
   * LLVM IR: Comming soon!
 
 ## Todos
