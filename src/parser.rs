@@ -1147,6 +1147,15 @@ impl Parser {
                     self.current_col(),
                 ))
             }
+            TokenType::KeywordIntPtr => {
+                self.forward_token();
+                Ok(self.new_node(
+                    self.new_index(),
+                    NodeData::TypeDefinition(TypeDefinition::IntPtr),
+                    self.current_line(),
+                    self.current_col(),
+                ))
+            }
             TokenType::KeywordUint => {
                 self.forward_token();
                 Ok(self.new_node(
@@ -1233,24 +1242,6 @@ impl Parser {
                 Ok(self.new_node(
                     self.new_index(),
                     NodeData::TypeDefinition(TypeDefinition::Bool),
-                    self.current_line(),
-                    self.current_col(),
-                ))
-            }
-            TokenType::UintPtrDirective => {
-                self.forward_token();
-                Ok(self.new_node(
-                    self.new_index(),
-                    NodeData::TypeDefinition(TypeDefinition::UintPtr),
-                    self.current_line(),
-                    self.current_col(),
-                ))
-            }
-            TokenType::IntPtrDirective => {
-                self.forward_token();
-                Ok(self.new_node(
-                    self.new_index(),
-                    NodeData::TypeDefinition(TypeDefinition::IntPtr),
                     self.current_line(),
                     self.current_col(),
                 ))
