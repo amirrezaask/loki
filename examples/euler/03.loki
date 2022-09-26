@@ -5,23 +5,17 @@ isPrime :: (n: u64) bool {
             return false;
         }
     }
-
     return true;
 }
-
-
-
-
 main :: () int {
 
     printf("Project Euler 03.\n");
-    input := 13195;
+    input := 600851475143;
 
     printf("input: %llu", input);
     largest_prime_factor: u64;
 
     for (i := 0 ; i < input; i++) {
-        printf("%d in loop...\n", i);
         if (isPrime(i) && (input % i == 0)) {
             largest_prime_factor = i;
             printf("largest prime factor of input: %llu", largest_prime_factor);
