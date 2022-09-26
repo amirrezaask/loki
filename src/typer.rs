@@ -553,7 +553,7 @@ impl IR {
                             unreachable!()
                         }).collect();
 
-                        let ret_type = self.type_expression(other_files_exports, *ret_ty_node)?;
+                        let ret_type = self.type_type(other_files_exports, *ret_ty_node)?;
                         if ret_type.is_none() {
                             return Ok(None);
                         }
@@ -874,7 +874,7 @@ impl IR {
                                 arg_types.push((self.nodes.get(&name).unwrap().get_identifier().unwrap(), decl_type.unwrap()))
                             }
                         }
-                        let ret_type = self.type_expression(other_files_exports, *ret)?;            
+                        let ret_type = self.type_type(other_files_exports, *ret)?;            
                         if ret_type.is_none() {
                             return Ok(None);
                         }

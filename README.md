@@ -39,4 +39,3 @@ Loki compiler consists of multiple stages of compilation:
 - Implicit context system
 - Generics
 - Pattern matching
-
