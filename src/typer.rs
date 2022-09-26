@@ -108,7 +108,7 @@ impl Type {
         match self {
             Type::Type(ty) => return ty.get_array_elem_ty(),
             Type::Array(_, elem_ty) => return *elem_ty.clone(),
-            Type::String => return Type::Char,
+            Type::String => Type::Char,
             _ => unreachable!()
         }
     }

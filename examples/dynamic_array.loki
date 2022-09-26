@@ -2,17 +2,19 @@
 #load "dynamic_array"
 
 Human :: struct {
-    age: int
+    age: int,
+    name: string,
 }
 
 main :: () int {
     array := dynamic_array_new(sizeof(Human));
     amirreza := Human {
-        age = 25
+        age = 25,
+        name = "amirreza"
     };
 	dyanmic_array_add(array, &amirreza);
     printf("array cap: %d\n", array.cap);
     printf("array size: %d\n", array.count);
     first_idx := cast(dynamic_array_get(array, 0), *Human);
-    printf("amirreza age : %d\n", (*first_idx).age);
+    printf("amirreza age : %s\n", (*first_idx).name);
 }

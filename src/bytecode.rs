@@ -399,7 +399,6 @@ impl IR {
                     crate::ir::Expression::InitializeArray { ty, elements } => {
                         let name = format!("___LOKI_GENERATED__{}", expression_index);
                         let mut insts = vec![];
-
                         insts.push(Instruction {
                             source_line: expr_node.line,
                             source_column: expr_node.col,

@@ -24,7 +24,6 @@ Loki compiler consists of multiple stages of compilation:
 
 ## Todos
 
-- Check definitions with type hint to use correct types for defs.
 - Loki main should wrap user main function so we handle return int and stuff.
 - Default values for structs
 - Defer: *each function that have a defer usage, will have a label at the end (with a guard) so when user does return we first jump to defer run the instructions and then we come back and return.
@@ -33,9 +32,4 @@ Loki compiler consists of multiple stages of compilation:
 - Definitions of #load that will make exported symbols accessible from a namespace.
 - LLVM
 - If and while and for to not require parens in parser. ( Parser has ambiguity due to expr { means initialize , so we should change initialize syntax if we want this.)
-
-
-## Just Ideas to investigate
-- Implicit context system
 - Generics
-- Pattern matching
