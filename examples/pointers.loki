@@ -2,7 +2,7 @@
 
 Human :: struct {
     name: string,
-    age: s32,
+    age: int,
 }
 
 main :: () int {

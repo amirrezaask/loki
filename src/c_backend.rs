@@ -250,14 +250,12 @@ pub fn emit_for_module(module: Module) -> String {
         if let InstructionPayload::Definition { mutable, ref name, ref ty, ref value } = instruction.payload {
             if ty.is_type_definition() {
                 code.push(format!("{} {};", emit_ty_forward_decl(&ty), name));
-            } else {
-                if let Type::FnType(ref args, ref ret) = ty {
-                    let mut argss = Vec::new();
-                    for (name, ty) in args {
-                        argss.push(format!("{} {}", emit_for_type(ty), name));
-                    }
-                    code.push(format!("{} {}({});", emit_for_type(&ret), name, argss.join(", ")));
+            } else if let Type::FnType(ref args, ref ret) = ty {
+                let mut argss = Vec::new();
+                for (name, ty) in args {
+                    argss.push(format!("{} {}", emit_for_type(ty), name));
                 }
+                code.push(format!("{} {}({});", emit_for_type(&ret), name, argss.join(", ")));
             }
         }
     }
