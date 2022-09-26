@@ -1,4 +1,4 @@
-#load "print.loki"
+#load "print"
 
 main :: () int {
     a := [3]int{1,2,3};

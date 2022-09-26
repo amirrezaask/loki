@@ -1,5 +1,5 @@
-#load "modules/universe_number.loki"
-#load "print.loki"
+#load "universe_number"
+#load "print"
 
 a :: answer;
 

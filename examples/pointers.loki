@@ -1,4 +1,4 @@
-#load "print.loki"
+#load "print"
 
 Human :: struct {
     name: string,
@@ -12,17 +12,17 @@ main :: () int {
 
     printf("value is %d\n", value);
 
-    >>ptr_to_value = 3;
+    *ptr_to_value = 3;
     printf("value is %d\n", value);
-    printf("value is %d\n", <<ptr_to_value);
+    printf("value is %d\n", *ptr_to_value);
 
     human := Human {
        name = "amirreza",
        age = 24,
     };
 
-    human_ptr := >> human;
-    human2 := << human_ptr;
+    human_ptr := &human;
+    human2 := *human_ptr;
     human_age := human_ptr.age;
 
     printf("human_ptr age is %d\n", human_ptr.age);
