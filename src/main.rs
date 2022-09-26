@@ -12,6 +12,7 @@ mod errors;
 mod bytecode;
 mod generic_ds;
 mod c_backend;
+mod hash_list;
 mod tests;
 use anyhow::Result;
 use std::env;

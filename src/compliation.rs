@@ -11,6 +11,7 @@ use super::ir::IR;
 use super::typer::Type;
 use crate::bytecode::{make_module, Module};
 use crate::c_backend;
+use crate::hash_list::HashList;
 use crate::ir::{Node, Statement};
 use crate::{errors::*, ir::NodeIndex, parser::Parser, utils};
 
@@ -25,7 +26,7 @@ pub struct Dependency {
 }
 pub struct Compilation {
     total_lines: u64,
-    irs: HashMap<File, IR>,
+    irs: HashList<File, IR>,
     exported_symbols: HashMap<String, HashMap<String, Type>>,
     dependencies: Vec<Dependency>,
     modules: HashMap<String, Module>,
@@ -74,7 +75,7 @@ impl Compilation {
     pub fn new(main_file: &str, verbose: bool, debug: bool) -> Result<()> {
         let mut compilation = Compilation {
             total_lines: 0,
-            irs: HashMap::new(),
+            irs: HashList::new(),
             dependencies: vec![],
             exported_symbols: HashMap::new(),
             modules: HashMap::new(),
@@ -93,7 +94,7 @@ impl Compilation {
         let type_check_time_start = Instant::now();
         let main_ir = compilation.irs.get_mut(&main_file_abs_path).unwrap();
         // now we have all of our files used in our program in compilation.IRs
-        let keys: Vec<File> = compilation.irs.keys().map(|f| f.clone()).collect();
+        let keys: Vec<File> = compilation.irs.data.iter().map(|(k, _)| k.clone()).collect();
         let mut keys_index: usize = 0;
         let mut finished_type_checking = 0;
         loop {
@@ -103,7 +104,7 @@ impl Compilation {
 
             let file = &keys[keys_index];
             let mut still_hope = false;
-            for (name, ir) in &compilation.irs {
+            for (name, ir) in &compilation.irs.data {
                 if name != file && !ir.type_checked {
                     still_hope = true;
                 }
@@ -126,12 +127,12 @@ impl Compilation {
             // Self::pretty_print_unknown_nodes(&ir.nodes);
 
             // get file exported symbols that are fully type checked and add them to compilation so other files know about these.
-            let mut file_exports = compilation.exported_symbols.get_mut(file);
+            let mut file_exports = compilation.exported_symbols.get_mut(&file.clone());
             if file_exports.is_none() {
                 compilation
                     .exported_symbols
-                    .insert(file.clone(), HashMap::new());
-                file_exports = compilation.exported_symbols.get_mut(file);
+                    .insert(file.clone().to_string(), HashMap::new());
+                file_exports = compilation.exported_symbols.get_mut(&file.clone());
             }
             let file_exports = file_exports.unwrap();
             for (k, v) in ir.exported_symbols.iter() {
@@ -165,6 +166,7 @@ impl Compilation {
         let type_check_elapsed = type_check_time_start.elapsed();
 
         let byte_code_generation_start = Instant::now();
+        compilation.irs.data.reverse();
         let module = make_module(&mut compilation.irs);
         if compilation.debug {
             println!("=== DEBUG MODE ===");

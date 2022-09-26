@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::{
     ir::{self, AstTag, BinaryOperation, NodeData, NodeIndex, Statement, UnaryOperation, IR},
     stack::Stack,
-    typer::Type,
+    typer::Type, hash_list::HashList,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -1228,12 +1228,12 @@ impl IR {
     }
 }
 
-pub fn make_module(irs: &mut HashMap<String, IR>) -> Module {
+pub fn make_module(irs: &mut HashList<String, IR>) -> Module {
     let mut module = Module {
         instructions: vec![],
     };
     let mut root_instructions = vec![];
-    for (file, ir) in irs {
+    for (file, ir) in &irs.data {
         let mut stmts = ir.compile_scope(&mut Stack::new(), ir.root);
         root_instructions.append(&mut stmts);
     }
