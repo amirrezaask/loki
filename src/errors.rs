@@ -8,6 +8,7 @@ pub type Result<T> = std::result::Result<T, CompilerError>;
 #[derive(Debug)]
 pub enum TypeCheckError {
     UndeclaredIdentifier(String),
+    TwoSidesOfDefinitionHaveDifferentTypes(Type, Type),
     TwoSidesOfABinaryOperatorShouldBeSameType(Type, Type),
     StructDoesNotHaveField(Type, String),
     EnumDoesNotHaveVariant(Type, String),
@@ -68,7 +69,7 @@ impl std::fmt::Display for CompilerError {
         f.write_fmt(format_args!("in {} {:?}\n{}\n{}",
             self.filename, 
             self.reason,
-            self.file_source.lines().nth(self.line-1).unwrap(),
+            self.file_source.lines().nth(self.line).unwrap(),
             format!("{}^", "-".repeat(self.col)),
         ))
     }

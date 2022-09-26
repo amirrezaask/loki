@@ -1,4 +1,5 @@
 #load "print"
+#load "stringutils"
 
 main :: () int {
     counter := 0;
@@ -26,6 +27,14 @@ main :: () int {
     humans := [3]Human {Human { age = 17 }, Human { age = 17 }};
     for (humans) {
         printf("for each syntax: %d\n", it.age);
+    }
+
+    s := "salam";
+    for (s) {
+        printf("'%c'\n", it);
+    }
+    for (c: s) {
+        printf("'%c'\n", c);
     }
 
 }

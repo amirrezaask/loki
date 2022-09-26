@@ -2,11 +2,6 @@
 
 Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design.
 
-## Disclaimer
-
-I have discontinued this project to work on a new compiler, this compiler was modeled mostly after [Odin](https://github.com/odin-lang/odin) and [Jai](https://inductive.no/jai/) compilers. These two projects are mostly for system level work and not
-general purpose work. Since most of my experience is with backend and server stuff I know backend/server domain better so I am going to design a new language for backend stuff, syntax will stay the same mostly but semantics will change drastically.
-
 ## Installation
 
 ```bash

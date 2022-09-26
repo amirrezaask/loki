@@ -973,7 +973,7 @@ impl IR {
                         let cond = Value {
                             ty: Type::Bool,
                             payload: ValuePayload::Expression(Expression::BinaryOperation {
-                                operation: BinaryOperation::Less,
+                                operation: BinaryOperation::LessEqual,
                                 left: Box::new(Value {
                                     ty: Type::UnsignedInt(64),
                                     payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),

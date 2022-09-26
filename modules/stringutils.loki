@@ -1,0 +1,3 @@
+string_len :: (s: string) u64 {
+    return sizeof(s)/sizeof(char);
+}

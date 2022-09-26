@@ -1,0 +1,78 @@
+main :: () {
+    // basic data types
+    unsignedInt : usize = 1
+    signedInt : isize = 1
+    floatingPoint := 12.2
+    character : char = 'c'
+    s := "Surena"
+
+    // arrays
+    staticArray := [3]int {1,2,3}
+    dynamicArray := []uint {1,2,3}
+
+    dynamicArray.push(10)
+
+    // loops
+    // we have only one keyword for loops which is "for" 
+
+    // for with old C syntax
+    // for body can be a single instruction like below
+    for i := 0; i < 10; i++ => println("i: %", i)
+
+    // for over a static or dynamic array or range which will be translated into a static array.
+    for number: 1..10 {
+        if number > 5 break
+        println("number: %", number)
+    }
+    // for iterator can be implicit.
+    for 1..10 => println("it: %", it)
+
+
+    // conditionals
+    if true then println("true") else println() 
+    
+    // compounds
+    Human :: struct {
+        // structs can have default values.
+        name: string = "no name"
+        age: int
+    }
+
+    // since age has no default value this should be compile error.
+    amirreza := Human.{ name = "amirreza" }
+
+    MessageReadStatus :: enum {
+        Read(s64),
+        Unread,
+    }
+
+    status := MessageReadStatus.Read(time.Now())
+    
+    // using when you can do pattern matching
+    match status {
+        .Read(readTime) => println("message read at %", readTime),
+        .Unread => println("message is unread"),
+    }
+
+    // channels.
+    channel := Channel<MessageReadStatus>.{}
+
+    // coroutine
+    process.spawn(() -> void {
+        time.wait(5*time.Second)
+        channel.send(status)
+    })
+
+    status := channel.recv()
+}
+
+
+readFromDatabase :: (db: *Database) -> []$T|error {
+    db.query("SELECT * FROM users")?
+}
+
+#[builder]
+builder :: (c: *Config) {
+    c.addFile("/path/to/another/file")
+    c.includeGoModule("github.com/stretchr/testify/assert")
+}

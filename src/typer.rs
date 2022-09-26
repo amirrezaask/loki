@@ -108,6 +108,7 @@ impl Type {
         match self {
             Type::Type(ty) => return ty.get_array_elem_ty(),
             Type::Array(_, elem_ty) => return *elem_ty.clone(),
+            Type::String => return Type::Char,
             _ => unreachable!()
         }
     }
@@ -375,6 +376,10 @@ impl IR {
                                             }
                                         }
                                     }
+                                    Type::String => {
+                                        self.add_type(expression_index, Type::Char);
+                                        return Ok(Some(Type::Char))
+                                    } 
                                     _ => {
                                         return Err(CompilerError {
                                             file_source: self.file_source.clone(),
@@ -411,8 +416,6 @@ impl IR {
                                     self.add_type(expression_index, left_type.clone().unwrap());
                                     return Ok(left_type);
                                 } else {
-                                    println!("left_node: {:?}", self.get_node(*left));
-                                    println!("right_node: {:?}", self.get_node(*right));
                                     return Err(CompilerError {
                                         file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
@@ -433,8 +436,6 @@ impl IR {
                                     self.add_type(expression_index, Type::Bool);
                                     return Ok(Some(Type::Bool));
                                 } else {
-                                    println!("left_node: {:?}", self.get_node(*left));
-                                    println!("right_node: {:?}", self.get_node(*right));
                                     return Err(CompilerError {
                                         file_source: self.file_source.clone(),
                                         filename: self.filename.clone(),
@@ -969,12 +970,23 @@ impl IR {
                         if expr_ty.is_none() {
                             return Ok(None);
                         }
-                        let type_annotation_type = self.type_expression(other_files_exports, *ty)?;
+                        let type_annotation_type = self.type_type(other_files_exports, *ty)?;
                         if type_annotation_type.is_none() {
                             return Ok(None);
                         }
+                        
                         let expr_ty = expr_ty.unwrap();
                         let type_annotation_type = type_annotation_type.unwrap();
+                        if expr_ty.get_kind() != type_annotation_type.get_kind() {
+                            return Err(CompilerError {
+                                file_source: self.file_source.clone(),
+                                filename: self.filename.clone(),
+                                line: 0,
+                                col: 0,
+                                reason: Reason::TypeCheckError(TypeCheckError::TwoSidesOfDefinitionHaveDifferentTypes(type_annotation_type, expr_ty)),
+                            });
+                        }
+                        self.add_type(*expr, type_annotation_type.clone());
                         self.add_type(*name, type_annotation_type.clone());
                         self.add_type(stmt_index, Type::NoType);
                         if node.parent_block.is_some() {
@@ -1096,7 +1108,18 @@ impl IR {
                             self.add_type(stmt_index, Type::NoType);
     
                             return Ok(Some(Type::NoType));
-                        } else {
+                        } else if let Type::String = iterable_type {
+                            self.add_type(*iterator, Type::Char);
+                            self.add_type(*iterable, iterable_type.clone());
+                            self.add_symbol_to_scope(*body, *iterator, Type::Char);
+                            let body_type = self.type_statement(other_files_exports,*body)?;
+                            if body_type.is_none() {
+                                return Ok(None);
+                            }
+                            self.add_type(stmt_index, Type::NoType);
+                            return Ok(Some(Type::NoType));
+                        } 
+                        else {
                             panic!("iterable type should be array {:?}", iterable_type);
                         }
                     },
