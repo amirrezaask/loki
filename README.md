@@ -2,6 +2,11 @@
 
 Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design.
 
+## Disclaimer
+
+I have discontinued this project to work on a new compiler, this compiler was modeled mostly after [Odin](https://github.com/odin-lang/odin) and [Jai](https://inductive.no/jai/) compilers. These two projects are mostly for system level work and not
+general purpose work. Since most of my experience is with backend and server stuff I know backend/server domain better so I am going to design a new language for backend stuff, syntax will stay the same mostly but semantics will change drastically.
+
 ## Installation
 
 ```bash
@@ -10,6 +15,7 @@ cd loki
 cargo install --path .
 # if you have added cargo bins inside your path you can use loki command.
 ```
+
 ## How It works
 
 Loki compiler consists of multiple stages of compilation:
@@ -20,7 +26,6 @@ Loki compiler consists of multiple stages of compilation:
 - Bytecode: lowering language features into simpler constructs happen here.
 - Backend code generation: this will produce code that gets compiled or assembled using a third party toolchain.
   * C: Done.
-  * LLVM IR: Comming soon!
 
 ## Todos
 
