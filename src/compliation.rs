@@ -192,6 +192,8 @@ impl Compilation {
         .to_string_lossy()
         .to_string();
 
+
+        let bin_name = format!("{}.out", bin_name);
         let out_file_name = &format!("{}.c", main_file);
         let writing_generated_code_into_disk = Instant::now();
         let mut out_file = std::fs::File::create(out_file_name).unwrap();

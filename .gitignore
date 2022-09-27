@@ -15,3 +15,4 @@ ncurses
 *.cpp*
 *_module.json*
 *.loki.c*
+*.out*
