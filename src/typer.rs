@@ -361,11 +361,12 @@ impl IR {
                                                         return Ok(Some(*element_type.clone()))
                                                     },
                                                     _ => {
+                                                        let index_node = self.nodes.get(idx).unwrap();
                                                         return Err(CompilerError {
                                                             file_source: self.file_source.clone(),
                                                             filename: self.filename.clone(),
-                                                            line: 0,
-                                                            col: 0,
+                                                            line: index_node.line,
+                                                            col: index_node.col,
                                                             reason: Reason::TypeCheckError(TypeCheckError::ArrayIndexShouldBeEitherUnsignedOrSignedInt(index_ty)),
                                                         });
                                                     }
@@ -384,8 +385,8 @@ impl IR {
                                         return Err(CompilerError {
                                             file_source: self.file_source.clone(),
                                             filename: self.filename.clone(),
-                                            line: 0,
-                                            col: 0,
+                                            line: node.line,
+                                            col: node.col,
                                             reason: Reason::TypeCheckError(TypeCheckError::OnlyArraysCanBeIndexed(ty)),
                                         });
                                     }
@@ -519,11 +520,12 @@ impl IR {
                                     array_elem_type = this_elem_type;
                                 } else {
                                     if array_elem_type.clone().unwrap() != this_elem_type.clone().unwrap() {
+                                        let this_elem_node = self.nodes.get(elem).unwrap();
                                         return Err(CompilerError {
                                             file_source: self.file_source.clone(),
                                             filename: self.filename.clone(),
-                                            line: 0,
-                                            col: 0,
+                                            line: this_elem_node.line,
+                                            col: this_elem_node.col,
                                             reason: Reason::TypeCheckError(TypeCheckError::ArrayElementsShouldBeOfSameType(array_elem_type.unwrap(), this_elem_type.unwrap())),
                                         });
                                     }
@@ -976,13 +978,14 @@ impl IR {
                         }
                         
                         let expr_ty = expr_ty.unwrap();
+                        let expr_node = self.nodes.get(expr).unwrap();
                         let type_annotation_type = type_annotation_type.unwrap();
                         if expr_ty.get_kind() != type_annotation_type.get_kind() {
                             return Err(CompilerError {
                                 file_source: self.file_source.clone(),
                                 filename: self.filename.clone(),
-                                line: 0,
-                                col: 0,
+                                line: expr_node.line,
+                                col: expr_node.col,
                                 reason: Reason::TypeCheckError(TypeCheckError::TwoSidesOfDefinitionHaveDifferentTypes(type_annotation_type, expr_ty)),
                             });
                         }

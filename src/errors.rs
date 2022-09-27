@@ -69,7 +69,7 @@ impl std::fmt::Display for CompilerError {
         f.write_fmt(format_args!("in {} {:?}\n{}\n{}",
             self.filename, 
             self.reason,
-            self.file_source.lines().nth(self.line).unwrap(),
+            self.file_source.lines().nth(self.line-1).unwrap(),
             format!("{}^", "-".repeat(self.col)),
         ))
     }
