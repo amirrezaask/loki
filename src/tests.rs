@@ -33,12 +33,6 @@ fn suite() -> Result<()> {
         match compliation::Compilation::new(file, false, false) {
             Ok(_) => {
                 success += 1;
-                let os = std::env::consts::OS;
-                if os == "windows" {
-                    std::fs::remove_file(format!("{}.exe", file));
-                } else {
-                    std::fs::remove_file(file);
-                }
             },
             Err(e) => {
                 has_error = true;
