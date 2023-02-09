@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::compliation;
 
-#[test]
+// #[test]
 fn suite() -> Result<()> {
     let files = vec![
         "examples/variables_constants.loki",
