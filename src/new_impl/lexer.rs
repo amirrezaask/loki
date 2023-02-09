@@ -225,7 +225,24 @@ impl Tokenizer {
             '+' => Some(self.new_token(TokenType::Plus)),
             '%' => Some(self.new_token(TokenType::Percent)),
             '-' => Some(self.new_token(TokenType::Minus)),
-            '/' => Some(self.new_token(TokenType::ForwardSlash)),
+            '/' => {
+                self.peek_cursor += 1;
+                if self.current_char() == '/' {
+                    // comment line
+                    loop {
+                        self.peek_cursor += 1;
+
+                        if self.current_char() == '\n' {
+                            break;
+                        }
+                    }
+                    self.forward();
+                    return self.next();
+                } else {
+                    self.peek_cursor-=1;
+                    Some(self.new_token(TokenType::ForwardSlash))
+                }
+            }
 
             '!' => Some(self.new_token(TokenType::Bang)),
             '^' => Some(self.new_token(TokenType::Hat)),
