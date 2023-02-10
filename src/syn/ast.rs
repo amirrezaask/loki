@@ -38,6 +38,7 @@ pub enum InfixOperator {
     Or,
 
     Index,
+    Selector
 }
 
 impl From<TokenType> for InfixOperator {
@@ -50,6 +51,8 @@ impl From<TokenType> for InfixOperator {
             TokenType::ForwardSlash => Self::Divide,
             TokenType::DoubleAmpersand => Self::And,
             TokenType::DoublePipe => Self::Or,
+	    TokenType::LeftBracket => Self::Index,
+	    TokenType::Dot => Self::Selector,
             _ => unreachable!()
         }
     }

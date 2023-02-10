@@ -44,8 +44,8 @@ fn infix_operation_parser(p: &mut Parser, lhs: Node, t: &Token) -> Node {
         rhs: Box::new(p.parse_expr(p.precedence(&t.ty))),
     });
 }
+
 fn infix_call(p: &mut Parser, lhs: Node, t: &Token) -> Node {
-    println!("ina");
     let mut args = vec![];
     loop {
         let arg = p.parse_expr(LOWEST);
@@ -80,7 +80,7 @@ fn infix_call(p: &mut Parser, lhs: Node, t: &Token) -> Node {
 
     return Node::Expression(Expression::Call {
         callable: Box::new(lhs),
-        args: args,
+        args,
     });
 }
 
@@ -123,7 +123,12 @@ impl Parser {
 
             TokenType::LeftBracket => {
                 return Some(Box::new(infix_index));
-            }
+            },
+
+	    TokenType::Dot => {
+		return Some(Box::new(infix_operation_parser));
+	    }
+	    
 
             TokenType::LeftParen => return Some(Box::new(infix_call)),
 
@@ -137,6 +142,7 @@ impl Parser {
             TokenType::Asterix | TokenType::ForwardSlash | TokenType::Percent => PRODUCT,
             TokenType::LeftParen => CALL,
             TokenType::LeftBracket => INDEX,
+	    TokenType::Dot => INDEX,
             _ => LOWEST,
         }
     }
@@ -253,6 +259,33 @@ mod InfixTests {
             }),
             node
         );
+    }
+
+    #[test]
+    fn selector() {
+        let mut p = Parser::new(Tokenizer::new(String::from(""), "a.b"));
+        let node = p.parse_expr(LOWEST);
+        println!("node: {:?}", node);
+
+        assert_eq!(
+            node,
+            Node::Expression(Expression::InfixOperation {
+                op: InfixOperator::Selector,
+                lhs: Box::new(Node::Expression(Expression::Value(Token {
+                    ty: TokenType::Ident,
+                    loc: (0, 0),
+                    line: 0,
+                    col: 0
+                }))),
+                rhs: Box::new(Node::Expression(Expression::Value(Token {
+                    ty: TokenType::Ident,
+                    loc: (2, 2),
+                    line: 0,
+                    col: 0
+                })))
+            })
+        )
+
     }
 
     #[test]

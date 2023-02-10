@@ -332,7 +332,10 @@ impl Tokenizer {
                     }
                 }
                 return Some(self.new_token(TokenType::UnsignedInt));
-            }
+            },
+	    '.' => {
+		Some(self.new_token(TokenType::Dot))
+	    },
             ' ' | '\t' | '\r' | '\n' => {
                 self.cursor += 1;
                 self.peek_cursor += 1;
