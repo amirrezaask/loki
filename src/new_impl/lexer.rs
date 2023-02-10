@@ -192,6 +192,7 @@ impl Tokenizer {
         }
     }
     fn new_token(&mut self, typ: TokenType) -> Token {
+        self.cursor = self.peek_cursor;
         self.peek_cursor += 1;
         return Token {
             ty: typ,
@@ -211,6 +212,17 @@ impl Tokenizer {
 
         let literal: String = self.src[self.cursor..self.peek_cursor].iter().collect();
         return self.new_token(TokenType::from_str(&literal));
+    }
+    pub fn peek(&mut self) -> Option<Token> {
+        let cursor = self.cursor;
+        let peek = self.peek_cursor;
+        let peek_token = self.next();
+
+        self.cursor = cursor;
+        self.peek_cursor = peek;
+
+        return peek_token;
+        
     }
     pub fn next(&mut self) -> Option<Token> {
         match self.current_char() {
@@ -297,6 +309,22 @@ impl Tokenizer {
             }
             ';' => Some(self.new_token(TokenType::SemiColon)),
             ',' => Some(self.new_token(TokenType::Comma)),
+            '0' ..= '9' => {
+                self.peek_cursor += 1;
+                loop {
+                    let current_char = self.current_char();
+                    if is_whitespace(current_char) || current_char == 0 as char {
+                        break;
+                    }
+                }
+                return Some(self.new_token(TokenType::UnsignedInt));
+
+            }
+            ' ' | '\t' | '\r' | '\n' => {
+                self.cursor+=1;
+                self.peek_cursor+=1;
+                self.next()
+            }
             '\0' => None,
             _ => {
                 if is_letter(self.current_char()) {
@@ -340,6 +368,9 @@ mod tests {
             assert_eq!(typ, sym, "Expected: '{:?}' Got: '{:?}'", typ, sym);
         }
     }
+
+    #[test]
+    fn test_numbers() {}
 
     #[test]
     fn test_keywords() {
