@@ -2,7 +2,7 @@
 #![allow(warnings, unused)]
 mod parser;
 mod stack;
-mod new_impl;
+mod syn;
 mod lexer;
 mod typer;
 mod sema;
