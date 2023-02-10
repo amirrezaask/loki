@@ -5,14 +5,14 @@ use serde::Serialize;
 use crate::errors::*;
 pub type SrcLocation = (usize, usize);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Hash)]
 pub enum TokenType {
-    OpenBracket,
-    CloseBracket,
-    OpenBrace,
-    CloseBrace,
-    OpenParen,
-    CloseParen,
+    LeftBracket,
+    RightBracket,
+    LeftBrace,
+    RightBrace,
+    LeftParen,
+    RightParen,
     Comma,
     Bang,
     LeftAngle,
@@ -169,8 +169,13 @@ fn is_whitespace(c: char) -> bool {
     return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 }
 
+fn is_digit(c: char) -> bool {
+    return c >= '0' && c <= '9'
+}
+
 impl Tokenizer {
     pub fn new(filename: String, src: &str) -> Self {
+        println!("{:?}", src.chars().collect::<Vec<char>>());
         Self {
             filename,
             src: src.chars().collect(),
@@ -193,24 +198,30 @@ impl Tokenizer {
     }
     fn new_token(&mut self, typ: TokenType) -> Token {
         self.cursor = self.peek_cursor;
-        self.peek_cursor += 1;
-        return Token {
+        let t = Token {
             ty: typ,
-            loc: (self.cursor, self.peek_cursor - 1),
+            loc: (self.cursor, self.peek_cursor),
             line: 0,
             col: 0,
         };
+
+        self.peek_cursor += 1;
+        self.cursor += 1;
+
+        return t;
     }
     fn ident_or_keyword(&mut self) -> Token {
         loop {
             self.peek_cursor += 1;
             let current_char = self.current_char();
-            if is_whitespace(current_char) || current_char == 0 as char {
+            if !is_letter(current_char) && !is_digit(current_char) {
+                self.peek_cursor -= 1;
                 break;
             }
         }
+        let literal: String = self.src[self.cursor..=self.peek_cursor].iter().collect();
 
-        let literal: String = self.src[self.cursor..self.peek_cursor].iter().collect();
+        println!("literal: {:?}", literal);
         return self.new_token(TokenType::from_str(&literal));
     }
     pub fn peek(&mut self) -> Option<Token> {
@@ -225,12 +236,12 @@ impl Tokenizer {
     }
     pub fn next(&mut self) -> Option<Token> {
         match self.current_char() {
-            '(' => Some(self.new_token(TokenType::OpenParen)),
-            ')' => Some(self.new_token(TokenType::CloseParen)),
-            '[' => Some(self.new_token(TokenType::OpenBracket)),
-            ']' => Some(self.new_token(TokenType::CloseBracket)),
-            '{' => Some(self.new_token(TokenType::OpenBrace)),
-            '}' => Some(self.new_token(TokenType::CloseBrace)),
+            '(' => Some(self.new_token(TokenType::LeftParen)),
+            ')' => Some(self.new_token(TokenType::RightParen)),
+            '[' => Some(self.new_token(TokenType::LeftBracket)),
+            ']' => Some(self.new_token(TokenType::RightBracket)),
+            '{' => Some(self.new_token(TokenType::LeftBrace)),
+            '}' => Some(self.new_token(TokenType::RightBrace)),
 
             '*' => Some(self.new_token(TokenType::Asterix)),
             '+' => Some(self.new_token(TokenType::Plus)),
@@ -314,7 +325,10 @@ impl Tokenizer {
                     let current_char = self.current_char();
                     match current_char {
                         '0'..='9' => continue,
-                        _ => break,
+                        _ => {
+                            self.peek_cursor -= 1;
+                            break;
+                        }
                     }
                 }
                 return Some(self.new_token(TokenType::UnsignedInt));
@@ -346,12 +360,12 @@ mod tests {
     fn test_basic_symbols() {
         let mut tokenizer = Tokenizer::new(String::from("some.file"), "[](){}+-*/%^,;");
         for sym in [
-            TokenType::OpenBracket,
-            TokenType::CloseBracket,
-            TokenType::OpenParen,
-            TokenType::CloseParen,
-            TokenType::OpenBrace,
-            TokenType::CloseBrace,
+            TokenType::LeftBracket,
+            TokenType::RightBracket,
+            TokenType::LeftParen,
+            TokenType::RightParen,
+            TokenType::LeftBrace,
+            TokenType::RightBrace,
             TokenType::Plus,
             TokenType::Minus,
             TokenType::Asterix,
