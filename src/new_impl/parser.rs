@@ -20,6 +20,7 @@ const PRODUCT: u8 = 3;
 const PREFIX: u8 = 4;
 const POSTFIX: u8 = 5;
 const CALL: u8 = 6;
+const INDEX: u8 = 7;
 
 impl Parser {
     pub fn new(tokenizer: Tokenizer) -> Self {
@@ -51,13 +52,43 @@ impl Parser {
             | TokenType::Minus
             | TokenType::ForwardSlash
             | TokenType::Percent
-            | TokenType::Asterix => {
+            | TokenType::Asterix 
+            | TokenType::OpenBracket
+            => {
                 println!("infix: {:?} lhs: {:?}", t, lhs);
                 return Node::Expression(Expression::InfixOperation {
                     op: t.ty.clone().into(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(self.parse_expr(self.precedence(&t.ty))),
                 });
+            }
+
+            TokenType::OpenParen => {
+                let mut args = vec![];
+                loop {
+                    let arg = self.parse_expr(LOWEST);
+                    args.push(arg);
+
+                    let token = self.tokenizer.next();
+                    match token {
+                        Some(Token {ty: TokenType::CloseParen, loc, line, col }) => {
+                            break;
+                        }
+                        Some(Token { ty: TokenType::Comma, loc, line, col }) => {
+                            continue;
+                        }
+                        _  => panic!("function call should end with ) or seperated with , {:?}", token),
+                    }
+                }
+
+                return Node::Expression(Expression::Call { callable: Box::new(lhs), args: args });
+            }
+
+            TokenType::DoublePlus | TokenType::DoubleMinus => {
+                return Node::Expression(Expression::PostfixOperation { 
+                    x: Box::new(lhs),
+                    op: t.ty.into()
+                }); 
             }
 
             _ => panic!("infix: Got: {:?}", t),
@@ -169,3 +200,9 @@ fn test_expr_infix_operation_2() {
     )
 }
 
+
+#[test]
+fn test_call() {
+    let mut p = Parser::new(Tokenizer::new(String::from(""), "a(1, 2)"));
+    let node = p.parse_expr(LOWEST);
+}

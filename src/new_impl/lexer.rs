@@ -222,7 +222,6 @@ impl Tokenizer {
         self.peek_cursor = peek;
 
         return peek_token;
-        
     }
     pub fn next(&mut self) -> Option<Token> {
         match self.current_char() {
@@ -251,7 +250,7 @@ impl Tokenizer {
                     self.forward();
                     return self.next();
                 } else {
-                    self.peek_cursor-=1;
+                    self.peek_cursor -= 1;
                     Some(self.new_token(TokenType::ForwardSlash))
                 }
             }
@@ -309,20 +308,20 @@ impl Tokenizer {
             }
             ';' => Some(self.new_token(TokenType::SemiColon)),
             ',' => Some(self.new_token(TokenType::Comma)),
-            '0' ..= '9' => {
+            '0'..='9' => {
                 self.peek_cursor += 1;
                 loop {
                     let current_char = self.current_char();
-                    if is_whitespace(current_char) || current_char == 0 as char {
-                        break;
+                    match current_char {
+                        '0'..='9' => continue,
+                        _ => break,
                     }
                 }
                 return Some(self.new_token(TokenType::UnsignedInt));
-
             }
             ' ' | '\t' | '\r' | '\n' => {
-                self.cursor+=1;
-                self.peek_cursor+=1;
+                self.cursor += 1;
+                self.peek_cursor += 1;
                 self.next()
             }
             '\0' => None,
@@ -375,35 +374,35 @@ mod tests {
     #[test]
     fn test_keywords() {
         let mut hm: HashMap<&'static str, TokenType> = HashMap::new();
-        hm.insert("if",  TokenType::KeywordIf);
-        hm.insert("for",  TokenType::KeywordFor);
-        hm.insert("true",  TokenType::KeywordTrue);
-        hm.insert("false",  TokenType::KeywordFalse);
-        hm.insert("goto",  TokenType::KeywordGoto);
-        hm.insert("continue",  TokenType::KeywordContinue);
-        hm.insert("break",  TokenType::KeywordBreak);
-        hm.insert("return",  TokenType::KeywordReturn);
-        hm.insert("enum",  TokenType::KeywordEnum);
-        hm.insert("else",  TokenType::KeywordElse);
-        hm.insert("bool",  TokenType::KeywordBool);
-        hm.insert("struct",  TokenType::KeywordStruct);
-        hm.insert("void",  TokenType::KeywordVoid);
-        hm.insert("s8",  TokenType::KeywordSignedInt8);
-        hm.insert("s16",  TokenType::KeywordSignedInt16);
-        hm.insert("s32",  TokenType::KeywordSignedInt32);
-        hm.insert("s64",  TokenType::KeywordSignedInt64);
-        hm.insert("s128",  TokenType::KeywordSignedInt128);
-        hm.insert("int",  TokenType::KeywordSignedInt);
-        hm.insert("u8",  TokenType::KeywordUint8);
-        hm.insert("u16",  TokenType::KeywordUint16);
-        hm.insert("u32",  TokenType::KeywordUint32);
-        hm.insert("u64",  TokenType::KeywordUint64);
-        hm.insert("u128",  TokenType::KeywordUint128);
-        hm.insert("uint",  TokenType::KeywordUint);
-        hm.insert("string",  TokenType::KeywordString);
-        hm.insert("f64",  TokenType::KeywordFloat32);
-        hm.insert("f32",  TokenType::KeywordFloat64);
-        hm.insert("char",  TokenType::KeywordChar);
+        hm.insert("if", TokenType::KeywordIf);
+        hm.insert("for", TokenType::KeywordFor);
+        hm.insert("true", TokenType::KeywordTrue);
+        hm.insert("false", TokenType::KeywordFalse);
+        hm.insert("goto", TokenType::KeywordGoto);
+        hm.insert("continue", TokenType::KeywordContinue);
+        hm.insert("break", TokenType::KeywordBreak);
+        hm.insert("return", TokenType::KeywordReturn);
+        hm.insert("enum", TokenType::KeywordEnum);
+        hm.insert("else", TokenType::KeywordElse);
+        hm.insert("bool", TokenType::KeywordBool);
+        hm.insert("struct", TokenType::KeywordStruct);
+        hm.insert("void", TokenType::KeywordVoid);
+        hm.insert("s8", TokenType::KeywordSignedInt8);
+        hm.insert("s16", TokenType::KeywordSignedInt16);
+        hm.insert("s32", TokenType::KeywordSignedInt32);
+        hm.insert("s64", TokenType::KeywordSignedInt64);
+        hm.insert("s128", TokenType::KeywordSignedInt128);
+        hm.insert("int", TokenType::KeywordSignedInt);
+        hm.insert("u8", TokenType::KeywordUint8);
+        hm.insert("u16", TokenType::KeywordUint16);
+        hm.insert("u32", TokenType::KeywordUint32);
+        hm.insert("u64", TokenType::KeywordUint64);
+        hm.insert("u128", TokenType::KeywordUint128);
+        hm.insert("uint", TokenType::KeywordUint);
+        hm.insert("string", TokenType::KeywordString);
+        hm.insert("f64", TokenType::KeywordFloat32);
+        hm.insert("f32", TokenType::KeywordFloat64);
+        hm.insert("char", TokenType::KeywordChar);
 
         for (keyword, typ) in hm {
             let mut tokenizer = Tokenizer::new(String::from("some.file"), keyword);
