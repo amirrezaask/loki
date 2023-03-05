@@ -1,15 +1,18 @@
 use std::path::Iter;
 
-pub struct HashList<Key, Value> where Key: PartialEq {
-    pub data: Vec<(Key, Value)>
+pub struct HashList<Key, Value>
+where
+    Key: PartialEq,
+{
+    pub data: Vec<(Key, Value)>,
 }
 
-
-impl<Key, Value> HashList<Key, Value> where Key: PartialEq {
+impl<Key, Value> HashList<Key, Value>
+where
+    Key: PartialEq,
+{
     pub fn new() -> Self {
-        Self {
-            data: vec![],
-        }
+        Self { data: vec![] }
     }
     pub fn contains_key(&self, k: &Key) -> bool {
         for (key, _) in &self.data {
@@ -26,7 +29,6 @@ impl<Key, Value> HashList<Key, Value> where Key: PartialEq {
         }
 
         return keys;
-        
     }
     pub fn insert(&mut self, k: Key, v: Value) -> bool {
         let mut contains_idx: Option<usize> = None;

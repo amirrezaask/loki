@@ -3,9 +3,10 @@ use std::{collections::HashMap, ops::Deref, vec};
 use serde::Serialize;
 
 use crate::{
+    hash_list::HashList,
     ir::{self, AstTag, BinaryOperation, NodeData, NodeIndex, Statement, UnaryOperation, IR},
     stack::Stack,
-    typer::Type, hash_list::HashList,
+    typer::Type,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -842,7 +843,13 @@ impl IR {
                                 source_column: cond_node.col,
                                 payload: InstructionPayload::Jump(format!("IfEnd{}", node.id)),
                             });
-                            insts.push(Instruction { source_line: node.line, source_column: node.col, payload: InstructionPayload::Block { instructions: body_insts } })
+                            insts.push(Instruction {
+                                source_line: node.line,
+                                source_column: node.col,
+                                payload: InstructionPayload::Block {
+                                    instructions: body_insts,
+                                },
+                            })
                         }
 
                         insts.push(Instruction {
@@ -941,7 +948,15 @@ impl IR {
                         scope_insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Definition { name: format!("loop{}_iterator", node.id), ty: Type::UnsignedInt(64), mutable: true, value: Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Unsigned(0)) } },
+                            payload: InstructionPayload::Definition {
+                                name: format!("loop{}_iterator", node.id),
+                                ty: Type::UnsignedInt(64),
+                                mutable: true,
+                                value: Value {
+                                    ty: Type::UnsignedInt(64),
+                                    payload: ValuePayload::Expression(Expression::Unsigned(0)),
+                                },
+                            },
                         });
 
                         scope_insts.push(Instruction {
@@ -954,19 +969,30 @@ impl IR {
                         // sizeof(iterable) / sizeof(elem_ty)
                         // TODO: iterable if is not an identifier we should first store it in some variable then use it.
                         let iterable_node = self.get_node(*iterable).unwrap();
-                        let elem_type = iterable_node.type_information.clone().unwrap().get_array_elem_ty();
+                        let elem_type = iterable_node
+                            .type_information
+                            .clone()
+                            .unwrap()
+                            .get_array_elem_ty();
 
-                        let (iterable_insts, iterable_expr) = self.compile_expression(loop_stack, *iterable);
-                        
+                        let (iterable_insts, iterable_expr) =
+                            self.compile_expression(loop_stack, *iterable);
+
                         let sizeof_iterable = Value {
                             ty: Type::UnsignedInt(64),
-                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(iterable_expr)))
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(
+                                iterable_expr,
+                            ))),
                         };
-                        
+
                         let sizeof_iterable_elem_type = Value {
                             ty: Type::UnsignedInt(64),
-                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(Value { ty: elem_type.clone(), payload: ValuePayload::Type(elem_type.clone()) })))
-
+                            payload: ValuePayload::Expression(Expression::SizeOf(Box::new(
+                                Value {
+                                    ty: elem_type.clone(),
+                                    payload: ValuePayload::Type(elem_type.clone()),
+                                },
+                            ))),
                         };
 
                         let cond = Value {
@@ -975,16 +1001,20 @@ impl IR {
                                 operation: BinaryOperation::LessEqual,
                                 left: Box::new(Value {
                                     ty: Type::UnsignedInt(64),
-                                    payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),
+                                    payload: ValuePayload::Expression(Expression::Identifier(
+                                        format!("loop{}_iterator", node.id),
+                                    )),
                                 }),
                                 right: Box::new(Value {
                                     ty: Type::UnsignedInt(64),
-                                    payload: ValuePayload::Expression(Expression::BinaryOperation {
-                                        operation: BinaryOperation::Divide,
-                                        left: Box::new(sizeof_iterable),
-                                        right: Box::new(sizeof_iterable_elem_type),
-                                    }),
-                                })
+                                    payload: ValuePayload::Expression(
+                                        Expression::BinaryOperation {
+                                            operation: BinaryOperation::Divide,
+                                            left: Box::new(sizeof_iterable),
+                                            right: Box::new(sizeof_iterable_elem_type),
+                                        },
+                                    ),
+                                }),
                             }),
                         };
                         loop_insts.push(Instruction {
@@ -999,18 +1029,34 @@ impl IR {
                         let iterator_node = self.get_node(*iterator).unwrap();
                         let iterator_name = iterator_node.get_identifier().unwrap();
                         let iterable_name = iterable_node.get_identifier().unwrap();
-                        loop_insts.push(Instruction { 
-                            source_line: node.line, 
-                            source_column: node.col, 
-                            payload: InstructionPayload::Definition { name: iterator_name, ty: elem_type.clone(), mutable: true, value: Value {
-                                ty: elem_type,
-                                payload: ValuePayload::Expression(Expression::ArrayIndex {
-                                    arr: Box::new(Value { 
-                                        ty: iterable_node.type_information.clone().unwrap(), 
-                                        payload: ValuePayload::Expression(Expression::Identifier(iterable_name.clone()))
-                                }), 
-                                idx: Box::new(Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id)))}) }),
-                            } } 
+                        loop_insts.push(Instruction {
+                            source_line: node.line,
+                            source_column: node.col,
+                            payload: InstructionPayload::Definition {
+                                name: iterator_name,
+                                ty: elem_type.clone(),
+                                mutable: true,
+                                value: Value {
+                                    ty: elem_type,
+                                    payload: ValuePayload::Expression(Expression::ArrayIndex {
+                                        arr: Box::new(Value {
+                                            ty: iterable_node.type_information.clone().unwrap(),
+                                            payload: ValuePayload::Expression(
+                                                Expression::Identifier(iterable_name.clone()),
+                                            ),
+                                        }),
+                                        idx: Box::new(Value {
+                                            ty: Type::UnsignedInt(64),
+                                            payload: ValuePayload::Expression(
+                                                Expression::Identifier(format!(
+                                                    "loop{}_iterator",
+                                                    node.id
+                                                )),
+                                            ),
+                                        }),
+                                    }),
+                                },
+                            },
                         });
                         let mut body_insts = self.compile_scope(loop_stack, *body);
                         loop_insts.append(&mut body_insts);
@@ -1036,18 +1082,32 @@ impl IR {
                         });
                         let iterator_value = Value {
                             ty: Type::UnsignedInt(64),
-                            payload: ValuePayload::Expression(Expression::Identifier(format!("loop{}_iterator", node.id))),
+                            payload: ValuePayload::Expression(Expression::Identifier(format!(
+                                "loop{}_iterator",
+                                node.id
+                            ))),
                         };
                         scope_insts.push(Instruction {
                             source_line: node.line,
                             source_column: node.col,
-                            payload: InstructionPayload::Set { 
+                            payload: InstructionPayload::Set {
                                 lhs: iterator_value.clone(),
                                 rhs: Value {
                                     ty: Type::UnsignedInt(64),
-                                    payload: ValuePayload::Expression(Expression::BinaryOperation { operation: BinaryOperation::Sum, left: Box::new(iterator_value), right: Box::new(Value { ty: Type::UnsignedInt(64), payload: ValuePayload::Expression(Expression::Unsigned(1))}) }),
-                                } 
-                            }
+                                    payload: ValuePayload::Expression(
+                                        Expression::BinaryOperation {
+                                            operation: BinaryOperation::Sum,
+                                            left: Box::new(iterator_value),
+                                            right: Box::new(Value {
+                                                ty: Type::UnsignedInt(64),
+                                                payload: ValuePayload::Expression(
+                                                    Expression::Unsigned(1),
+                                                ),
+                                            }),
+                                        },
+                                    ),
+                                },
+                            },
                         });
                         scope_insts.push(Instruction {
                             source_line: node.line,

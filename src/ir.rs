@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::default;
 use std::ops::Deref;
 
+use super::typer::Type;
 use crate::compliation::Dependency;
+use crate::errors::Result;
 use crate::lexer::{Token, TokenType};
 use crate::stack::Stack;
-use super::typer::Type;
 use crate::utils;
-use crate::errors::Result;
-use rand::Rng;
 use rand::distributions::Alphanumeric;
 use rand::distributions::DistString;
+use rand::Rng;
 use serde::Serialize;
 type BitSize = i64;
 
@@ -43,9 +43,9 @@ pub struct Node {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NodeData {
-   Statement(Statement),
-   TypeDefinition(TypeDefinition),
-   Expression(Expression),
+    Statement(Statement),
+    TypeDefinition(TypeDefinition),
+    Expression(Expression),
 }
 
 impl Node {
@@ -62,7 +62,7 @@ impl Node {
             NodeData::Expression(Expression::Unsigned(_)) => true,
             NodeData::Expression(Expression::Signed(_)) => true,
             NodeData::Expression(Expression::Float(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -94,7 +94,6 @@ pub enum TypeDefinition {
     Enum(Vec<NodeIndex>),
 }
 
-
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum Expression {
     // Literal values
@@ -105,9 +104,8 @@ pub enum Expression {
     Bool(bool),
     Char(char),
     Identifier(String),
-    
-    Paren(NodeIndex),
 
+    Paren(NodeIndex),
 
     UnaryOperation {
         operator: UnaryOperation,
@@ -203,7 +201,7 @@ pub enum Statement {
 
     Scope {
         // this is for cases when we want to reach from an entity inside a block to it's owner like the if node that owns a block.
-        owner: NodeIndex, 
+        owner: NodeIndex,
         is_file_root: bool,
         stmts: Vec<NodeIndex>,
     },
@@ -242,7 +240,7 @@ pub struct IR {
     pub file_source: String,
     pub tokens: Vec<Token>,
     pub root: NodeIndex,
-    pub registered_indexes: Vec<NodeIndex>, 
+    pub registered_indexes: Vec<NodeIndex>,
     pub nodes: HashMap<NodeIndex, Node>,
     pub scoped_symbols: HashMap<NodeIndex, HashMap<String, Type>>,
     pub exported_symbols: HashMap<String, Type>,
@@ -251,9 +249,8 @@ pub struct IR {
 }
 
 impl IR {
-
     pub fn delete_nodes_after_index(&mut self, index: usize) {
-        let to_delete = self.registered_indexes[index+1..].to_vec();
+        let to_delete = self.registered_indexes[index + 1..].to_vec();
         for id in &to_delete {
             self.nodes.remove(id);
         }
@@ -263,7 +260,7 @@ impl IR {
     pub fn any_unknowns(&self) -> bool {
         for (_, node) in self.nodes.iter() {
             if node.type_information.is_none() {
-                return true;        
+                return true;
             }
         }
         return false;
@@ -272,7 +269,11 @@ impl IR {
         let root_node = self.nodes.get(&self.root).unwrap();
         let mut loads = vec![];
         match root_node.data {
-            NodeData::Statement(Statement::Scope { owner, is_file_root, ref stmts }) => {
+            NodeData::Statement(Statement::Scope {
+                owner,
+                is_file_root,
+                ref stmts,
+            }) => {
                 for stmt in stmts {
                     let stmt_node = self.nodes.get(stmt).unwrap();
                     match stmt_node.data {
@@ -321,6 +322,4 @@ impl IR {
         let node = self.nodes.get_mut(&index).unwrap();
         node.tags.push(tag);
     }
-
-    
 }

@@ -231,9 +231,7 @@ impl Tokenizer {
             state: State::Start,
             line: 1,
             col: 0,
-                
         }
-        
     }
 
     fn eof(&self) -> bool {
@@ -254,35 +252,65 @@ impl Tokenizer {
                 self.state = State::Start;
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(TokenType::from_str(&ident_or_keyword), (start, self.cur - 1), self.line, self.col);
+                let tok = Token::new(
+                    TokenType::from_str(&ident_or_keyword),
+                    (start, self.cur - 1),
+                    self.line,
+                    self.col,
+                );
                 return Ok(tok);
             }
 
             State::Integer(start) => {
                 self.state = State::Start;
-                return Ok(Token::new(TokenType::UnsignedInt, (start, self.cur - 1), self.line, self.col));
+                return Ok(Token::new(
+                    TokenType::UnsignedInt,
+                    (start, self.cur - 1),
+                    self.line,
+                    self.col,
+                ));
             }
             State::Float(start) => {
                 self.state = State::Start;
-                return Ok(Token::new(TokenType::Float, (start, self.cur - 1), self.line, self.col));
+                return Ok(Token::new(
+                    TokenType::Float,
+                    (start, self.cur - 1),
+                    self.line,
+                    self.col,
+                ));
             }
             State::IdentOrKeyword(start) => {
                 self.state = State::Start;
 
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(TokenType::from_str(&ident_or_keyword), (start, self.cur - 1), self.line, self.col);
+                let tok = Token::new(
+                    TokenType::from_str(&ident_or_keyword),
+                    (start, self.cur - 1),
+                    self.line,
+                    self.col,
+                );
 
                 return Ok(tok);
             }
             State::InStringLiteral(start) => {
                 self.state = State::Start;
-                let tok = Token::new(TokenType::StringLiteral, (start + 1, self.cur - 1), self.line, self.col);
+                let tok = Token::new(
+                    TokenType::StringLiteral,
+                    (start + 1, self.cur - 1),
+                    self.line,
+                    self.col,
+                );
                 self.forward_char();
                 return Ok(tok);
             }
             State::Start => {
-                return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
+                return Ok(Token::new(
+                    TokenType::EOF,
+                    (self.src.len(), self.src.len()),
+                    self.line,
+                    self.col,
+                ));
             }
             _ => {
                 return Err(CompilerError {
@@ -290,7 +318,9 @@ impl Tokenizer {
                     filename: self.filename.clone(),
                     line: self.line,
                     col: self.col,
-                    reason: Reason::TokenizerError(TokenizerError::InvalidChar { state: self.state.clone() }),
+                    reason: Reason::TokenizerError(TokenizerError::InvalidChar {
+                        state: self.state.clone(),
+                    }),
                 })
             }
         }
@@ -316,11 +346,21 @@ impl Tokenizer {
         loop {
             if self.eof() {
                 if (self.reached_eof) {
-                    return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
+                    return Ok(Token::new(
+                        TokenType::EOF,
+                        (self.src.len(), self.src.len()),
+                        self.line,
+                        self.col,
+                    ));
                 }
                 self.reached_eof = true;
                 if self.state == State::InLineComment {
-                    return Ok(Token::new(TokenType::EOF, (self.src.len(), self.src.len()), self.line, self.col));
+                    return Ok(Token::new(
+                        TokenType::EOF,
+                        (self.src.len(), self.src.len()),
+                        self.line,
+                        self.col,
+                    ));
                 }
                 return Ok(self.emit_current_token()?);
             }
@@ -334,30 +374,56 @@ impl Tokenizer {
                     match self.current_char() {
                         '{' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::OpenBrace, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::OpenBrace,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         '}' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::CloseBrace, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::CloseBrace,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         '(' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::OpenParen, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::OpenParen,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         ')' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::CloseParen, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::CloseParen,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         '[' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::OpenBracket, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::OpenBracket,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         ']' => {
                             self.forward_char();
                             return Ok(Token::new(
                                 TokenType::CloseBracket,
                                 (self.cur - 1, self.cur - 1),
-                                self.line, self.col
+                                self.line,
+                                self.col,
                             ));
                         }
                         '!' => {
@@ -398,7 +464,12 @@ impl Tokenizer {
                         '^' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(TokenType::Hat, (self.cur-1, self.cur-1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::Hat,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         '"' => {
                             self.state = State::InStringLiteral(self.cur);
@@ -437,13 +508,23 @@ impl Tokenizer {
                         }
                         ',' => {
                             self.forward_char();
-                            return Ok(Token::new(TokenType::Comma, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::Comma,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
 
                         '.' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(TokenType::Dot, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::Dot,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
 
                         ':' => {
@@ -454,7 +535,12 @@ impl Tokenizer {
                         ';' => {
                             self.state = State::Start;
                             self.forward_char();
-                            return Ok(Token::new(TokenType::SemiColon, (self.cur - 1, self.cur - 1), self.line, self.col));
+                            return Ok(Token::new(
+                                TokenType::SemiColon,
+                                (self.cur - 1, self.cur - 1),
+                                self.line,
+                                self.col,
+                            ));
                         }
                         ' ' | '\t' | '\r' => {
                             self.forward_char();
@@ -462,7 +548,7 @@ impl Tokenizer {
                         }
                         '\n' => {
                             self.forward_char();
-                            continue;;
+                            continue;
                         }
                         '#' => {
                             self.state = State::SawSharp(self.cur);
@@ -477,7 +563,8 @@ impl Tokenizer {
                 }
                 State::SawSharp(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '=' | '!' => {
+                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '='
+                    | '!' => {
                         return Ok(self.emit_current_token()?);
                     }
 
@@ -498,62 +585,106 @@ impl Tokenizer {
                             unreachable!();
                         }
                         self.forward_char();
-                        return Ok(Token::new(TokenType::Char, (c - 1, c + 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::Char,
+                            (c - 1, c + 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                 },
                 State::SawBang => match self.current_char() {
                     '=' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(TokenType::NotEqual, (self.cur - 2, self.cur - 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::NotEqual,
+                            (self.cur - 2, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(TokenType::Bang, (self.cur - 1, self.cur - 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::Bang,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                 },
-                State::SawAmpersand => {
-                    match self.current_char() {
-                        '&' => {
-                            self.state = State::Start;
-                            self.forward_char();
-                            return Ok(Token::new(TokenType::DoubleAmpersand, (self.cur - 2, self.cur - 1), self.line, self.col));
-                        }
-                        _ => {
-                            self.state = State::Start;
-                            return Ok(Token::new(TokenType::Ampersand, (self.cur - 1, self.cur - 1), self.line, self.col));
-                        }
+                State::SawAmpersand => match self.current_char() {
+                    '&' => {
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(Token::new(
+                            TokenType::DoubleAmpersand,
+                            (self.cur - 2, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
-
-                }
-                State::SawPipe => {
-                    match self.current_char() {
-                        '|' => {
-                            self.state = State::Start;
-                            self.forward_char();
-                            return Ok(Token::new(TokenType::DoublePipe, (self.cur - 2, self.cur - 1), self.line, self.col));
-                        }
-                        _ => {
-                            self.state = State::Start;
-                            return Ok(Token::new(TokenType::Pipe, (self.cur - 1, self.cur - 1), self.line, self.col));
-                        }
+                    _ => {
+                        self.state = State::Start;
+                        return Ok(Token::new(
+                            TokenType::Ampersand,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
-
-                }
+                },
+                State::SawPipe => match self.current_char() {
+                    '|' => {
+                        self.state = State::Start;
+                        self.forward_char();
+                        return Ok(Token::new(
+                            TokenType::DoublePipe,
+                            (self.cur - 2, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
+                    }
+                    _ => {
+                        self.state = State::Start;
+                        return Ok(Token::new(
+                            TokenType::Pipe,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
+                    }
+                },
                 State::SawColon => match self.current_char() {
                     ':' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(TokenType::DoubleColon, (self.cur - 2, self.cur - 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::DoubleColon,
+                            (self.cur - 2, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                     '=' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(TokenType::ColonEqual, (self.cur - 2, self.cur - 1), self.line, self.col));
-                    } 
+                        return Ok(Token::new(
+                            TokenType::ColonEqual,
+                            (self.cur - 2, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
+                    }
                     _ => {
                         self.state = State::Start;
-                        let tok = Token::new(TokenType::Colon, (self.cur - 1, self.cur - 1), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::Colon,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        );
                         return Ok(tok);
                     }
                 },
@@ -561,11 +692,21 @@ impl Tokenizer {
                     '=' => {
                         self.state = State::Start;
                         self.forward_char();
-                        return Ok(Token::new(TokenType::DoubleEqual, (self.cur - 1, self.cur), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::DoubleEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        ));
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(TokenType::Equal, (self.cur - 1, self.cur - 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::Equal,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                 },
                 State::InStringLiteral(start) => match self.current_char() {
@@ -580,30 +721,55 @@ impl Tokenizer {
                 State::SawLeftAngleBracket => match self.current_char() {
                     '=' => {
                         self.state = State::Start;
-                        let tok = Token::new(TokenType::LessEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::LessEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.forward_char();
                         return Ok(tok);
                     }
                     '<' => {
                         self.state = State::Start;
-                        let tok = Token::new(TokenType::DoubleLeftAngle, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::DoubleLeftAngle,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(TokenType::LeftAngle, (self.cur - 1, self.cur - 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::LeftAngle,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                 },
                 State::SawRightAngleBracket => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(TokenType::GreaterEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::GreaterEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.forward_char();
                         self.state = State::Start;
                         return Ok(tok);
                     }
                     '>' => {
-                        let tok = Token::new(TokenType::DoubleRightAngle, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::DoubleRightAngle,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.forward_char();
                         self.state = State::Start;
 
@@ -611,13 +777,19 @@ impl Tokenizer {
                     }
                     _ => {
                         self.state = State::Start;
-                        return Ok(Token::new(TokenType::RightAngle, (self.cur - 1, self.cur - 1), self.line, self.col));
+                        return Ok(Token::new(
+                            TokenType::RightAngle,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        ));
                     }
                 },
 
                 State::IdentOrKeyword(_) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '.'
-                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
+                    | '{' | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '='
+                    | '!' => {
                         return Ok(self.emit_current_token()?);
                     }
                     _ => {
@@ -627,7 +799,7 @@ impl Tokenizer {
                 },
                 State::Float(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
-                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
+                    | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '=' | '!' => {
                         return Ok(self.emit_current_token()?);
                     }
                     '.' => {
@@ -640,7 +812,7 @@ impl Tokenizer {
                 },
                 State::Integer(start) => match self.current_char() {
                     ' ' | '\t' | '\n' | '\r' | ':' | ';' | '(' | ')' | ',' | '+' | '-' | '{'
-                    | '}' | '[' | ']' | '^'| '*' | '&' | '/' | '%'| '<' | '>' | '=' | '!' => {
+                    | '}' | '[' | ']' | '^' | '*' | '&' | '/' | '%' | '<' | '>' | '=' | '!' => {
                         return Ok(self.emit_current_token()?);
                     }
                     '.' => {
@@ -655,19 +827,34 @@ impl Tokenizer {
                 },
                 State::SawPlus => match self.current_char() {
                     '+' => {
-                        let tok = Token::new(TokenType::DoublePlus, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::DoublePlus,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     '=' => {
-                        let tok = Token::new(TokenType::PlusEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::PlusEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(TokenType::Plus, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::Plus,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -675,19 +862,34 @@ impl Tokenizer {
 
                 State::SawMinus => match self.current_char() {
                     '-' => {
-                        let tok = Token::new(TokenType::DoubleMinus, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::DoubleMinus,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     '=' => {
-                        let tok = Token::new(TokenType::MinusEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::MinusEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(TokenType::Minus, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::Minus,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -699,7 +901,12 @@ impl Tokenizer {
                         continue;
                     }
                     '=' => {
-                        let tok = Token::new(TokenType::DivEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::DivEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
@@ -710,7 +917,12 @@ impl Tokenizer {
                         continue;
                     }
                     _ => {
-                        let tok = Token::new(TokenType::ForwardSlash, (self.cur - 1, self.cur - 1), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::ForwardSlash,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -734,26 +946,46 @@ impl Tokenizer {
                 },
                 State::SawAstrix => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(TokenType::MulEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::MulEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(TokenType::Asterix, (self.cur - 1, self.cur - 1), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::Asterix,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         return Ok(tok);
                     }
                 },
                 State::SawPercent => match self.current_char() {
                     '=' => {
-                        let tok = Token::new(TokenType::ModEqual, (self.cur - 1, self.cur), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::ModEqual,
+                            (self.cur - 1, self.cur),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         self.forward_char();
                         return Ok(tok);
                     }
                     _ => {
-                        let tok = Token::new(TokenType::Percent, (self.cur - 1, self.cur - 1), self.line, self.col);
+                        let tok = Token::new(
+                            TokenType::Percent,
+                            (self.cur - 1, self.cur - 1),
+                            self.line,
+                            self.col,
+                        );
                         self.state = State::Start;
                         return Ok(tok);
                     }
@@ -790,7 +1022,7 @@ fn floats() {
 #[test]
 fn integers() {
     let src = "123";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let num = tokenizer.next();
 
@@ -801,7 +1033,7 @@ fn integers() {
 #[test]
 fn const_decl_char() -> Result<()> {
     let src = "c :: 'c';";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -826,7 +1058,7 @@ fn const_decl_char() -> Result<()> {
 #[test]
 fn const_decl_with_ti() -> Result<()> {
     let src = "f :u32: 12;";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -864,7 +1096,7 @@ fn const_decl_with_ti() -> Result<()> {
 #[test]
 fn const_decl() {
     let src = "f :: 12;";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -888,7 +1120,7 @@ fn const_decl() {
 #[test]
 fn const_decl_fn() {
     let src = "main :: (x: int, y: uint) void {\n\t printf(\"Hello World\");\n};";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -989,7 +1221,7 @@ fn const_decl_fn() {
 #[test]
 fn fn_sign() {
     let src = "(x: int, y: uint) void";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -1045,7 +1277,7 @@ fn fn_sign() {
 #[test]
 fn var_decl() {
     let src = "f := 12;";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     let tok = tok.unwrap();
@@ -1069,7 +1301,7 @@ fn var_decl() {
 #[test]
 fn var_decl_with_ti() -> Result<()> {
     let src = "f :u32 = 12;";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1107,7 +1339,7 @@ fn var_decl_with_ti() -> Result<()> {
 #[test]
 fn strings() {
     let src = "\"amirreza\"";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
 
@@ -1118,7 +1350,7 @@ fn strings() {
 #[test]
 fn load_directive() {
     let src = "#load \"stdio\";";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1142,7 +1374,7 @@ fn load_directive() {
 #[test]
 fn host_directive() {
     let src = "#host \"cstdio\";";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
     assert!(tok.is_ok());
@@ -1165,7 +1397,7 @@ fn host_directive() {
 #[test]
 fn for_c() {
     let src = "for (i := 0; i < 10; i++) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
 
@@ -1296,7 +1528,7 @@ fn for_c() {
 #[test]
 fn for_while() {
     let src = "for (i < 10) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
 
@@ -1378,7 +1610,7 @@ fn for_while() {
 #[test]
 fn for_each() {
     let src = "for (i in items) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
 
@@ -1459,7 +1691,7 @@ fn for_each() {
 #[test]
 fn if_stmt() {
     let src = "if (i < 10) {\n\tprint(i);\n}";
-    let mut tokenizer = Tokenizer::new("".to_string(),src);
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
 
     let tok = tokenizer.next();
 
@@ -1600,8 +1832,6 @@ fn if_stmt() {
 
 //     Ok(())
 // }
-
-
 
 // #[test]
 // fn ident_deref() -> Result<()> {

@@ -21,7 +21,7 @@ fn suite() -> Result<()> {
         "examples/pointers.loki",
         "examples/sizeandcast.loki",
         "examples/euler/01.loki",
-        "examples/euler/02.loki"
+        "examples/euler/02.loki",
     ];
     let mut results: Vec<Result<()>> = vec![];
     let mut has_error = false;
@@ -33,18 +33,20 @@ fn suite() -> Result<()> {
         match compliation::Compilation::new(file, false, false) {
             Ok(_) => {
                 success += 1;
-            },
+            }
             Err(e) => {
                 has_error = true;
-                failed+=1;
+                failed += 1;
                 println!("Error: test file {:?} error:\n {:?}", file, e);
             }
         }
     }
 
     println!("=========================Results=============================");
-    println!("{} test files\n{} success\n{} failed.", counter, success, failed);
-
+    println!(
+        "{} test files\n{} success\n{} failed.",
+        counter, success, failed
+    );
 
     if has_error {
         return Err(anyhow::format_err!("FAILED"));

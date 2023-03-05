@@ -94,7 +94,12 @@ impl Compilation {
         let type_check_time_start = Instant::now();
         let main_ir = compilation.irs.get_mut(&main_file_abs_path).unwrap();
         // now we have all of our files used in our program in compilation.IRs
-        let keys: Vec<File> = compilation.irs.data.iter().map(|(k, _)| k.clone()).collect();
+        let keys: Vec<File> = compilation
+            .irs
+            .data
+            .iter()
+            .map(|(k, _)| k.clone())
+            .collect();
         let mut keys_index: usize = 0;
         let mut finished_type_checking = 0;
         loop {
@@ -192,7 +197,6 @@ impl Compilation {
         .to_string_lossy()
         .to_string();
 
-
         let bin_name = format!("{}.out", bin_name);
         let out_file_name = &format!("{}.c", main_file);
         let writing_generated_code_into_disk = Instant::now();
@@ -229,7 +233,14 @@ impl Compilation {
                 "Backend code generation took {}ns",
                 backend_code_generation_elapsed.as_nanos()
             );
-            println!("Our side took {}millis", (frontend_elapsed + type_check_elapsed + byte_code_generation_elapsed + backend_code_generation_elapsed).as_millis());
+            println!(
+                "Our side took {}millis",
+                (frontend_elapsed
+                    + type_check_elapsed
+                    + byte_code_generation_elapsed
+                    + backend_code_generation_elapsed)
+                    .as_millis()
+            );
             println!(
                 "Writing generated code to disk {}ns",
                 writing_generated_code_into_disk.as_nanos()

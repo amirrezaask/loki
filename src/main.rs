@@ -1,18 +1,18 @@
 #![allow(clippy::needless_return)]
 #![allow(warnings, unused)]
-mod parser;
-mod stack;
-mod lexer;
-mod typer;
-mod sema;
-mod utils;
-mod compliation;
-mod ir;
-mod errors;
 mod bytecode;
 mod c_backend;
+mod compliation;
+mod errors;
 mod hash_list;
+mod ir;
+mod lexer;
+mod parser;
+mod sema;
+mod stack;
 mod tests;
+mod typer;
+mod utils;
 use anyhow::Result;
 use std::env;
 

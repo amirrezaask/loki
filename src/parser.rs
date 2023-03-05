@@ -915,7 +915,12 @@ impl Parser {
             TokenType::KeywordGoto => {
                 self.forward_token();
                 let label = self.expect_ident()?;
-                return Ok(self.new_node(self.new_index(), NodeData::Statement(Statement::Goto(label.id)), self.current_line(), self.current_col()));
+                return Ok(self.new_node(
+                    self.new_index(),
+                    NodeData::Statement(Statement::Goto(label.id)),
+                    self.current_line(),
+                    self.current_col(),
+                ));
             }
 
             TokenType::KeywordContinue => {
