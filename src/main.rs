@@ -8,7 +8,6 @@ mod hash_list;
 mod ir;
 mod lexer;
 mod parser;
-mod sema;
 mod stack;
 mod tests;
 mod typer;
