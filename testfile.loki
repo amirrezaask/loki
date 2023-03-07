@@ -1,5 +1,5 @@
 #load "print"
 
 main :: () int {
-    a :f32= "string";
+    a:f32 = "string";
 }

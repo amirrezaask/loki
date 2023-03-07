@@ -1,3 +1,5 @@
+#load "print"
+
 constant_uint :: 2;
 constant_float :: 2.2;
 constant_char :: 'c';
@@ -23,4 +25,6 @@ c2 :: c1;
 
 main :: () int {
     c2 :: c1;
+
+    printf("Hello %s", constant_string);
 }
