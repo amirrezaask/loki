@@ -1821,19 +1821,19 @@ fn struct_def() -> Result<()> {
 //     Ok(())
 // }
 
-// #[test]
-// fn comments() -> Result<()> {
-//     let src = "
-// // first comment
-// /* second comment */
-// ";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+#[test]
+fn comments() -> Result<()> {
+    let src = "
+// first comment
+/* second comment */
+";
+    let mut tokenizer = Tokenizer::new("some".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     assert_eq!(tokens, vec![]);
+    assert_eq!(tokens, vec![]);
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 // #[test]
 // fn ident_deref() -> Result<()> {
@@ -1849,19 +1849,22 @@ fn struct_def() -> Result<()> {
 //     Ok(())
 // }
 
-// #[test]
-// fn ident_ref() -> Result<()> {
-//     let src = "&a";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+#[test]
+fn ident_ref() -> Result<()> {
+    let src = "&a";
+    let mut tokenizer = Tokenizer::new("".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     assert_eq!(tokens, vec![
-//         Token::new(TokenType::Ampersand, (0, 0)),
-//         Token::new(TokenType::Ident, (1,1))
-//     ]);
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Ampersand, (0, 0), 1, 2),
+            Token::new(TokenType::Ident, (1, 1), 1, 3)
+        ]
+    );
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 #[test]
 fn div_equal_ref() -> Result<()> {
@@ -1869,12 +1872,14 @@ fn div_equal_ref() -> Result<()> {
     let mut tokenizer = Tokenizer::new("some".to_string(), src);
     let tokens = tokenizer.all()?;
 
-    assert_eq!(tokens, vec![
-        Token::new(TokenType::Ident, (0, 5), 1, 7),
-        Token::new(TokenType::DivEqual, (6,7), 1, 9),
-        Token::new(TokenType::UnsignedInt, (8,8),1, 10)
-
-    ]);
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Ident, (0, 5), 1, 7),
+            Token::new(TokenType::DivEqual, (6, 7), 1, 9),
+            Token::new(TokenType::UnsignedInt, (8, 8), 1, 10)
+        ]
+    );
 
     Ok(())
 }
