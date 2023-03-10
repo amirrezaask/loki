@@ -1771,30 +1771,30 @@ fn if_stmt() {
     assert_eq!("}", &src[tok.loc.0..=tok.loc.1]);
 }
 
-// #[test]
-// fn struct_def() -> Result<()> {
-//     let src = "struct { i: int, s: string }";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+#[test]
+fn struct_def() -> Result<()> {
+    let src = "struct { i: int, s: string }";
+    let mut tokenizer = Tokenizer::new("file.txt".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     assert_eq!(
-//         tokens,
-//         vec![
-//             Token::new(TokenType::KeywordStruct, (0, 5)),
-//             Token::new(TokenType::OpenBrace, (7, 7)),
-//             Token::new(TokenType::Ident, (9, 9)),
-//             Token::new(TokenType::Colon, (10, 10)),
-//             Token::new(TokenType::KeywordInt, (12, 14)),
-//             Token::new(TokenType::Comma, (15, 15)),
-//             Token::new(TokenType::Ident, (17, 17)),
-//             Token::new(TokenType::Colon, (18, 18)),
-//             Token::new(TokenType::KeywordString, (20, 25)),
-//             Token::new(TokenType::CloseBrace, (27, 27))
-//         ]
-//     );
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::KeywordStruct, (0, 5), 1, 7),
+            Token::new(TokenType::OpenBrace, (7, 7), 1, 9),
+            Token::new(TokenType::Ident, (9, 9), 1, 12),
+            Token::new(TokenType::Colon, (10, 10), 1, 14),
+            Token::new(TokenType::KeywordInt, (12, 14), 1, 19),
+            Token::new(TokenType::Comma, (15, 15), 1, 20),
+            Token::new(TokenType::Ident, (17, 17), 1, 23),
+            Token::new(TokenType::Colon, (18, 18), 1, 25),
+            Token::new(TokenType::KeywordString, (20, 25), 1, 33),
+            Token::new(TokenType::CloseBrace, (27, 27), 1, 35)
+        ]
+    );
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 // #[test]
 // fn struct_init() -> Result<()> {
@@ -1863,43 +1863,46 @@ fn if_stmt() {
 //     Ok(())
 // }
 
-// #[test]
-// fn div_equal_ref() -> Result<()> {
-//     let src = "number/=3";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+#[test]
+fn div_equal_ref() -> Result<()> {
+    let src = "number/=3";
+    let mut tokenizer = Tokenizer::new("some".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     assert_eq!(tokens, vec![
-//         Token::new(TokenType::Ident, (0, 5)),
-//         Token::new(TokenType::DivEqual, (6,7)),
-//         Token::new(TokenType::UnsignedInt, (8,8))
+    assert_eq!(tokens, vec![
+        Token::new(TokenType::Ident, (0, 5), 1, 7),
+        Token::new(TokenType::DivEqual, (6,7), 1, 9),
+        Token::new(TokenType::UnsignedInt, (8,8),1, 10)
 
-//     ]);
+    ]);
 
-//     Ok(())
-// }
-// #[test]
-// fn new_pointer() -> Result<()> {
-//     let src = ">>";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+    Ok(())
+}
 
-//     assert_eq!(tokens, vec![
-//         Token::new(TokenType::DoubleRightAngle, (0, 1)),
-//     ]);
+#[test]
+fn new_pointer() -> Result<()> {
+    let src = ">>";
+    let mut tokenizer = Tokenizer::new("some".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     Ok(())
-// }
+    assert_eq!(
+        tokens,
+        vec![Token::new(TokenType::DoubleRightAngle, (0, 1), 1, 2),]
+    );
 
-// #[test]
-// fn new_deref() -> Result<()> {
-//     let src = "<<";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+    Ok(())
+}
 
-//     assert_eq!(tokens, vec![
-//         Token::new(TokenType::DoubleLeftAngle, (0, 1)),
-//     ]);
+#[test]
+fn new_deref() -> Result<()> {
+    let src = "<<";
+    let mut tokenizer = Tokenizer::new("some".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     Ok(())
-// }
+    assert_eq!(
+        tokens,
+        vec![Token::new(TokenType::DoubleLeftAngle, (0, 1), 1, 2),]
+    );
+
+    Ok(())
+}
