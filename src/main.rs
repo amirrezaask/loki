@@ -7,6 +7,7 @@ mod errors;
 mod hash_list;
 mod ir;
 mod lexer;
+mod new_lexer;
 mod parser;
 mod stack;
 mod tests;

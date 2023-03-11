@@ -223,6 +223,14 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
+    fn new_token(&self, t: TokenType, loc: SrcLocation) -> Token {
+        return Token {
+            ty: t,
+            loc,
+            line: self.line,
+            col: self.col,
+        };
+    }
     pub fn new(filename: String, src: &str) -> Self {
         Tokenizer {
             filename,
@@ -254,65 +262,41 @@ impl Tokenizer {
                 self.state = State::Start;
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(
+                let tok = self.new_token(
                     TokenType::from_str(&ident_or_keyword),
                     (start, self.cur - 1),
-                    self.line,
-                    self.col,
                 );
                 return Ok(tok);
             }
 
             State::Integer(start) => {
                 self.state = State::Start;
-                return Ok(Token::new(
-                    TokenType::UnsignedInt,
-                    (start, self.cur - 1),
-                    self.line,
-                    self.col,
-                ));
+                return Ok(self.new_token(TokenType::UnsignedInt, (start, self.cur - 1)));
             }
             State::Float(start) => {
                 self.state = State::Start;
-                return Ok(Token::new(
-                    TokenType::Float,
-                    (start, self.cur - 1),
-                    self.line,
-                    self.col,
-                ));
+                return Ok(self.new_token(TokenType::Float, (start, self.cur - 1)));
             }
             State::IdentOrKeyword(start) => {
                 self.state = State::Start;
 
                 let ident_or_keyword: String =
                     self.src[start..self.cur].to_vec().into_iter().collect();
-                let tok = Token::new(
+                let tok = self.new_token(
                     TokenType::from_str(&ident_or_keyword),
                     (start, self.cur - 1),
-                    self.line,
-                    self.col,
                 );
 
                 return Ok(tok);
             }
             State::InStringLiteral(start) => {
                 self.state = State::Start;
-                let tok = Token::new(
-                    TokenType::StringLiteral,
-                    (start + 1, self.cur - 1),
-                    self.line,
-                    self.col,
-                );
+                let tok = self.new_token(TokenType::StringLiteral, (start + 1, self.cur - 1));
                 self.forward_char();
                 return Ok(tok);
             }
             State::Start => {
-                return Ok(Token::new(
-                    TokenType::EOF,
-                    (self.src.len(), self.src.len()),
-                    self.line,
-                    self.col,
-                ));
+                return Ok(self.new_token(TokenType::EOF, (self.src.len(), self.src.len())));
             }
             _ => {
                 return Err(CompilerError {
@@ -348,21 +332,11 @@ impl Tokenizer {
         loop {
             if self.eof() {
                 if (self.reached_eof) {
-                    return Ok(Token::new(
-                        TokenType::EOF,
-                        (self.src.len(), self.src.len()),
-                        self.line,
-                        self.col,
-                    ));
+                    return Ok(self.new_token(TokenType::EOF, (self.src.len(), self.src.len())));
                 }
                 self.reached_eof = true;
                 if self.state == State::InLineComment {
-                    return Ok(Token::new(
-                        TokenType::EOF,
-                        (self.src.len(), self.src.len()),
-                        self.line,
-                        self.col,
-                    ));
+                    return Ok(self.new_token(TokenType::EOF, (self.src.len(), self.src.len())));
                 }
                 return Ok(self.emit_current_token()?);
             }
@@ -1835,19 +1809,22 @@ fn comments() -> Result<()> {
     Ok(())
 }
 
-// #[test]
-// fn ident_deref() -> Result<()> {
-//     let src = "*a";
-//     let mut tokenizer = Tokenizer::new(src);
-//     let tokens = tokenizer.all()?;
+#[test]
+fn ident_deref() -> Result<()> {
+    let src = "*a";
+    let mut tokenizer = Tokenizer::new("some".to_string(), src);
+    let tokens = tokenizer.all()?;
 
-//     assert_eq!(tokens, vec![
-//         Token::new(TokenType::Asterix, (0, 0)),
-//         Token::new(TokenType::Ident, (1,1)),
-//     ]);
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Asterix, (0, 0), 1, 0),
+            Token::new(TokenType::Ident, (1, 1), 1, 1),
+        ]
+    );
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 #[test]
 fn ident_ref() -> Result<()> {
