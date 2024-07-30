@@ -2,6 +2,9 @@
 
 Loki is an experimental programming language that I am building both to learn more about compilers and test ideas about language design.
 
+## Disclaimer
+Since I don't find rust to be a productive language anymore I am now trying to implement a similar langauge in GO which I will open source soon.
+
 ## Installation
 
 ```bash
